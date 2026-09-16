@@ -46,29 +46,48 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
-app.use(
-  cors({
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:3000",
-      "https://rootfin.vercel.app",
-      "https://rootfin.rootments.live",
-      "https://rootfin-testenv-clab.vercel.app",
-      "https://rootfin-testenv-3.onrender.com",
-      "https://rootfin-testenv-ebb5.onrender.com",
-      "https://api.rootments.live",
-      "https://rootfin-production.vercel.app",
-      "https://rootfin.brynex.com",
-      "https://rootfin-brynex-testenv.vercel.app"
-    ],
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "x-user-id", "x-user-name", "user"],
-  })
-);
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://rootfin.vercel.app",
+  "https://rootfin.rootments.live",
+  "https://rootfin-testenv-clab.vercel.app",
+  "https://rootfin-testenv-3.onrender.com",
+  "https://rootfin-testenv-ebb5.onrender.com",
+  "https://api.rootments.live",
+  "https://rootfin-production.vercel.app",
+  "https://rootfin.brynex.com",
+  "https://rootfin-brynex-testenv.vercel.app",
+  "https://brynex-jewels-bnwf.vercel.app"
+];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. mobile apps, curl, or Postman)
+    if (!origin) return callback(null, true);
+
+    if (
+      allowedOrigins.includes(origin) ||
+      /\.vercel\.app$/.test(origin) ||
+      /\.onrender\.com$/.test(origin) ||
+      /\.rootments\.live$/.test(origin) ||
+      /\.brynex\.com$/.test(origin) ||
+      /^http:\/\/localhost(:\d+)?$/.test(origin)
+    ) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS origin not allowed: ${origin}`));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "x-user-id", "x-user-name", "user"],
+};
+
+app.use(cors(corsOptions));
 
 // Handle preflight requests
-app.options("*", cors());
+app.options("*", cors(corsOptions));
 
 // ── routes ──────────────────────────────────────────────────
 app.get("/", (_req, res) => res.send("App is running on AWS"));
