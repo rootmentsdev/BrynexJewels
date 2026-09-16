@@ -1,9 +1,14 @@
-// Updated to use PostgreSQL (Sequelize) instead of MongoDB
-import { Vendor, VendorHistory } from "../models/sequelize/index.js";
-// Import MongoDB model for dual-save
-import MongoVendor from "../model/Vendor.js";
-import { randomUUID } from 'crypto';
+import Vendor from "../model/Vendor.js";
+import VendorHistory from "../model/VendorHistory.js";
 import { logVendorActivity, getOriginatorName } from "../utils/vendorHistoryLogger.js";
+
+// Helper function to format vendor object for frontend compatibility
+const formatVendor = (vendorDoc) => {
+  if (!vendorDoc) return null;
+  const obj = vendorDoc.toObject ? vendorDoc.toObject() : { ...vendorDoc };
+  obj.id = obj._id.toString();
+  return obj;
+};
 
 // Create a new vendor
 export const createVendor = async (req, res) => {
@@ -23,48 +28,8 @@ export const createVendor = async (req, res) => {
       vendorData.bankAccounts = [];
     }
 
-    // Generate UUID for new vendors if id not provided
-    if (!vendorData.id) {
-      vendorData.id = randomUUID();
-    }
-
     const vendor = await Vendor.create(vendorData);
-    const vendorJson = vendor.toJSON();
-
-    // DUAL-SAVE: Also save to MongoDB for safety/redundancy
-    try {
-      console.log(`💾 Dual-saving vendor to MongoDB for safety...`);
-      
-      const mongoVendorData = {
-        salutation: vendorData.salutation,
-        firstName: vendorData.firstName,
-        lastName: vendorData.lastName,
-        companyName: vendorData.companyName,
-        displayName: vendorData.displayName,
-        email: vendorData.email,
-        phone: vendorData.phone,
-        mobile: vendorData.mobile,
-        website: vendorData.website,
-        gstTreatment: vendorData.gstTreatment,
-        gstin: vendorData.gstin,
-        panNumber: vendorData.panNumber,
-        paymentTerms: vendorData.paymentTerms,
-        currency: vendorData.currency,
-        openingBalance: vendorData.openingBalance || 0,
-        isActive: vendorData.isActive !== false,
-        userId: vendorData.userId,
-        postgresqlId: vendor.id,
-        // Add other fields as needed
-        contacts: vendorData.contacts || [],
-        bankAccounts: vendorData.bankAccounts || [],
-      };
-      
-      await MongoVendor.create(mongoVendorData);
-      console.log(`✅ Successfully saved vendor to MongoDB`);
-    } catch (mongoError) {
-      console.error(`⚠️  Failed to save vendor to MongoDB (PostgreSQL save was successful):`, mongoError);
-      // Don't fail the entire operation if MongoDB save fails
-    }
+    const vendorJson = formatVendor(vendor);
 
     // Log vendor creation activity
     if (vendorJson.id) {
@@ -127,7 +92,7 @@ export const createVendor = async (req, res) => {
     res.status(201).json(vendorJson);
   } catch (error) {
     console.error("Create vendor error:", error);
-    if (error.name === 'SequelizeUniqueConstraintError') {
+    if (error.code === 11000) {
       return res.status(409).json({ message: "Vendor already exists" });
     }
     res.status(500).json({ message: "Server error", error: error.message });
@@ -139,22 +104,18 @@ export const getVendors = async (req, res) => {
   try {
     const { userId, userPower } = req.query;
 
-    const whereClause = {};
+    const query = {};
 
     // Filter by user email only - admin users see all data
     const isAdmin = userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin');
 
     if (!isAdmin && userId) {
-      whereClause.userId = userId;
+      query.userId = userId;
     }
-    // If admin, no userId filter - show all vendors
 
-    const vendors = await Vendor.findAll({
-      where: whereClause,
-      order: [['createdAt', 'DESC']],
-    });
+    const vendors = await Vendor.find(query).sort({ createdAt: -1 });
 
-    res.status(200).json(vendors.map(vendor => vendor.toJSON()));
+    res.status(200).json(vendors.map(formatVendor));
   } catch (error) {
     console.error("Get vendors error:", error);
     res.status(500).json({ message: "Server error", error: error.message });
@@ -165,13 +126,13 @@ export const getVendors = async (req, res) => {
 export const getVendorById = async (req, res) => {
   try {
     const { id } = req.params;
-    const vendor = await Vendor.findByPk(id);
+    const vendor = await Vendor.findById(id);
 
     if (!vendor) {
       return res.status(404).json({ message: "Vendor not found" });
     }
 
-    res.status(200).json(vendor.toJSON());
+    res.status(200).json(formatVendor(vendor));
   } catch (error) {
     console.error("Get vendor error:", error);
     res.status(500).json({ message: "Server error", error: error.message });
@@ -183,14 +144,12 @@ export const updateVendor = async (req, res) => {
   try {
     const { id } = req.params;
     const vendorData = req.body;
-    console.log(`Updating vendor ${id}:`, JSON.stringify(vendorData, null, 2));
 
-    // Get existing vendor BEFORE update to compare changes
-    const existingVendor = await Vendor.findByPk(id);
+    const existingVendor = await Vendor.findById(id);
     if (!existingVendor) {
       return res.status(404).json({ message: "Vendor not found" });
     }
-    const existingVendorJson = existingVendor.toJSON();
+    const existingVendorJson = formatVendor(existingVendor);
 
     // Ensure contacts and bankAccounts are arrays if provided
     if (vendorData.contacts && !Array.isArray(vendorData.contacts)) {
@@ -201,18 +160,12 @@ export const updateVendor = async (req, res) => {
     }
 
     // Update the vendor
-    const [updatedRows] = await Vendor.update(vendorData, {
-      where: { id },
-      returning: true,
-    });
-
-    if (updatedRows === 0) {
+    const updatedVendor = await Vendor.findByIdAndUpdate(id, { $set: vendorData }, { new: true });
+    if (!updatedVendor) {
       return res.status(404).json({ message: "Vendor not found" });
     }
 
-    // Fetch updated vendor to get new values
-    const vendor = await Vendor.findByPk(id);
-    const vendorJson = vendor.toJSON();
+    const vendorJson = formatVendor(updatedVendor);
 
     const originator = getOriginatorName(
       null,
@@ -221,7 +174,7 @@ export const updateVendor = async (req, res) => {
     );
 
     // Helper function to detect changes
-    const detectChanges = (oldData, newData, vendorData) => {
+    const detectChanges = (oldData, newData, vendorDataInput) => {
       const changes = [];
       const fieldsToTrack = [
         { key: 'displayName', label: 'Display Name' },
@@ -249,21 +202,20 @@ export const updateVendor = async (req, res) => {
         { key: 'status', label: 'Status' },
       ];
 
-      // Check only fields that were actually provided in the update
-      const updatedFields = Object.keys(vendorData).filter(key =>
+      const updatedFields = Object.keys(vendorDataInput).filter(key =>
         key !== 'contacts' &&
         key !== 'bankAccounts' &&
         key !== 'id' &&
+        key !== '_id' &&
         key !== 'userId' &&
         key !== 'createdAt' &&
         key !== 'updatedAt'
       );
 
       fieldsToTrack.forEach(field => {
-        // Only check if this field was in the update request
         if (updatedFields.includes(field.key)) {
           const oldVal = String(oldData[field.key] || '').trim();
-          const newVal = String(vendorData[field.key] || '').trim();
+          const newVal = String(vendorDataInput[field.key] || '').trim();
 
           if (oldVal !== newVal) {
             if (newVal) {
@@ -278,7 +230,7 @@ export const updateVendor = async (req, res) => {
       return changes;
     };
 
-    // Detect changes (only check fields that were actually updated)
+    // Detect changes
     const changes = detectChanges(existingVendorJson, vendorJson, vendorData);
 
     // Log vendor update activity if there are changes
@@ -308,7 +260,6 @@ export const updateVendor = async (req, res) => {
       const existingContacts = existingVendorJson?.contacts || [];
       const existingEmails = new Set(existingContacts.map(c => c.email).filter(Boolean));
 
-      // Log new contact persons
       for (const contact of vendorData.contacts) {
         if (contact.email && !existingEmails.has(contact.email)) {
           await logVendorActivity({
@@ -331,56 +282,6 @@ export const updateVendor = async (req, res) => {
     }
 
     res.status(200).json(vendorJson);
-    
-    // DUAL-SAVE: Also update in MongoDB for safety/redundancy
-    try {
-      console.log(`💾 Dual-updating vendor in MongoDB for safety...`);
-      
-      // Find MongoDB record by PostgreSQL ID
-      const mongoVendor = await MongoVendor.findOne({
-        postgresqlId: id
-      });
-      
-      if (mongoVendor) {
-        // Prepare update data for MongoDB
-        const mongoUpdateData = {
-          displayName: vendorData.displayName || vendorJson.displayName,
-          companyName: vendorData.companyName || vendorJson.companyName,
-          firstName: vendorData.firstName || vendorJson.firstName,
-          lastName: vendorData.lastName || vendorJson.lastName,
-          email: vendorData.email || vendorJson.email,
-          phone: vendorData.phone || vendorJson.phone,
-          mobile: vendorData.mobile || vendorJson.mobile,
-          gstTreatment: vendorData.gstTreatment || vendorJson.gstTreatment,
-          gstin: vendorData.gstin || vendorJson.gstin,
-          pan: vendorData.pan || vendorJson.pan,
-          sourceOfSupply: vendorData.sourceOfSupply || vendorJson.sourceOfSupply,
-          currency: vendorData.currency || vendorJson.currency,
-          paymentTerms: vendorData.paymentTerms || vendorJson.paymentTerms,
-          billingAddress: vendorData.billingAddress || vendorJson.billingAddress,
-          billingCity: vendorData.billingCity || vendorJson.billingCity,
-          billingState: vendorData.billingState || vendorJson.billingState,
-          billingPinCode: vendorData.billingPinCode || vendorJson.billingPinCode,
-          shippingAddress: vendorData.shippingAddress || vendorJson.shippingAddress,
-          shippingCity: vendorData.shippingCity || vendorJson.shippingCity,
-          shippingState: vendorData.shippingState || vendorJson.shippingState,
-          shippingPinCode: vendorData.shippingPinCode || vendorJson.shippingPinCode,
-          isActive: vendorData.isActive !== undefined ? vendorData.isActive : vendorJson.isActive,
-          status: vendorData.status || vendorJson.status,
-          contacts: vendorData.contacts || vendorJson.contacts || [],
-          bankAccounts: vendorData.bankAccounts || vendorJson.bankAccounts || [],
-          userId: vendorData.userId || vendorJson.userId,
-        };
-        
-        await mongoVendor.updateOne(mongoUpdateData);
-        console.log(`✅ Successfully updated vendor in MongoDB`);
-      } else {
-        console.log(`⚠️  MongoDB record not found for PostgreSQL ID: ${id}`);
-      }
-    } catch (mongoError) {
-      console.error(`⚠️  Failed to update vendor in MongoDB (PostgreSQL update was successful):`, mongoError);
-      // Don't fail the entire operation if MongoDB update fails
-    }
   } catch (error) {
     console.error("Update vendor error:", error);
     res.status(500).json({ message: "Server error", error: error.message });
@@ -392,43 +293,14 @@ export const deleteVendor = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 1. Delete associated VendorHistory records first (required due to foreign key constraint)
-    await VendorHistory.destroy({
-      where: { vendorId: id }
-    });
+    // 1. Delete associated VendorHistory records
+    await VendorHistory.deleteMany({ vendorId: id.toString() });
 
     // 2. Delete the vendor
-    const deletedRows = await Vendor.destroy({
-      where: { id },
-    });
+    const deletedVendor = await Vendor.findByIdAndDelete(id);
 
-    if (deletedRows === 0) {
+    if (!deletedVendor) {
       return res.status(404).json({ message: "Vendor not found" });
-    }
-
-    // DUAL-DELETE: Also delete from MongoDB for consistency
-    try {
-      console.log(`💾 Dual-deleting vendor from MongoDB for consistency...`);
-      
-      // Delete vendor history records from MongoDB
-      const mongoHistoryResult = await MongoVendorHistory.deleteMany({
-        vendorId: id
-      });
-      console.log(`✅ Deleted ${mongoHistoryResult.deletedCount} vendor history records from MongoDB`);
-      
-      // Delete vendor from MongoDB
-      const mongoVendorResult = await MongoVendor.deleteOne({
-        postgresqlId: id
-      });
-      
-      if (mongoVendorResult.deletedCount > 0) {
-        console.log(`✅ Successfully deleted vendor from MongoDB`);
-      } else {
-        console.log(`⚠️  No matching vendor found in MongoDB to delete`);
-      }
-    } catch (mongoError) {
-      console.error(`⚠️  Failed to delete vendor from MongoDB (PostgreSQL delete was successful):`, mongoError);
-      // Don't fail the entire operation if MongoDB delete fails
     }
 
     res.status(200).json({ message: "Vendor deleted successfully" });
@@ -437,4 +309,3 @@ export const deleteVendor = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-

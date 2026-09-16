@@ -184,11 +184,16 @@ const salesInvoiceSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Add missing indexes
+// Performance Indexes
 salesInvoiceSchema.index({ userId: 1, createdAt: -1 });
 salesInvoiceSchema.index({ invoiceNumber: 1 });
 salesInvoiceSchema.index({ locCode: 1, invoiceDate: -1 });
 salesInvoiceSchema.index({ status: 1, invoiceDate: -1 });
+salesInvoiceSchema.index({ warehouse: 1, createdAt: -1 });
+salesInvoiceSchema.index({ branch: 1, createdAt: -1 });
+salesInvoiceSchema.index({ customer: 1 });
+salesInvoiceSchema.index({ createdAt: -1 });
+salesInvoiceSchema.index({ invoiceDate: -1 });
 
 const SalesInvoice = mongoose.model("SalesInvoice", salesInvoiceSchema);
 export default SalesInvoice;

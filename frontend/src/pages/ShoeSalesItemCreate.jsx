@@ -997,25 +997,25 @@ const handleCheckboxChange = (field) => (event) => {
     : null;
 
   return (
-    <div className="invoice-page-wrapper min-h-screen bg-[#F9FAFB] text-[#111827]">
+    <div className="invoice-page-wrapper min-h-screen bg-[#F8FAFC] text-gray-900">
       <Header title={isEditMode ? "Edit Item" : (groupId ? "Add Item to Group" : "Create Item")} />
 
-      <div className={`transition-all duration-300 p-8 ${isSidebarOpen ? 'ml-64' : 'ml-0'}`}>
+      <div className={`transition-all duration-300 p-6 md:p-8 max-w-7xl mx-auto ${isSidebarOpen ? 'ml-64' : 'ml-0'}`}>
         {/* Top Action Toolbar */}
         <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-3.5 min-w-0">
             <Link
               to={backUrl}
-              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-none border border-[#E5E7EB] bg-[#EEEEEE] hover:bg-[#E2E2E2] text-xs font-bold uppercase tracking-wider text-[#111827] shadow-xs transition-colors cursor-pointer shrink-0"
+              className="inline-flex items-center gap-2 h-9 px-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 shadow-xs hover:border-purple-200 hover:text-purple-600 transition cursor-pointer shrink-0"
             >
-              <ArrowLeft size={14} className="text-[#111827]" />
+              <ArrowLeft size={14} className="text-gray-500 group-hover:text-purple-600" />
               <span>{backText}</span>
             </Link>
             <div className="min-w-0">
-              <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-[#111827] uppercase font-mono truncate">
+              <h1 className="text-xl md:text-2xl font-bold tracking-tight text-gray-900 truncate">
                 {pageTitle}
               </h1>
-              <p className="text-xs text-[#6B7280] font-medium mt-0.5">
+              <p className="text-xs text-gray-500 font-medium mt-0.5">
                 {pageDescription}
               </p>
             </div>
@@ -1023,23 +1023,25 @@ const handleCheckboxChange = (field) => (event) => {
         </div>
 
         {/* Main Content Form */}
-        <form onSubmit={handleSubmit} className="max-w-7xl mx-auto space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
           {/* Error Alert */}
           {status.error && (
-            <div className="rounded-none border border-red-200 bg-red-50 px-5 py-3.5 shadow-xs flex items-center gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
-              <p className="text-xs font-bold text-red-800 uppercase tracking-wide">{status.error}</p>
+            <div className="rounded-xl border border-red-200 bg-red-50/90 px-4 py-3 shadow-xs flex items-center gap-3">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+              <p className="text-xs font-semibold text-red-800">{status.error}</p>
             </div>
           )}
 
           {/* Card 1: Basic Information */}
-          <div className="bg-white border border-[#E5E7EB] rounded-none shadow-xs">
-            <div className="px-6 py-4 border-b border-[#E5E7EB] bg-[#F9FAFB] flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <Package className="w-4 h-4 text-[#8B5CF6]" />
+          <div className="bg-white border border-gray-200/80 rounded-2xl shadow-xs overflow-hidden transition-all duration-200 hover:shadow-sm">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50/80 to-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100/80 shadow-2xs">
+                  <Package className="w-4 h-4" />
+                </div>
                 <div>
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-[#111827]">Basic Information</h2>
-                  <p className="text-[11px] text-[#6B7280]">Configure the fundamental details of your item</p>
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-gray-900">Basic Information</h2>
+                  <p className="text-[11px] text-gray-500">Configure the fundamental details of your item</p>
                 </div>
               </div>
             </div>
@@ -1049,7 +1051,7 @@ const handleCheckboxChange = (field) => (event) => {
                 <div className="space-y-6">
                   <div className="grid gap-5 md:grid-cols-2">
                     <FloatingField
-                      label="Item Name*"
+                      label="Item Name"
                       placeholder="Enter item name"
                       required
                       name="itemName"
@@ -1073,15 +1075,16 @@ const handleCheckboxChange = (field) => (event) => {
                       onChange={handleSkuChange}
                       disabled={status.loading}
                       hint={
-                        <div className="flex items-center gap-1 text-[11px] text-[#6B7280]">
-                          <Info className="w-3 h-3 text-[#8B5CF6]" />
+                        <div className="flex items-center gap-1 text-[11px] font-medium text-purple-600">
+                          <Info className="w-3.5 h-3.5 text-purple-500" />
                           Auto-generated
                         </div>
                       }
                     />
                     <UnitSelect
-                      label="Unit*"
+                      label="Unit"
                       placeholder="Select or type to add"
+                      required
                       value={formData.unit}
                       onChange={(value) => setFormData((prev) => ({ ...prev, unit: value }))}
                       options={unitOptions}
@@ -1118,59 +1121,14 @@ const handleCheckboxChange = (field) => (event) => {
                     />
                   </div>
 
-                  {/* Category Radio Group */}
-                  <div className="p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-none">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-red-600 mb-2.5">
-                      Category*
-                    </label>
-                    <div className="flex flex-wrap gap-5 text-xs font-bold uppercase tracking-wider text-[#111827]">
-                      <label className="inline-flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="category"
-                          value="shirt"
-                          checked={category === "shirt"}
-                          onChange={(e) => handleCategorySelect(e.target.value)}
-                          className="accent-[#8B5CF6]"
-                          disabled={status.loading}
-                        />
-                        <span>Shirt Sales</span>
-                      </label>
-                      <label className="inline-flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="category"
-                          value="shoe"
-                          checked={category === "shoe"}
-                          onChange={(e) => handleCategorySelect(e.target.value)}
-                          className="accent-[#8B5CF6]"
-                          disabled={status.loading}
-                        />
-                        <span>Shoe Sales</span>
-                      </label>
-                      <label className="inline-flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="category"
-                          value="other"
-                          checked={category === "other"}
-                          onChange={(e) => handleCategorySelect(e.target.value)}
-                          className="accent-[#8B5CF6]"
-                          disabled={status.loading}
-                        />
-                        <span>Other</span>
-                      </label>
-                    </div>
-                  </div>
-
                   {/* Variant Attributes */}
                   {itemGroup && Array.isArray(itemGroup.attributeRows) && itemGroup.attributeRows.length > 0 && (
-                    <div className="rounded-none border border-[#E5E7EB] bg-[#F9FAFB] p-5">
+                    <div className="rounded-xl border border-purple-100 bg-purple-50/30 p-5">
                       <div className="mb-4 flex items-center gap-2">
-                        <Settings className="w-4 h-4 text-[#8B5CF6]" />
+                        <Settings className="w-4 h-4 text-purple-600" />
                         <div>
-                          <h3 className="text-xs font-bold uppercase tracking-wider text-[#111827]">Variant Attributes</h3>
-                          <p className="text-[11px] text-[#6B7280]">Configure attributes for this item variant</p>
+                          <h3 className="text-xs font-bold uppercase tracking-wider text-gray-900">Variant Attributes</h3>
+                          <p className="text-[11px] text-gray-500">Configure attributes for this item variant</p>
                         </div>
                       </div>
                       <div className="grid gap-4 md:grid-cols-2">
@@ -1181,7 +1139,7 @@ const handleCheckboxChange = (field) => (event) => {
                           const optionsHint = options.length > 0 ? `Available: ${options.join(", ")}` : "Enter custom value";
                           return (
                             <div key={`${label}-${idx}`} className="space-y-1.5">
-                              <label className="text-[11px] font-bold uppercase tracking-wider text-[#4B5563]">
+                              <label className="text-[11px] font-semibold text-gray-700">
                                 {label}
                               </label>
                               <input
@@ -1189,10 +1147,10 @@ const handleCheckboxChange = (field) => (event) => {
                                 value={currentVal}
                                 onChange={handleAttributeValueChange(idx, label)}
                                 placeholder={options.length ? `e.g. ${options[0]}` : "Enter value"}
-                                className="w-full rounded-none border border-[#E5E7EB] bg-white px-3.5 py-2.5 text-xs text-[#111827] placeholder:text-[#9CA3AF] focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6] transition"
+                                className="w-full h-10 rounded-xl border border-gray-200 bg-white px-3.5 text-xs text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition"
                                 disabled={status.loading}
                               />
-                              <p className="text-[10px] text-[#6B7280]">{optionsHint}</p>
+                              <p className="text-[10px] text-gray-500">{optionsHint}</p>
                             </div>
                           );
                         })}
@@ -1202,7 +1160,7 @@ const handleCheckboxChange = (field) => (event) => {
 
                   {/* Additional Settings */}
                   <div className="grid gap-5 md:grid-cols-2">
-                    <div className="space-y-4">
+                    <div className="flex items-center">
                       <FloatingCheckbox
                         label="Returnable Item"
                         name="returnable"
@@ -1213,7 +1171,7 @@ const handleCheckboxChange = (field) => (event) => {
                     </div>
                     <div className="space-y-4">
                       <SearchableSelect
-                        label="Tax Preference*"
+                        label="Tax Preference"
                         placeholder="Select tax preference"
                         value={formData.taxPreference}
                         onChange={handleSelectChange("taxPreference")}
@@ -1224,7 +1182,7 @@ const handleCheckboxChange = (field) => (event) => {
                       {formData.taxPreference === "non-taxable" && (
                         <div className="relative">
                           <FloatingField
-                            label="Exemption Reason*"
+                            label="Exemption Reason"
                             placeholder="Enter exemption reason"
                             name="exemptionReason"
                             value={formData.exemptionReason}
@@ -1232,7 +1190,7 @@ const handleCheckboxChange = (field) => (event) => {
                             disabled={status.loading}
                             required
                           />
-                          <div className="absolute -top-1 -right-1">
+                          <div className="absolute top-2 right-2">
                             <AlertCircle className="w-4 h-4 text-amber-500" />
                           </div>
                         </div>
@@ -1243,11 +1201,11 @@ const handleCheckboxChange = (field) => (event) => {
 
                 {/* Product Images Column */}
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-[#E5E7EB]">
-                    <Image className="w-4 h-4 text-[#8B5CF6]" />
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                    <Image className="w-4 h-4 text-purple-600" />
                     <div>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-[#111827]">Product Images</h3>
-                      <p className="text-[11px] text-[#6B7280]">Upload images of your item</p>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-gray-900">Product Images</h3>
+                      <p className="text-[11px] text-gray-500">Upload images of your item</p>
                     </div>
                   </div>
                   <ImageUpload
@@ -1272,13 +1230,15 @@ const handleCheckboxChange = (field) => (event) => {
           </div>
 
           {/* Card 2: Sales & Purchase Information */}
-          <div className="bg-white border border-[#E5E7EB] rounded-none shadow-xs">
-            <div className="px-6 py-4 border-b border-[#E5E7EB] bg-[#F9FAFB] flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <DollarSign className="w-4 h-4 text-emerald-600" />
+          <div className="bg-white border border-gray-200/80 rounded-2xl shadow-xs overflow-hidden transition-all duration-200 hover:shadow-sm">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50/80 to-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100/80 shadow-2xs">
+                  <DollarSign className="w-4 h-4" />
+                </div>
                 <div>
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-[#111827]">Sales & Purchase Information</h2>
-                  <p className="text-[11px] text-[#6B7280]">Configure pricing and procurement settings</p>
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-gray-900">Sales & Purchase Information</h2>
+                  <p className="text-[11px] text-gray-500">Configure pricing and procurement settings</p>
                 </div>
               </div>
             </div>
@@ -1286,16 +1246,16 @@ const handleCheckboxChange = (field) => (event) => {
               <div className="grid gap-8 lg:grid-cols-2">
                 {/* Sales Information */}
                 <div className="space-y-5">
-                  <div className="flex items-center justify-between pb-3 border-b border-[#E5E7EB]">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#111827]">Sales Details</h3>
-                    <label className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#111827] cursor-pointer">
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-gray-900">Sales Details</h3>
+                    <label className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700 cursor-pointer">
                       <input
                         type="checkbox"
                         name="sellable"
                         checked={formData.sellable}
                         onChange={handleCheckboxChange("sellable")}
                         disabled={status.loading}
-                        className="h-4 w-4 rounded-none border-[#D1D5DB] accent-[#8B5CF6] cursor-pointer"
+                        className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 accent-purple-600 cursor-pointer"
                       />
                       <span>Sellable</span>
                     </label>
@@ -1318,14 +1278,14 @@ const handleCheckboxChange = (field) => (event) => {
                         />
                       </div>
                       <div>
-                        <label className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#4B5563] cursor-pointer">
+                        <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer">
                           <input
                             type="checkbox"
                             name="priceIncludesGST"
                             checked={priceIncludesGST}
                             onChange={(event) => setPriceIncludesGST(event.target.checked)}
                             disabled={status.loading}
-                            className="h-4 w-4 rounded-none border-[#D1D5DB] accent-[#8B5CF6] cursor-pointer"
+                            className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 accent-purple-600 cursor-pointer"
                           />
                           <span>Price includes GST</span>
                         </label>
@@ -1345,47 +1305,46 @@ const handleCheckboxChange = (field) => (event) => {
 
                   {/* GST Summary */}
                   {shouldShowGSTSummary && gstDetails && (
-                    <div className="rounded-none border border-[#E5E7EB] bg-[#F9FAFB] p-5">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#111827] mb-3">Price Breakdown</h4>
+                    <div className="rounded-xl border border-purple-100 bg-gradient-to-br from-purple-50/40 to-slate-50/60 p-4 shadow-xs">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-purple-900 mb-3">Price Breakdown</h4>
                       {priceIncludesGST ? (
-                        <div className="grid gap-4 md:grid-cols-2">
+                        <div className="grid gap-3 md:grid-cols-2">
                           <div className="space-y-1">
-                            <label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280]">
+                            <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
                               Base Price (Excl. GST)
                             </label>
-                            <div className="flex items-center rounded-none border border-[#E5E7EB] bg-white px-3.5 py-2 font-mono">
-                              <span className="text-xs font-semibold text-[#6B7280]">₹</span>
-                              <span className="text-sm font-bold text-[#111827] ml-2">{gstDetails.basePrice}</span>
+                            <div className="flex items-center rounded-xl border border-gray-200/80 bg-white px-3 py-2 font-mono shadow-2xs">
+                              <span className="text-xs font-semibold text-gray-500">₹</span>
+                              <span className="text-sm font-bold text-gray-900 ml-1.5">{gstDetails.basePrice}</span>
                             </div>
                           </div>
                           <div className="space-y-1">
-                            <label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280]">
+                            <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
                               GST Amount ({gstDetails.percentage}%)
                             </label>
-                            <div className="flex items-center rounded-none border border-[#E5E7EB] bg-white px-3.5 py-2 font-mono">
-                              <span className="text-xs font-semibold text-[#6B7280]">₹</span>
-                              <span className="text-sm font-bold text-[#111827] ml-2">{gstDetails.gstAmount}</span>
+                            <div className="flex items-center rounded-xl border border-gray-200/80 bg-white px-3 py-2 font-mono shadow-2xs">
+                              <span className="text-xs font-semibold text-gray-500">₹</span>
+                              <span className="text-sm font-bold text-gray-900 ml-1.5">{gstDetails.gstAmount}</span>
                             </div>
                           </div>
-                          <div className="md:col-span-2 pt-3 border-t border-[#E5E7EB]">
-                            <p className="text-xs text-[#6B7280] font-medium">
-                              Total inclusive price: <span className="font-bold font-mono text-[#111827] text-sm">₹{gstDetails.finalPrice}</span>
-                            </p>
+                          <div className="md:col-span-2 pt-2.5 border-t border-purple-100/80 flex items-center justify-between">
+                            <span className="text-xs text-gray-600 font-medium">Total inclusive price:</span>
+                            <span className="font-bold font-mono text-purple-900 text-sm">₹{gstDetails.finalPrice}</span>
                           </div>
                         </div>
                       ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-2.5">
                           <div className="space-y-1">
-                            <label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280]">
+                            <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
                               Price with GST
                             </label>
-                            <div className="flex items-center rounded-none border border-[#E5E7EB] bg-white px-3.5 py-2 font-mono">
-                              <span className="text-xs font-semibold text-[#6B7280]">₹</span>
-                              <span className="text-sm font-bold text-[#111827] ml-2">{gstDetails.finalPrice}</span>
+                            <div className="flex items-center rounded-xl border border-gray-200/80 bg-white px-3 py-2 font-mono shadow-2xs">
+                              <span className="text-xs font-semibold text-gray-500">₹</span>
+                              <span className="text-sm font-bold text-gray-900 ml-1.5">{gstDetails.finalPrice}</span>
                             </div>
                           </div>
-                          <p className="text-xs text-[#6B7280] font-medium">
-                            GST Amount ({gstDetails.percentage}%): <span className="font-bold font-mono text-[#111827]">₹{gstDetails.gstAmount}</span>
+                          <p className="text-xs text-gray-600 font-medium">
+                            GST Amount ({gstDetails.percentage}%): <span className="font-bold font-mono text-gray-900">₹{gstDetails.gstAmount}</span>
                           </p>
                         </div>
                       )}
@@ -1395,16 +1354,16 @@ const handleCheckboxChange = (field) => (event) => {
 
                 {/* Purchase Information */}
                 <div className="space-y-5">
-                  <div className="flex items-center justify-between pb-3 border-b border-[#E5E7EB]">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#111827]">Purchase Details</h3>
-                    <label className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#111827] cursor-pointer">
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-gray-900">Purchase Details</h3>
+                    <label className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700 cursor-pointer">
                       <input
                         type="checkbox"
                         name="purchasable"
                         checked={formData.purchasable}
                         onChange={handleCheckboxChange("purchasable")}
                         disabled={status.loading}
-                        className="h-4 w-4 rounded-none border-[#D1D5DB] accent-[#8B5CF6] cursor-pointer"
+                        className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 accent-purple-600 cursor-pointer"
                       />
                       <span>Purchasable</span>
                     </label>
@@ -1425,13 +1384,15 @@ const handleCheckboxChange = (field) => (event) => {
           </div>
 
           {/* Card 3: Inventory & Tracking */}
-          <div className="bg-white border border-[#E5E7EB] rounded-none shadow-xs">
-            <div className="px-6 py-4 border-b border-[#E5E7EB] bg-[#F9FAFB] flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <Warehouse className="w-4 h-4 text-purple-600" />
+          <div className="bg-white border border-gray-200/80 rounded-2xl shadow-xs overflow-hidden transition-all duration-200 hover:shadow-sm">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50/80 to-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100/80 shadow-2xs">
+                  <Warehouse className="w-4 h-4" />
+                </div>
                 <div>
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-[#111827]">Inventory & Tracking</h2>
-                  <p className="text-[11px] text-[#6B7280]">Configure inventory management thresholds</p>
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-gray-900">Inventory & Tracking</h2>
+                  <p className="text-[11px] text-gray-500">Configure inventory management thresholds</p>
                 </div>
               </div>
             </div>
@@ -1450,26 +1411,26 @@ const handleCheckboxChange = (field) => (event) => {
           </div>
 
           {/* Form Actions Footer */}
-          <div className="bg-white border border-[#E5E7EB] rounded-none shadow-xs p-5 flex items-center justify-between gap-4 flex-wrap">
-            <div className="text-xs text-[#6B7280] font-medium">
+          <div className="sticky bottom-4 z-30 bg-white/95 backdrop-blur-md border border-gray-200/80 rounded-2xl shadow-lg p-4 flex items-center justify-between gap-4 flex-wrap">
+            <div className="text-xs text-gray-500 font-medium">
               {groupId ? "This item will be saved in the selected group." : "A standalone item will be saved."}
             </div>
             <div className="flex items-center gap-3">
               <Link
                 to={backUrl}
-                className="inline-flex items-center justify-center h-10 px-5 rounded-none border border-[#E5E7EB] bg-[#EEEEEE] hover:bg-[#E2E2E2] text-xs font-bold uppercase tracking-wider text-[#111827] shadow-xs transition-colors cursor-pointer"
+                className="inline-flex items-center justify-center h-10 px-5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 shadow-xs transition-colors cursor-pointer"
               >
                 Cancel
               </Link>
               <button
                 type="submit"
                 disabled={status.loading}
-                className="inline-flex items-center justify-center h-10 px-6 rounded-none bg-[#8B5CF6] hover:bg-[#7C3AED] text-xs font-bold uppercase tracking-wider text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center justify-center h-10 px-6 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-purple-500/20 transition transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
               >
                 {status.loading ? (
                   <span className="flex items-center gap-2">
                     <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    {groupId ? "Saving..." : "Saving..."}
+                    Saving...
                   </span>
                 ) : (
                   groupId ? (isEditMode ? "Update Item" : "Add to Group") : (isEditMode ? "Update Item" : "Save Item")
@@ -1479,6 +1440,7 @@ const handleCheckboxChange = (field) => (event) => {
           </div>
         </form>
       </div>
+
       {showManufacturerModal && (
         <ManufacturerModal
           onClose={() => {
@@ -1488,11 +1450,9 @@ const handleCheckboxChange = (field) => (event) => {
           onAdd={async (name) => {
             if (name.trim()) {
               try {
-                // Get current user for createdBy
                 const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
                 const createdBy = currentUser.username || currentUser.locName || "System";
                 
-                // Save to backend
                 const response = await fetch(`${API_ROOT}/api/shoe-sales/manufacturers`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
@@ -1506,7 +1466,6 @@ const handleCheckboxChange = (field) => (event) => {
                   const data = await response.json();
                   const manufacturerName = data.name;
                   
-                  // Update local state
                   setManufacturers((prev) =>
                     prev.includes(manufacturerName) ? prev : [...prev, manufacturerName]
                   );
@@ -1527,6 +1486,7 @@ const handleCheckboxChange = (field) => (event) => {
           setNewManufacturer={setNewManufacturer}
         />
       )}
+
       {showBrandModal && (
         <BrandModal
           onClose={() => {
@@ -1536,11 +1496,9 @@ const handleCheckboxChange = (field) => (event) => {
           onAdd={async (name) => {
             if (name.trim()) {
               try {
-                // Get current user for createdBy
                 const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
                 const createdBy = currentUser.username || currentUser.locName || "System";
                 
-                // Save to backend
                 const response = await fetch(`${API_ROOT}/api/shoe-sales/brands`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
@@ -1554,7 +1512,6 @@ const handleCheckboxChange = (field) => (event) => {
                   const data = await response.json();
                   const brandName = data.name;
                   
-                  // Update local state
                   setBrands((prev) =>
                     prev.includes(brandName) ? prev : [...prev, brandName]
                   );
@@ -1594,10 +1551,13 @@ const FloatingField = ({
   disabled = false,
 }) => (
   <div className="space-y-1.5">
-    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#4B5563]">
-      {label}
-      {required && <span className="text-[#EF4444] ml-1">*</span>}
-    </label>
+    <div className="flex items-center justify-between">
+      <label className="block text-xs font-semibold text-gray-700">
+        {label}
+        {required && <span className="text-red-500 ml-1">*</span>}
+      </label>
+      {hint && <div className="shrink-0">{hint}</div>}
+    </div>
     {inputType === "textarea" ? (
       <textarea
         name={name}
@@ -1606,7 +1566,7 @@ const FloatingField = ({
         placeholder={placeholder}
         rows={3}
         disabled={disabled}
-        className="w-full rounded-none border border-[#E5E7EB] bg-white px-3.5 py-2.5 text-sm text-[#111827] placeholder:text-[#9CA3AF] focus:border-[#8B5CF6] focus:ring-1 focus:ring-[#8B5CF6] transition disabled:cursor-not-allowed disabled:bg-[#F3F4F6] disabled:text-[#9CA3AF] outline-none"
+        className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 outline-none"
       />
     ) : inputType === "select" ? (
       <select
@@ -1614,16 +1574,16 @@ const FloatingField = ({
         value={value}
         onChange={onChange}
         disabled={disabled}
-        className="w-full h-10 rounded-none border border-[#E5E7EB] bg-white px-3.5 text-sm text-[#111827] focus:border-[#8B5CF6] focus:ring-1 focus:ring-[#8B5CF6] transition disabled:cursor-not-allowed disabled:bg-[#F3F4F6] disabled:text-[#9CA3AF] outline-none"
+        className="w-full h-10 rounded-xl border border-gray-200 bg-white px-3.5 text-sm text-gray-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 outline-none"
       >
         <option value="">{placeholder}</option>
       </select>
     ) : (
       <div className="relative">
-        <div className={`flex items-center rounded-none border border-[#E5E7EB] bg-white focus-within:border-[#8B5CF6] focus-within:ring-1 focus-within:ring-[#8B5CF6] transition ${disabled ? "bg-[#F3F4F6]" : ""}`}>
+        <div className={`flex items-center rounded-xl border border-gray-200 bg-white focus-within:border-purple-500 focus-within:ring-2 focus-within:ring-purple-100 transition overflow-hidden ${disabled ? "bg-gray-50" : ""}`}>
           {prefix && (
-            <div className="flex items-center pl-3.5 pr-2.5 border-r border-[#E5E7EB] h-10 bg-[#F9FAFB] shrink-0">
-              <span className="text-xs font-bold text-[#6B7280]">{prefix}</span>
+            <div className="flex items-center pl-3.5 pr-2.5 border-r border-gray-200 h-10 bg-gray-50/80 shrink-0">
+              <span className="text-xs font-semibold text-gray-600">{prefix}</span>
             </div>
           )}
           <input
@@ -1633,13 +1593,8 @@ const FloatingField = ({
             onChange={onChange}
             placeholder={placeholder}
             disabled={disabled}
-            className="w-full h-10 px-3.5 text-sm text-[#111827] placeholder:text-[#9CA3AF] focus:outline-none disabled:cursor-not-allowed disabled:bg-[#F3F4F6] disabled:text-[#9CA3AF] bg-transparent"
+            className="w-full h-10 px-3.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 bg-transparent"
           />
-          {hint && (
-            <div className="pr-3.5 shrink-0">
-              <span className="text-[11px] font-medium text-[#9CA3AF]">{hint}</span>
-            </div>
-          )}
         </div>
       </div>
     )}
@@ -1647,21 +1602,21 @@ const FloatingField = ({
 );
 
 const FloatingCheckbox = ({ label, name, checked, onChange, disabled = false }) => (
-  <label className="inline-flex items-center gap-2.5 rounded-none border border-[#E5E7EB] bg-white px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider text-[#111827] cursor-pointer hover:border-[#8B5CF6] transition select-none">
+  <label className="inline-flex items-center gap-2.5 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-semibold text-gray-700 cursor-pointer hover:border-purple-200 hover:bg-purple-50/30 transition select-none shadow-2xs">
     <input
       type="checkbox"
       name={name}
       checked={checked}
       onChange={onChange}
       disabled={disabled}
-      className="h-4 w-4 rounded-none border-[#D1D5DB] text-[#8B5CF6] focus:ring-[#8B5CF6] focus:ring-offset-0 disabled:cursor-not-allowed cursor-pointer accent-[#8B5CF6]"
+      className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 disabled:cursor-not-allowed cursor-pointer accent-purple-600"
     />
     {label}
   </label>
 );
 
 const FloatingRadio = ({ name, label, value, checked, onChange, disabled = false }) => (
-  <label className={`inline-flex items-center gap-2 rounded-none border px-3.5 py-2 text-xs font-bold uppercase tracking-wider cursor-pointer transition select-none ${checked ? "border-[#8B5CF6] bg-[#F5F3FF] text-[#7C3AED]" : "border-[#E5E7EB] bg-white text-[#4B5563] hover:border-[#D1D5DB]"}`}>
+  <label className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-semibold cursor-pointer transition select-none ${checked ? "border-purple-500 bg-purple-50/60 text-purple-700 shadow-2xs" : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"}`}>
     <input
       type="radio"
       name={name}
@@ -1669,7 +1624,7 @@ const FloatingRadio = ({ name, label, value, checked, onChange, disabled = false
       checked={checked}
       onChange={onChange}
       disabled={disabled}
-      className="text-[#8B5CF6] focus:ring-[#8B5CF6] accent-[#8B5CF6] disabled:cursor-not-allowed cursor-pointer"
+      className="text-purple-600 focus:ring-purple-500 accent-purple-600 disabled:cursor-not-allowed cursor-pointer"
     />
     {label}
   </label>
@@ -1730,41 +1685,41 @@ const SearchableSelect = ({ label, placeholder, value, onChange, groups, disable
 
   return (
     <div className="relative flex w-full flex-col gap-1.5 text-sm" ref={containerRef}>
-      <span className="text-[11px] font-bold uppercase tracking-wider text-[#4B5563]">
+      <span className="text-xs font-semibold text-gray-700">
         {label}
-        {required && <span className="text-[#EF4444] ml-1">*</span>}
+        {required && <span className="text-red-500 ml-1">*</span>}
       </span>
       <div
-        className={`flex h-10 items-center justify-between rounded-none border px-3.5 text-sm transition ${
-          open ? "border-[#8B5CF6] ring-1 ring-[#8B5CF6]" : "border-[#E5E7EB]"
-        } ${disabled ? "bg-[#F3F4F6] text-[#9CA3AF]" : "bg-white text-[#111827]"} ${disabled ? "" : "cursor-pointer"}`}
+        className={`flex h-10 items-center justify-between rounded-xl border px-3.5 text-sm transition ${
+          open ? "border-purple-500 ring-2 ring-purple-100" : "border-gray-200 hover:border-gray-300"
+        } ${disabled ? "bg-gray-50 text-gray-400" : "bg-white text-gray-900"} ${disabled ? "" : "cursor-pointer"}`}
         onClick={() => !disabled && setOpen((prev) => !prev)}
       >
-        <span className={value ? "text-[#111827]" : "text-[#9CA3AF]"}>{displayValue || placeholder}</span>
+        <span className={value ? "text-gray-900 font-medium" : "text-gray-400"}>{displayValue || placeholder}</span>
         <ChevronDown
           size={16}
-          className={`ml-3 text-[#9CA3AF] transition-transform ${open ? "rotate-180" : "rotate-0"}`}
+          className={`ml-3 text-gray-400 transition-transform duration-200 ${open ? "rotate-180 text-purple-600" : "rotate-0"}`}
         />
       </div>
       {open && (
-        <div className="absolute top-full z-50 mt-1 w-full rounded-none border border-[#E5E7EB] bg-white shadow-xl">
-          <div className="flex items-center gap-2 border-b border-[#E5E7EB] px-3.5 py-2.5 text-[#4B5563]">
-            <Search size={14} className="text-[#9CA3AF]" />
+        <div className="absolute top-full z-50 mt-1.5 w-full rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100">
+          <div className="flex items-center gap-2 border-b border-gray-100 px-3.5 py-2.5 bg-gray-50/50">
+            <Search size={14} className="text-gray-400" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search..."
-              className="h-7 w-full border-none text-xs text-[#111827] outline-none placeholder:text-[#9CA3AF] bg-transparent"
+              className="h-7 w-full border-none text-xs text-gray-900 outline-none placeholder:text-gray-400 bg-transparent"
               autoFocus
             />
           </div>
           <div className="max-h-60 overflow-y-auto py-1">
             {filteredGroups.length === 0 && (
-              <p className="px-4 py-6 text-center text-xs text-[#9CA3AF]">No matching results</p>
+              <p className="px-4 py-6 text-center text-xs text-gray-400">No matching results</p>
             )}
             {filteredGroups.map((group) => (
               <div key={group.group}>
-                <p className="px-3.5 pb-1 pt-2.5 text-[10px] font-bold uppercase tracking-wider text-[#9CA3AF]">
+                <p className="px-3.5 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">
                   {group.group}
                 </p>
                 {group.options.map((option) => {
@@ -1780,8 +1735,8 @@ const SearchableSelect = ({ label, placeholder, value, onChange, groups, disable
                       }}
                       className={`flex w-full items-center px-3.5 py-2 text-left text-xs transition ${
                         isSelected
-                          ? "bg-[#F5F3FF] font-bold text-[#7C3AED]"
-                          : "text-[#111827] hover:bg-[#F9FAFB]"
+                          ? "bg-purple-50 font-bold text-purple-700"
+                          : "text-gray-700 hover:bg-gray-50"
                       }`}
                     >
                       {option.label}
@@ -1797,20 +1752,7 @@ const SearchableSelect = ({ label, placeholder, value, onChange, groups, disable
   );
 };
 
-const InfoCard = ({ title, children, fullWidth, actions }) => (
-  <div className={`space-y-4 ${fullWidth ? "" : ""}`}>
-    <div className="flex flex-wrap items-center justify-between gap-4">
-      <div>
-        <h3 className="text-sm font-bold uppercase tracking-wider text-[#111827]">{title}</h3>
-        <p className="text-xs text-[#6B7280] mt-0.5">Configure {title.toLowerCase()} settings</p>
-      </div>
-      {actions}
-    </div>
-    <div className="space-y-4">{children}</div>
-  </div>
-);
-
-const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
+const UnitSelect = ({ label, placeholder, value, onChange, options = [], required = false }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const containerRef = useRef(null);
@@ -1839,23 +1781,26 @@ const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
 
   return (
     <div className="relative flex w-full flex-col gap-1.5 text-sm" ref={containerRef}>
-      <span className="text-[11px] font-bold uppercase tracking-wider text-[#4B5563]">{label}</span>
+      <span className="text-xs font-semibold text-gray-700">
+        {label}
+        {required && <span className="text-red-500 ml-1">*</span>}
+      </span>
       <div
-        className={`flex h-10 items-center justify-between rounded-none border px-3.5 text-sm transition ${
-          open ? "border-[#8B5CF6] ring-1 ring-[#8B5CF6]" : "border-[#E5E7EB] hover:border-[#D1D5DB]"
-        } bg-white text-[#111827] cursor-pointer`}
+        className={`flex h-10 items-center justify-between rounded-xl border px-3.5 text-sm transition ${
+          open ? "border-purple-500 ring-2 ring-purple-100" : "border-gray-200 hover:border-gray-300"
+        } bg-white text-gray-900 cursor-pointer`}
         onClick={() => setOpen((prev) => !prev)}
       >
-        <span className={value ? "text-[#111827]" : "text-[#9CA3AF]"}>{displayValue || placeholder}</span>
+        <span className={value ? "text-gray-900 font-medium" : "text-gray-400"}>{displayValue || placeholder}</span>
         <ChevronDown
           size={16}
-          className={`ml-3 text-[#9CA3AF] transition-transform ${open ? "rotate-180" : "rotate-0"}`}
+          className={`ml-3 text-gray-400 transition-transform duration-200 ${open ? "rotate-180 text-purple-600" : "rotate-0"}`}
         />
       </div>
       {open && (
-        <div className="absolute top-full z-50 mt-1 w-full rounded-none border border-[#E5E7EB] bg-white shadow-xl">
-          <div className="flex items-center gap-2 border-b border-[#E5E7EB] px-3.5 py-2.5 bg-[#F9FAFB]">
-            <Search size={14} className="text-[#9CA3AF]" />
+        <div className="absolute top-full z-50 mt-1.5 w-full rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100">
+          <div className="flex items-center gap-2 border-b border-gray-100 px-3.5 py-2.5 bg-gray-50/50">
+            <Search size={14} className="text-gray-400" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -1868,7 +1813,7 @@ const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
                 }
               }}
               placeholder="Select or type to add..."
-              className="h-7 w-full border-none bg-transparent text-xs text-[#111827] outline-none placeholder:text-[#9CA3AF]"
+              className="h-7 w-full border-none bg-transparent text-xs text-gray-900 outline-none placeholder:text-gray-400"
               onClick={(e) => e.stopPropagation()}
               autoFocus
             />
@@ -1881,12 +1826,12 @@ const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
                   setOpen(false);
                   setSearch("");
                 }}
-                className="flex w-full items-center px-3.5 py-2 text-left text-xs cursor-pointer transition font-bold text-[#8B5CF6] hover:bg-[#F5F3FF]"
+                className="flex w-full items-center px-3.5 py-2.5 text-left text-xs cursor-pointer transition font-bold text-purple-600 hover:bg-purple-50"
               >
                 + Add "{search.trim()}"
               </div>
             ) : filteredOptions.length === 0 ? (
-              <p className="px-4 py-6 text-center text-xs text-[#9CA3AF]">No matching results</p>
+              <p className="px-4 py-6 text-center text-xs text-gray-400">No matching results</p>
             ) : (
               <>
                 {search.trim() && !filteredOptions.includes(search.trim()) && (
@@ -1896,7 +1841,7 @@ const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
                       setOpen(false);
                       setSearch("");
                     }}
-                    className="flex w-full items-center px-3.5 py-2 text-left text-xs cursor-pointer transition font-bold text-[#8B5CF6] hover:bg-[#F5F3FF] border-b border-[#E5E7EB]"
+                    className="flex w-full items-center px-3.5 py-2.5 text-left text-xs cursor-pointer transition font-bold text-purple-600 hover:bg-purple-50 border-b border-gray-100"
                   >
                     + Add "{search.trim()}"
                   </div>
@@ -1913,8 +1858,8 @@ const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
                       }}
                       className={`flex w-full items-center px-3.5 py-2 text-left text-xs cursor-pointer transition ${
                         isSelected
-                          ? "bg-[#F5F3FF] font-bold text-[#7C3AED]"
-                          : "text-[#111827] hover:bg-[#F9FAFB]"
+                          ? "bg-purple-50 font-bold text-purple-700"
+                          : "text-gray-700 hover:bg-gray-50"
                       }`}
                     >
                       {option}
@@ -1975,39 +1920,39 @@ const TaxRateSelect = ({ label, value, onChange, type }) => {
 
   return (
     <div className="relative flex w-full flex-col gap-1.5 text-sm" ref={containerRef}>
-      <label className="text-[11px] font-bold uppercase tracking-wider text-[#4B5563]">
+      <label className="text-xs font-semibold text-gray-700">
         {label}
       </label>
       <div
-        className={`flex h-10 items-center justify-between rounded-none border px-3.5 text-sm transition ${
-          open ? "border-[#8B5CF6] ring-1 ring-[#8B5CF6]" : "border-[#E5E7EB] hover:border-[#D1D5DB]"
-        } bg-white text-[#111827] cursor-pointer`}
+        className={`flex h-10 items-center justify-between rounded-xl border px-3.5 text-sm transition ${
+          open ? "border-purple-500 ring-2 ring-purple-100" : "border-gray-200 hover:border-gray-300"
+        } bg-white text-gray-900 cursor-pointer`}
         onClick={() => setOpen((prev) => !prev)}
       >
-        <span className={value ? "text-[#111827]" : "text-[#9CA3AF]"}>
+        <span className={value ? "text-gray-900 font-medium" : "text-gray-400"}>
           {displayValue || "Select tax rate"}
         </span>
         <ChevronDown
           size={16}
-          className={`ml-3 text-[#9CA3AF] transition-transform ${open ? "rotate-180" : "rotate-0"}`}
+          className={`ml-3 text-gray-400 transition-transform duration-200 ${open ? "rotate-180 text-purple-600" : "rotate-0"}`}
         />
       </div>
       {open && (
-        <div className="absolute top-full z-50 mt-1 w-full rounded-none border border-[#E5E7EB] bg-white shadow-xl">
-          <div className="flex items-center gap-2 border-b border-[#E5E7EB] px-3.5 py-2.5 bg-[#F9FAFB]">
-            <Search size={14} className="text-[#9CA3AF]" />
+        <div className="absolute top-full z-50 mt-1.5 w-full rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100">
+          <div className="flex items-center gap-2 border-b border-gray-100 px-3.5 py-2.5 bg-gray-50/50">
+            <Search size={14} className="text-gray-400" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search tax rate..."
-              className="h-7 w-full border-none bg-transparent text-xs text-[#111827] outline-none placeholder:text-[#9CA3AF]"
+              className="h-7 w-full border-none bg-transparent text-xs text-gray-900 outline-none placeholder:text-gray-400"
               onClick={(e) => e.stopPropagation()}
               autoFocus
             />
           </div>
           <div className="max-h-60 overflow-y-auto py-1">
             {filteredOptions.length === 0 ? (
-              <p className="px-4 py-6 text-center text-xs text-[#9CA3AF]">No matching results</p>
+              <p className="px-4 py-6 text-center text-xs text-gray-400">No matching results</p>
             ) : (
               filteredOptions.map((option) => {
                 const isSelected = value === option;
@@ -2021,12 +1966,12 @@ const TaxRateSelect = ({ label, value, onChange, type }) => {
                     }}
                     className={`flex items-center justify-between px-3.5 py-2 text-xs cursor-pointer transition ${
                       isSelected
-                        ? "bg-[#F5F3FF] font-bold text-[#7C3AED]"
-                        : "text-[#111827] hover:bg-[#F9FAFB]"
+                        ? "bg-purple-50 font-bold text-purple-700"
+                        : "text-gray-700 hover:bg-gray-50"
                     }`}
                   >
                     <span>{option}</span>
-                    {isSelected && <Check size={14} className="text-[#8B5CF6]" />}
+                    {isSelected && <Check size={14} className="text-purple-600" />}
                   </div>
                 );
               })
@@ -2067,37 +2012,37 @@ const ManufacturerSelect = ({ label, placeholder, value, onChange, options = [],
 
   return (
     <div className="relative flex w-full flex-col gap-1.5 text-sm" ref={containerRef}>
-      <span className="text-[11px] font-bold uppercase tracking-wider text-[#4B5563]">{label}</span>
+      <span className="text-xs font-semibold text-gray-700">{label}</span>
       <div
-        className={`flex h-10 items-center justify-between rounded-none border px-3.5 text-sm transition ${
-          open ? "border-[#8B5CF6] ring-1 ring-[#8B5CF6]" : "border-[#E5E7EB]"
-        } ${disabled ? "bg-[#F3F4F6] text-[#9CA3AF] cursor-not-allowed" : "bg-white text-[#111827] cursor-pointer"}`}
+        className={`flex h-10 items-center justify-between rounded-xl border px-3.5 text-sm transition ${
+          open ? "border-purple-500 ring-2 ring-purple-100" : "border-gray-200 hover:border-gray-300"
+        } ${disabled ? "bg-gray-50 text-gray-400 cursor-not-allowed" : "bg-white text-gray-900 cursor-pointer"}`}
         onClick={() => {
           if (!disabled) setOpen((prev) => !prev);
         }}
       >
-        <span className={displayValue ? "text-[#111827]" : "text-[#9CA3AF]"}>{displayValue || placeholder}</span>
+        <span className={displayValue ? "text-gray-900 font-medium" : "text-gray-400"}>{displayValue || placeholder}</span>
         <ChevronDown
           size={16}
-          className={`ml-3 text-[#9CA3AF] transition-transform ${open ? "rotate-180" : "rotate-0"}`}
+          className={`ml-3 text-gray-400 transition-transform duration-200 ${open ? "rotate-180 text-purple-600" : "rotate-0"}`}
         />
       </div>
       {open && (
-        <div className="absolute top-full z-50 mt-1 w-full rounded-none border border-[#E5E7EB] bg-white shadow-xl">
-          <div className="flex items-center gap-2 border-b border-[#E5E7EB] px-3.5 py-2.5 bg-[#F9FAFB]">
-            <Search size={14} className="text-[#9CA3AF]" />
+        <div className="absolute top-full z-50 mt-1.5 w-full rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100">
+          <div className="flex items-center gap-2 border-b border-gray-100 px-3.5 py-2.5 bg-gray-50/50">
+            <Search size={14} className="text-gray-400" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search manufacturer..."
-              className="h-7 w-full border-none bg-transparent text-xs text-[#111827] outline-none placeholder:text-[#9CA3AF]"
+              className="h-7 w-full border-none bg-transparent text-xs text-gray-900 outline-none placeholder:text-gray-400"
               onClick={(e) => e.stopPropagation()}
               autoFocus
             />
           </div>
           <div className="max-h-56 overflow-y-auto py-1">
             {filteredOptions.length === 0 ? (
-              <p className="px-4 py-6 text-center text-xs text-[#9CA3AF]">No matching results</p>
+              <p className="px-4 py-6 text-center text-xs text-gray-400">No matching results</p>
             ) : (
               filteredOptions.map((option) => (
                 <button
@@ -2110,8 +2055,8 @@ const ManufacturerSelect = ({ label, placeholder, value, onChange, options = [],
                   }}
                   className={`flex w-full items-center px-3.5 py-2 text-left text-xs transition ${
                     value === option
-                      ? "bg-[#F5F3FF] font-bold text-[#7C3AED]"
-                      : "text-[#111827] hover:bg-[#F9FAFB]"
+                      ? "bg-purple-50 font-bold text-purple-700"
+                      : "text-gray-700 hover:bg-gray-50"
                   }`}
                 >
                   {option}
@@ -2120,7 +2065,7 @@ const ManufacturerSelect = ({ label, placeholder, value, onChange, options = [],
             )}
           </div>
           {onManageClick && (
-            <div className="border-t border-[#E5E7EB] px-3.5 py-2 bg-[#F9FAFB]">
+            <div className="border-t border-gray-100 px-3.5 py-2 bg-gray-50/50">
               <button
                 type="button"
                 onClick={(e) => {
@@ -2129,7 +2074,7 @@ const ManufacturerSelect = ({ label, placeholder, value, onChange, options = [],
                   setOpen(false);
                   setSearch("");
                 }}
-                className="flex w-full items-center gap-2 text-xs font-bold text-[#8B5CF6] hover:text-[#7C3AED] transition uppercase tracking-wider"
+                className="flex w-full items-center gap-2 text-xs font-semibold text-purple-600 hover:text-purple-700 transition"
               >
                 <Settings size={13} />
                 Manage Manufacturers
@@ -2171,37 +2116,37 @@ const BrandSelect = ({ label, placeholder, value, onChange, options = [], onMana
 
   return (
     <div className="relative flex w-full flex-col gap-1.5 text-sm" ref={containerRef}>
-      <span className="text-[11px] font-bold uppercase tracking-wider text-[#4B5563]">{label}</span>
+      <span className="text-xs font-semibold text-gray-700">{label}</span>
       <div
-        className={`flex h-10 items-center justify-between rounded-none border px-3.5 text-sm transition ${
-          open ? "border-[#8B5CF6] ring-1 ring-[#8B5CF6]" : "border-[#E5E7EB]"
-        } ${disabled ? "bg-[#F3F4F6] text-[#9CA3AF] cursor-not-allowed" : "bg-white text-[#111827] cursor-pointer"}`}
+        className={`flex h-10 items-center justify-between rounded-xl border px-3.5 text-sm transition ${
+          open ? "border-purple-500 ring-2 ring-purple-100" : "border-gray-200 hover:border-gray-300"
+        } ${disabled ? "bg-gray-50 text-gray-400 cursor-not-allowed" : "bg-white text-gray-900 cursor-pointer"}`}
         onClick={() => {
           if (!disabled) setOpen((prev) => !prev);
         }}
       >
-        <span className={displayValue ? "text-[#111827]" : "text-[#9CA3AF]"}>{displayValue || placeholder}</span>
+        <span className={displayValue ? "text-gray-900 font-medium" : "text-gray-400"}>{displayValue || placeholder}</span>
         <ChevronDown
           size={16}
-          className={`ml-3 text-[#9CA3AF] transition-transform ${open ? "rotate-180" : "rotate-0"}`}
+          className={`ml-3 text-gray-400 transition-transform duration-200 ${open ? "rotate-180 text-purple-600" : "rotate-0"}`}
         />
       </div>
       {open && (
-        <div className="absolute top-full z-50 mt-1 w-full rounded-none border border-[#E5E7EB] bg-white shadow-xl">
-          <div className="flex items-center gap-2 border-b border-[#E5E7EB] px-3.5 py-2.5 bg-[#F9FAFB]">
-            <Search size={14} className="text-[#9CA3AF]" />
+        <div className="absolute top-full z-50 mt-1.5 w-full rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100">
+          <div className="flex items-center gap-2 border-b border-gray-100 px-3.5 py-2.5 bg-gray-50/50">
+            <Search size={14} className="text-gray-400" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search brand..."
-              className="h-7 w-full border-none bg-transparent text-xs text-[#111827] outline-none placeholder:text-[#9CA3AF]"
+              className="h-7 w-full border-none bg-transparent text-xs text-gray-900 outline-none placeholder:text-gray-400"
               onClick={(e) => e.stopPropagation()}
               autoFocus
             />
           </div>
           <div className="max-h-56 overflow-y-auto py-1">
             {filteredOptions.length === 0 ? (
-              <p className="px-4 py-6 text-center text-xs text-[#9CA3AF]">No matching results</p>
+              <p className="px-4 py-6 text-center text-xs text-gray-400">No matching results</p>
             ) : (
               filteredOptions.map((option) => (
                 <div
@@ -2213,8 +2158,8 @@ const BrandSelect = ({ label, placeholder, value, onChange, options = [], onMana
                   }}
                   className={`flex w-full items-center px-3.5 py-2 text-left text-xs cursor-pointer transition ${
                     value === option
-                      ? "bg-[#F5F3FF] font-bold text-[#7C3AED]"
-                      : "text-[#111827] hover:bg-[#F9FAFB]"
+                      ? "bg-purple-50 font-bold text-purple-700"
+                      : "text-gray-700 hover:bg-gray-50"
                   }`}
                 >
                   {option}
@@ -2223,7 +2168,7 @@ const BrandSelect = ({ label, placeholder, value, onChange, options = [], onMana
             )}
           </div>
           {onManageClick && (
-            <div className="border-t border-[#E5E7EB] px-3.5 py-2 bg-[#F9FAFB]">
+            <div className="border-t border-gray-100 px-3.5 py-2 bg-gray-50/50">
               <button
                 type="button"
                 onClick={(e) => {
@@ -2232,7 +2177,7 @@ const BrandSelect = ({ label, placeholder, value, onChange, options = [], onMana
                   setOpen(false);
                   setSearch("");
                 }}
-                className="flex w-full items-center gap-2 text-xs font-bold text-[#8B5CF6] hover:text-[#7C3AED] transition uppercase tracking-wider"
+                className="flex w-full items-center gap-2 text-xs font-semibold text-purple-600 hover:text-purple-700 transition"
               >
                 <Settings size={13} />
                 Manage Brands
@@ -2254,43 +2199,43 @@ const ManufacturerModal = ({ onClose, onAdd, newManufacturer, setNewManufacturer
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-      <div className="relative w-full max-w-md rounded-none border border-[#E5E7EB] bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-[#E5E7EB] px-6 py-4">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-[#111827]">Add Manufacturer</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs px-4">
+      <div className="relative w-full max-w-md rounded-2xl border border-gray-100 bg-white shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-150">
+        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 bg-gradient-to-r from-gray-50/80 to-white">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-gray-900">Add Manufacturer</h2>
           <button
             onClick={onClose}
-            className="p-1.5 text-[#6B7280] hover:bg-[#F3F4F6] hover:text-[#111827] transition"
+            className="p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-lg transition"
           >
             <X size={18} />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-[#4B5563]">
-              Manufacturer Name <span className="text-[#EF4444]">*</span>
+            <label className="block text-xs font-semibold text-gray-700">
+              Manufacturer Name <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={newManufacturer}
               onChange={(e) => setNewManufacturer(e.target.value)}
               placeholder="Enter manufacturer name"
-              className="w-full h-10 rounded-none border border-[#E5E7EB] bg-white px-3.5 text-sm text-[#111827] placeholder:text-[#9CA3AF] focus:border-[#8B5CF6] focus:ring-1 focus:ring-[#8B5CF6] transition outline-none"
+              className="w-full h-10 rounded-xl border border-gray-200 bg-white px-3.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition outline-none"
               autoFocus
             />
           </div>
-          <div className="flex items-center justify-end gap-2 pt-2">
+          <div className="flex items-center justify-end gap-2.5 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-none border border-[#E5E7EB] bg-[#EEEEEE] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#111827] transition hover:bg-[#E0E0E0]"
+              className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!newManufacturer.trim()}
-              className="rounded-none bg-[#8B5CF6] px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition hover:bg-[#7C3AED] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-5 py-2 text-xs font-bold text-white transition hover:from-purple-700 hover:to-indigo-700 shadow-sm shadow-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Add Manufacturer
             </button>
@@ -2310,43 +2255,43 @@ const BrandModal = ({ onClose, onAdd, newBrand, setNewBrand }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-      <div className="relative w-full max-w-md rounded-none border border-[#E5E7EB] bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-[#E5E7EB] px-6 py-4">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-[#111827]">Add Brand</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs px-4">
+      <div className="relative w-full max-w-md rounded-2xl border border-gray-100 bg-white shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-150">
+        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 bg-gradient-to-r from-gray-50/80 to-white">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-gray-900">Add Brand</h2>
           <button
             onClick={onClose}
-            className="p-1.5 text-[#6B7280] hover:bg-[#F3F4F6] hover:text-[#111827] transition"
+            className="p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-lg transition"
           >
             <X size={18} />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-[#4B5563]">
-              Brand Name <span className="text-[#EF4444]">*</span>
+            <label className="block text-xs font-semibold text-gray-700">
+              Brand Name <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={newBrand}
               onChange={(e) => setNewBrand(e.target.value)}
               placeholder="Enter brand name"
-              className="w-full h-10 rounded-none border border-[#E5E7EB] bg-white px-3.5 text-sm text-[#111827] placeholder:text-[#9CA3AF] focus:border-[#8B5CF6] focus:ring-1 focus:ring-[#8B5CF6] transition outline-none"
+              className="w-full h-10 rounded-xl border border-gray-200 bg-white px-3.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition outline-none"
               autoFocus
             />
           </div>
-          <div className="flex items-center justify-end gap-2 pt-2">
+          <div className="flex items-center justify-end gap-2.5 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-none border border-[#E5E7EB] bg-[#EEEEEE] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#111827] transition hover:bg-[#E0E0E0]"
+              className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!newBrand.trim()}
-              className="rounded-none bg-[#8B5CF6] px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition hover:bg-[#7C3AED] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-5 py-2 text-xs font-bold text-white transition hover:from-purple-700 hover:to-indigo-700 shadow-sm shadow-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Add Brand
             </button>

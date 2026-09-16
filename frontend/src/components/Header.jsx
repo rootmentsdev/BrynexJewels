@@ -10,52 +10,27 @@ const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
 const formatLocationName = (name) => {
     if (!name) return name;
     
-    // Trim whitespace first
     let formatted = name.trim();
     
-    // Pattern: Single letter (G, Z, S, etc.) followed immediately by a capital letter
-    // Example: "GKannur" -> "G Kannur", "GCalicut" -> "G Calicut"
-    formatted = formatted.replace(/^([A-Z])([A-Z][a-z])/g, '$1 $2');
+    // Exact overrides for known stores
+    if (/^warehouse$/i.test(formatted)) {
+        return "Warehouse";
+    }
+    if (/^g[-.\s]?mg\s*road$/i.test(formatted) || /^mg\s*road$/i.test(formatted) || /^suitorguy\s+mg\s*road$/i.test(formatted)) {
+        return "MG Road";
+    }
     
-    // Also handle cases like "Gkannur" (lowercase after prefix)
-    formatted = formatted.replace(/^([A-Z])([a-z])/g, '$1 $2');
+    // Pattern: G- or Z- prefix with capital letter
+    formatted = formatted.replace(/^([A-Z])-([A-Z][a-z])/g, '$1 $2');
     
     return formatted;
 };
 
 const Header = (prop) => {
-    // Correct and complete store locations (primary source)
-    // Only show main store locations (filter out duplicates and unwanted ones)
+    // Only Warehouse and MG Road
     const fallbackLocations = [
-       
         { "locName": "Warehouse", "locCode": "858" },
-        { "locName": "G-Edappally", "locCode": "702" },
-        { "locName": "HEAD OFFICE01", "locCode": "759" },
-        { "locName": "SG-Trivandrum", "locCode": "700" },
-         { "locName": "Z-Edapally", "locCode": "144" },
-        { "locName": "Z-Edappal", "locCode": "100" },
-        { "locName": "Z-Perinthalmanna", "locCode": "133" },
-        { "locName": "Z-Kottakkal", "locCode": "122" },
-        { "locName": "G-Kottayam", "locCode": "701" },
-        { "locName": "G-Perumbavoor", "locCode": "703" },
-        { "locName": "G-Thrissur", "locCode": "704" },
-        { "locName": "G-Chavakkad", "locCode": "706" },
-        { "locName": "G-Calicut", "locCode": "712" },
-        { "locName": "G-Vadakara", "locCode": "708" },
-        { "locName": "G-Edappal", "locCode": "707" },
-        { "locName": "G-Perinthalmanna", "locCode": "709" },
-        { "locName": "G-Kottakkal", "locCode": "711" },
-        { "locName": "G-Manjeri", "locCode": "710" },
-        { "locName": "G-Palakkad", "locCode": "705" },
-        { "locName": "G-Kalpetta", "locCode": "717" },
-        { "locName": "G-Kannur", "locCode": "716" },
-        { "locName": "G-Mg Road", "locCode": "718" },
-        { "locName": "Production", "locCode": "101" },
-        { "locName": "Office", "locCode": "102" },
-              { "locName": "WAREHOUSE", "locCode": "103" },
-                         { "locName": "Dappr Squad", "locCode": "555" }
-              
-        
+        { "locName": "MG Road", "locCode": "718" },
     ];
 
     const [AllLoation, setAllLoation] = useState(fallbackLocations);
@@ -91,40 +66,41 @@ const Header = (prop) => {
     };
 
     useEffect(() => {
-        // Fetch store names from backend
+        // Fetch store names from backend and filter to Warehouse and MG Road only
         const fetchStores = async () => {
             try {
                 const response = await fetch(`${API_URL}/api/stores`);
                 if (response.ok) {
                     const data = await response.json();
                     if (data.stores && Array.isArray(data.stores)) {
-                        // Create a map of fallback locations for reference
                         const fallbackMap = new Map(fallbackLocations.map(f => [f.locCode, f.locName]));
                         
-                        // Map backend stores to location format, preferring fallback names if backend name is just a code
-                        const backendStores = data.stores.map(store => ({
-                            locName: fallbackMap.get(store.locCode) || store.name,
-                            locCode: store.locCode
-                        }));
+                        const isAllowed = (locCode, locName) => {
+                            const code = (locCode || "").toString();
+                            const name = (locName || "").toLowerCase();
+                            return code === "858" || code === "718" || name.includes("warehouse") || name.includes("mg road") || name.includes("mgroad");
+                        };
+
+                        const backendStores = data.stores
+                            .filter(store => isAllowed(store.locCode, store.name))
+                            .map(store => ({
+                                locName: fallbackMap.get(store.locCode) || store.name,
+                                locCode: store.locCode
+                            }));
                         
-                        // Merge with fallback locations, avoiding duplicates
                         const mergedLocations = [...backendStores];
                         const backendCodes = new Set(backendStores.map(s => s.locCode));
                         
-                        // Add fallback locations that aren't in backend
                         fallbackLocations.forEach(fallback => {
                             if (!backendCodes.has(fallback.locCode)) {
                                 mergedLocations.push(fallback);
                             }
                         });
                         
-                        // Sort by name
                         const sortedLocations = mergedLocations.sort((a, b) => 
                             a.locName.localeCompare(b.locName)
                         );
                         setAllLoation(sortedLocations);
-                        
-                        // Sync user from storage with proper location name
                         syncUserFromStorage(sortedLocations);
                         return;
                     }
@@ -133,13 +109,10 @@ const Header = (prop) => {
                 console.error("Error fetching stores:", error);
             }
             
-            // Fallback: use only the specified fallback locations
             const sortedLocations = [...fallbackLocations].sort((a, b) => 
                 a.locName.localeCompare(b.locName)
             );
             setAllLoation(sortedLocations);
-            
-            // Sync user from storage with fallback locations
             syncUserFromStorage(sortedLocations);
         };
 

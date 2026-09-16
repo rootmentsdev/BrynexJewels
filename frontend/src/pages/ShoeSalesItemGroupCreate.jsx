@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useEnterToSave } from "../hooks/useEnterToSave";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Trash2, ArrowLeft, X, ChevronDown, Search, Settings, Check, ShoppingBag, ShoppingCart, Edit, MoreHorizontal } from "lucide-react";
-import Head from "../components/Head";
+import { Trash2, ArrowLeft, X, ChevronDown, Search, Settings, Check, ShoppingBag, ShoppingCart, Edit, MoreHorizontal, Package, Layers, Plus, Info, AlertCircle, Warehouse, DollarSign } from "lucide-react";
+import Header from "../components/Header";
 import ImageUpload from "../components/ImageUpload";
 import baseUrl from "../api/api";
 import useSidebar from "../hooks/useSidebar";
@@ -890,13 +890,12 @@ const ShoeSalesItemGroupCreate = () => {
   useEnterToSave((e) => {
     const syntheticEvent = e || { preventDefault: () => {} };
     handleSave(syntheticEvent);
-  }, loading);
-
-  if (loading) {
+  }, loading);  if (loading) {
     return (
-      <div className={`transition-all duration-300 p-6 bg-[#f5f7fb] min-h-screen ${isSidebarOpen ? 'ml-64' : 'ml-0'}`}>
-        <div className="rounded-2xl border border-[#e4e6f2] bg-white shadow-lg p-8 text-center">
-          <p className="text-lg font-medium text-[#475569]">Loading item group...</p>
+      <div className={`transition-all duration-300 min-h-screen bg-[#F8FAFC] p-6 flex items-center justify-center ${isSidebarOpen ? 'ml-64' : 'ml-0'}`}>
+        <div className="rounded-2xl border border-gray-200/80 bg-white shadow-md p-8 text-center max-w-sm w-full">
+          <div className="w-8 h-8 border-3 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-sm font-semibold text-gray-700">Loading item group...</p>
         </div>
       </div>
     );
@@ -905,594 +904,505 @@ const ShoeSalesItemGroupCreate = () => {
   const selectedTaxRateValue = intraStateTaxRate || interStateTaxRate;
 
   return (
-    <div className={`transition-all duration-300 p-6 bg-[#f5f7fb] min-h-screen ${isSidebarOpen ? 'ml-64' : 'ml-0'}`}>
-      <Head
-        title={isEditMode ? "Edit Item Group" : "New Item Group"}
-        description={isEditMode ? "Update item group details and attributes." : "Define a reusable item group template with shared pricing and attributes."}
-        actions={
-          <Link
-            to={isEditMode ? `/shoe-sales/item-groups/${id}` : "/shoe-sales/item-groups"}
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-[#cbd5f5] px-4 text-sm font-medium text-[#1f2937] transition hover:bg-white"
-          >
-            <ArrowLeft size={16} />
-            {isEditMode ? "Back to Details" : "Back to Groups"}
-          </Link>
-        }
-      />
+    <div className="invoice-page-wrapper min-h-screen bg-[#F8FAFC] text-gray-900">
+      <Header title={isEditMode ? "Edit Item Group" : "Create Item Group"} />
 
-      <div className="space-y-6">
-        <div className="rounded-3xl border border-[#e1e5f5] bg-white shadow-[0_30px_90px_-40px_rgba(15,23,42,0.25)]">
-          <div className="grid gap-8 border-b border-[#e7ebf8] px-8 py-8 md:grid-cols-[2fr,1fr]">
-            <div className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef4444]">
-                    Item Group Name*
+      <div className={`transition-all duration-300 p-6 md:p-8 max-w-7xl mx-auto space-y-6 ${isSidebarOpen ? 'ml-64' : 'ml-0'}`}>
+        {/* Top Action Toolbar */}
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <Link
+              to={isEditMode ? `/shoe-sales/item-groups/${id}` : "/shoe-sales/item-groups"}
+              className="inline-flex items-center gap-2 h-9 px-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 shadow-xs hover:border-purple-200 hover:text-purple-600 transition cursor-pointer shrink-0"
+            >
+              <ArrowLeft size={14} className="text-gray-500 group-hover:text-purple-600" />
+              <span>{isEditMode ? "Back to Details" : "Back to Groups"}</span>
+            </Link>
+            <div className="min-w-0">
+              <h1 className="text-xl md:text-2xl font-bold tracking-tight text-gray-900 truncate">
+                {isEditMode ? "Edit Item Group" : "New Item Group"}
+              </h1>
+              <p className="text-xs text-gray-500 font-medium mt-0.5">
+                {isEditMode ? "Update item group details and attributes." : "Define a reusable item group template with shared pricing and attributes."}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 1: Basic Information & Attributes */}
+        <div className="bg-white border border-gray-200/80 rounded-2xl shadow-xs overflow-hidden transition-all duration-200 hover:shadow-sm">
+          <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50/80 to-white flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100/80 shadow-2xs">
+                <Package className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-gray-900">Basic Information</h2>
+                <p className="text-[11px] text-gray-500">Define the group name, template details and attributes</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6 md:p-8">
+            <div className="grid gap-8 lg:grid-cols-[2fr,1fr]">
+              {/* Left Column: Form Fields */}
+              <div className="space-y-6">
+                <div className="grid gap-5 md:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-gray-700">
+                      Item Group Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={itemGroupName}
+                      onChange={(e) => {
+                        setItemGroupName(e.target.value);
+                        if (!skuManuallyEdited) {
+                          setItemGroupSku(generateSkuPreview(e.target.value));
+                        }
+                      }}
+                      className="w-full h-10 rounded-xl border border-gray-200 bg-white px-3.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition"
+                      placeholder="Enter group name"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-semibold text-gray-700">
+                        SKU
+                      </label>
+                      <div className="flex items-center gap-1 text-[11px] font-medium text-purple-600">
+                        <Info className="w-3.5 h-3.5 text-purple-500" />
+                        Auto-generated
+                      </div>
+                    </div>
+                    <input
+                      type="text"
+                      value={itemGroupSku}
+                      onChange={(e) => {
+                        setSkuManuallyEdited(true);
+                        setItemGroupSku(e.target.value.toUpperCase());
+                      }}
+                      className="w-full h-10 rounded-xl border border-gray-200 bg-white px-3.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition"
+                      placeholder="e.g. IGRP-001"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-gray-700">
+                    Description
                   </label>
-                  <input
-                    type="text"
-                    value={itemGroupName}
-                    onChange={(e) => {
-                      setItemGroupName(e.target.value);
-                      if (!skuManuallyEdited) {
-                        setItemGroupSku(generateSkuPreview(e.target.value));
-                      }
-                    }}
-                    className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                    placeholder="Enter group name"
+                  <textarea
+                    rows={3}
+                    placeholder="Summarize this item group..."
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                    SKU
-                  </label>
-                  <input
-                    type="text"
-                    value={itemGroupSku}
-                    onChange={(e) => {
-                      setSkuManuallyEdited(true);
-                      setItemGroupSku(e.target.value.toUpperCase());
-                    }}
-                    className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                    placeholder="e.g. IGRP-001"
-                  />
-                </div>
-              </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                  Description
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Summarize this item group..."
-                  className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                />
-              </div>
-
-              <div className="grid gap-6 md:grid-cols-2">
-                {itemType === "goods" ? (
-                  <FloatingCheckbox 
-                    label="Returnable Item" 
-                    checked={returnable}
-                    onChange={(e) => setReturnable(e.target.checked)}
+                <div className="grid gap-5 md:grid-cols-2">
+                  <div className="flex items-center">
+                    {itemType === "goods" ? (
+                      <FloatingCheckbox 
+                        label="Returnable Item" 
+                        checked={returnable}
+                        onChange={(e) => setReturnable(e.target.checked)}
+                      />
+                    ) : (
+                      <FloatingCheckbox label="Receivable Item" />
+                    )}
+                  </div>
+                  <UnitSelect
+                    label="Unit"
+                    required
+                    placeholder="Select or type to add"
+                    value={unit}
+                    onChange={setUnit}
+                    options={unitOptions}
                   />
-                ) : (
-                  <FloatingCheckbox label="Receivable Item" />
-                )}
-                <UnitSelect
-                  label="Unit*"
-                  placeholder="Select or type to add"
-                  value={unit}
-                  onChange={setUnit}
-                  options={unitOptions}
-                />
-                <ManufacturerSelect
-                  label="Manufacturer"
-                  placeholder="Select or add manufacturer"
-                  value={selectedManufacturer}
-                  onChange={setSelectedManufacturer}
-                  manufacturers={manufacturers}
-                  onManageClick={() => setShowManufacturerModal(true)}
-                />
-                <BrandSelect
-                  label="Brand"
-                  placeholder="Select or add brand"
-                  value={selectedBrand}
-                  onChange={setSelectedBrand}
-                  brands={brands}
-                  onManageClick={() => setShowBrandModal(true)}
-                />
-                <fieldset className="space-y-3">
-                  <legend className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef4444]">
-                    Category*
-                  </legend>
-                  <div className="flex flex-wrap gap-4 text-sm font-medium text-[#1f2937]">
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="category"
-                        value="shirt"
-                        checked={category === "shirt"}
-                        onChange={(e) => setCategory(e.target.value)}
-                        className="text-[#4285f4]"
-                      />
-                      Shirt Sales
+                  <ManufacturerSelect
+                    label="Manufacturer"
+                    placeholder="Select or add manufacturer"
+                    value={selectedManufacturer}
+                    onChange={setSelectedManufacturer}
+                    manufacturers={manufacturers}
+                    onManageClick={() => setShowManufacturerModal(true)}
+                  />
+                  <BrandSelect
+                    label="Brand"
+                    placeholder="Select or add brand"
+                    value={selectedBrand}
+                    onChange={setSelectedBrand}
+                    brands={brands}
+                    onManageClick={() => setShowBrandModal(true)}
+                  />
+                  <div className="space-y-2">
+                    <label className="block text-xs font-semibold text-gray-700">
+                      Tax Preference <span className="text-red-500">*</span>
                     </label>
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="category"
-                        value="shoe"
-                        checked={category === "shoe"}
-                        onChange={(e) => setCategory(e.target.value)}
-                        className="text-[#4285f4]"
-                      />
-                      Shoe Sales
-                    </label>
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="category"
-                        value="other"
-                        checked={category === "other"}
-                        onChange={(e) => setCategory(e.target.value)}
-                        className="text-[#4285f4]"
-                      />
-                      Other
-                    </label>
-                  </div>
-                </fieldset>
-                <fieldset className="space-y-3">
-                  <legend className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef4444]">
-                    Tax Preference*
-                  </legend>
-                  <div className="flex flex-wrap gap-4 text-sm font-medium text-[#1f2937]">
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="taxPreference"
-                        value="taxable"
-                        checked={taxPreference === "taxable"}
-                        onChange={(e) => {
-                          setTaxPreference(e.target.value);
-                          setExemptionReason("");
-                        }}
-                        className="text-[#4285f4]"
-                      />
-                      Taxable
-                    </label>
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="taxPreference"
-                        value="non-taxable"
-                        checked={taxPreference === "non-taxable"}
-                        onChange={(e) => setTaxPreference(e.target.value)}
-                        className="text-[#4285f4]"
-                      />
-                      Non-Taxable
-                    </label>
-                  </div>
-                  {taxPreference === "non-taxable" && (
-                    <div className="max-w-sm">
-                      <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                        Exemption Reason*
+                    <div className="flex items-center gap-3">
+                      <label className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold cursor-pointer transition select-none ${taxPreference === "taxable" ? "border-purple-500 bg-purple-50/60 text-purple-700 shadow-2xs" : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"}`}>
+                        <input
+                          type="radio"
+                          name="taxPreference"
+                          value="taxable"
+                          checked={taxPreference === "taxable"}
+                          onChange={(e) => {
+                            setTaxPreference(e.target.value);
+                            setExemptionReason("");
+                          }}
+                          className="text-purple-600 focus:ring-purple-500 accent-purple-600 cursor-pointer"
+                        />
+                        Taxable
+                      </label>
+                      <label className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold cursor-pointer transition select-none ${taxPreference === "non-taxable" ? "border-purple-500 bg-purple-50/60 text-purple-700 shadow-2xs" : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"}`}>
+                        <input
+                          type="radio"
+                          name="taxPreference"
+                          value="non-taxable"
+                          checked={taxPreference === "non-taxable"}
+                          onChange={(e) => setTaxPreference(e.target.value)}
+                          className="text-purple-600 focus:ring-purple-500 accent-purple-600 cursor-pointer"
+                        />
+                        Non-Taxable
+                      </label>
+                    </div>
+                    {taxPreference === "non-taxable" && (
+                      <div className="pt-2">
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">
+                          Exemption Reason <span className="text-red-500">*</span>
+                        </label>
                         <input
                           type="text"
                           value={exemptionReason}
                           onChange={(e) => setExemptionReason(e.target.value)}
                           placeholder="Select or type to add"
-                          className="mt-1 w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#4285f4] focus:outline-none"
+                          className="w-full h-10 rounded-xl border border-gray-200 bg-white px-3.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition"
                         />
+                      </div>
+                    )}
+                  </div>
+
+                  {itemType === "goods" && (
+                    <InventoryValuationSelect
+                      label="Inventory Valuation Method"
+                      value={inventoryValuation}
+                      onChange={setInventoryValuation}
+                    />
+                  )}
+                </div>
+
+                {/* Default Tax Rates Section */}
+                {taxPreference === "taxable" && (
+                  <div className="space-y-4 rounded-xl border border-purple-100 bg-purple-50/20 p-5">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-purple-900">Default Tax Rates</h3>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <TaxRateSelect
+                        label="Intra State Tax Rate"
+                        value={intraStateTaxRate}
+                        onChange={setIntraStateTaxRate}
+                        type="intra"
+                      />
+                      <TaxRateSelect
+                        label="Inter State Tax Rate"
+                        value={interStateTaxRate}
+                        onChange={setInterStateTaxRate}
+                        type="inter"
+                      />
+                    </div>
+                    <div>
+                      <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 accent-purple-600 cursor-pointer"
+                          checked={priceIncludesGST}
+                          onChange={(e) => setPriceIncludesGST(e.target.checked)}
+                        />
+                        <span>Price Includes GST</span>
                       </label>
                     </div>
-                  )}
-                </fieldset>
-                {itemType === "goods" && (
-                  <InventoryValuationSelect
-                    label="Inventory Valuation Method"
-                    value={inventoryValuation}
-                    onChange={setInventoryValuation}
-                  />
+                  </div>
                 )}
+
+                {/* Attributes & Options Section */}
+                <div className="space-y-4 rounded-xl border border-purple-100 bg-purple-50/30 p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-purple-100">
+                    <label className="inline-flex items-center gap-2.5 rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-xs font-semibold text-gray-800 shadow-2xs cursor-pointer hover:border-purple-200 transition">
+                      <input
+                        type="checkbox"
+                        checked={createAttributes}
+                        onChange={(e) => handleCreateAttributesToggle(e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 accent-purple-600"
+                      />
+                      Create Attributes & Options
+                    </label>
+                    {createAttributes && (
+                      <button
+                        onClick={() => {
+                          setAttributeRows([...attributeRows, { id: Date.now(), attribute: "", options: [], optionInput: "" }]);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-100/70 hover:bg-purple-200/80 text-purple-700 text-xs font-semibold border border-purple-200 transition cursor-pointer"
+                      >
+                        <Plus size={14} />
+                        Add Attribute
+                      </button>
+                    )}
+                  </div>
+                  {createAttributes && (
+                    <div className="space-y-4 pt-1">
+                      {attributeRows.map((row, rowIndex) => (
+                        <div key={row.id} className="grid gap-3 md:grid-cols-[200px,1fr]">
+                          <div className="space-y-1.5">
+                            <label className="block text-[11px] font-semibold text-gray-700">
+                              Attribute <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={row.attribute}
+                              onChange={(e) => {
+                                const updated = [...attributeRows];
+                                updated[rowIndex].attribute = e.target.value;
+                                setAttributeRows(updated);
+                              }}
+                              placeholder="e.g. Color, Size, Karat"
+                              className="w-full h-10 rounded-xl border border-gray-200 bg-white px-3 text-xs text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="block text-[11px] font-semibold text-gray-700">
+                              Options <span className="text-red-500">*</span>
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <div className="flex flex-1 flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-1.5 min-h-[2.5rem] focus-within:border-purple-500 focus-within:ring-2 focus-within:ring-purple-100 transition">
+                                {row.options.map((opt, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="inline-flex items-center gap-1 rounded-lg bg-purple-50 border border-purple-200/80 px-2.5 py-1 text-xs font-semibold text-purple-700"
+                                  >
+                                    {opt}
+                                    <button
+                                      onClick={() => {
+                                        const updated = [...attributeRows];
+                                        updated[rowIndex].options = updated[rowIndex].options.filter((_, i) => i !== idx);
+                                        setAttributeRows(updated);
+                                      }}
+                                      className="hover:text-purple-900 transition ml-0.5"
+                                    >
+                                      <X size={12} />
+                                    </button>
+                                  </span>
+                                ))}
+                                <input
+                                  type="text"
+                                  value={row.optionInput}
+                                  onChange={(e) => {
+                                    const updated = [...attributeRows];
+                                    updated[rowIndex].optionInput = e.target.value;
+                                    setAttributeRows(updated);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" && row.optionInput.trim()) {
+                                      e.preventDefault();
+                                      const updated = [...attributeRows];
+                                      updated[rowIndex].options = [...updated[rowIndex].options, updated[rowIndex].optionInput.trim()];
+                                      updated[rowIndex].optionInput = "";
+                                      setAttributeRows(updated);
+                                    }
+                                  }}
+                                  data-handle-enter="true"
+                                  placeholder={row.options.length === 0 ? "Type option and press Enter (e.g. Red, Blue, 18K)..." : "+ add..."}
+                                  className="flex-1 border-0 bg-transparent px-1 py-1 text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none min-w-[120px]"
+                                />
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setAttributeRows(attributeRows.filter((_, i) => i !== rowIndex));
+                                }}
+                                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition cursor-pointer"
+                                title="Remove Attribute"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Default Tax Rates Section */}
-              {taxPreference === "taxable" && (
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-[#1f2937]">Default Tax Rates</h3>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <TaxRateSelect
-                      label="Intra State Tax Rate"
-                      value={intraStateTaxRate}
-                      onChange={setIntraStateTaxRate}
-                      type="intra"
-                    />
-                    <TaxRateSelect
-                      label="Inter State Tax Rate"
-                      value={interStateTaxRate}
-                      onChange={setInterStateTaxRate}
-                      type="inter"
-                    />
+              {/* Right Column: Group Images */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                  <Package className="w-4 h-4 text-purple-600" />
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-gray-900">Group Images</h3>
+                    <p className="text-[11px] text-gray-500">Upload images for this item group</p>
                   </div>
-                  <label className="inline-flex items-center gap-3 rounded-lg border border-[#dbe4ff] bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#475569] shadow-sm w-fit">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4]"
-                      checked={priceIncludesGST}
-                      onChange={(e) => setPriceIncludesGST(e.target.checked)}
-                    />
-                    Price Includes GST
-                  </label>
                 </div>
-              )}
-
-              {itemType === "service" ? (
-                <div className="space-y-6 rounded-2xl border border-[#e3e8f9] bg-[#f8f9ff] p-6">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <label className="inline-flex items-center gap-3 rounded-lg border border-[#dbe4ff] bg-white px-4 py-2 text-sm font-medium text-[#1f2937] shadow-sm cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={createAttributes}
-                        onChange={(e) => handleCreateAttributesToggle(e.target.checked)}
-                        className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4]"
-                      />
-                      Create Attributes and Options
-                    </label>
-                    <button
-                      onClick={() => {
-                        setAttributeRows([...attributeRows, { id: Date.now(), attribute: "", options: [], optionInput: "" }]);
-                      }}
-                      className="text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8]"
-                    >
-                      + Add more attributes
-                    </button>
-                  </div>
-                  {createAttributes && (
-                    <div className="space-y-4">
-                      {attributeRows.map((row, rowIndex) => (
-                        <div key={row.id} className="grid gap-4 md:grid-cols-[240px,1fr]">
-                          <div className="flex flex-col gap-1 text-sm text-[#475569]">
-                            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef4444]">
-                              Attribute*
-                            </label>
-                            <input
-                              type="text"
-                              value={row.attribute}
-                              onChange={(e) => {
-                                const updated = [...attributeRows];
-                                updated[rowIndex].attribute = e.target.value;
-                                setAttributeRows(updated);
-                              }}
-                              placeholder="eg: color"
-                              className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef4444]">
-                              Options*
-                            </label>
-                            <div className="flex items-center gap-2">
-                              <div className="flex flex-1 flex-wrap items-center gap-2 rounded-lg border border-[#d7dcf5] px-3 py-2 min-h-[2.5rem]">
-                                {row.options.map((opt, idx) => (
-                                  <span
-                                    key={idx}
-                                    className="inline-flex items-center gap-1 rounded-md bg-[#e0e7ff] px-2 py-1 text-sm text-[#3730a3]"
-                                  >
-                                    {opt}
-                                    <button
-                                      onClick={() => {
-                                        const updated = [...attributeRows];
-                                        updated[rowIndex].options = updated[rowIndex].options.filter((_, i) => i !== idx);
-                                        setAttributeRows(updated);
-                                      }}
-                                      className="hover:text-[#1e1b4b]"
-                                    >
-                                      <X size={14} />
-                                    </button>
-                                  </span>
-                                ))}
-                                <input
-                                  type="text"
-                                  value={row.optionInput}
-                                  onChange={(e) => {
-                                    const updated = [...attributeRows];
-                                    updated[rowIndex].optionInput = e.target.value;
-                                    setAttributeRows(updated);
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter" && row.optionInput.trim()) {
-                                      e.preventDefault();
-                                      const updated = [...attributeRows];
-                                      updated[rowIndex].options = [...updated[rowIndex].options, updated[rowIndex].optionInput.trim()];
-                                      updated[rowIndex].optionInput = "";
-                                      setAttributeRows(updated);
-                                    }
-                                  }}
-                                  data-handle-enter="true"
-                                  placeholder={row.options.length === 0 ? "Enter options separated by commas" : ""}
-                                  className="flex-1 border-0 bg-transparent px-0 py-0 text-sm text-[#1f2937] focus:outline-none"
-                                />
-                              </div>
-                              <button
-                                onClick={() => {
-                                  setAttributeRows(attributeRows.filter((_, i) => i !== rowIndex));
-                                }}
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#f1b5b5] bg-[#fff5f5] text-[#c2410c] hover:bg-[#fee2e2]"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-6 rounded-2xl border border-[#e3e8f9] bg-[#f8f9ff] p-6">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <label className="inline-flex items-center gap-3 rounded-lg border border-[#dbe4ff] bg-white px-4 py-2 text-sm font-medium text-[#1f2937] shadow-sm cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={createAttributes}
-                        onChange={(e) => handleCreateAttributesToggle(e.target.checked)}
-                        className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4]"
-                      />
-                      Create Attributes and Options
-                    </label>
-                    <button
-                      onClick={() => {
-                        setAttributeRows([...attributeRows, { id: Date.now(), attribute: "", options: [], optionInput: "" }]);
-                      }}
-                      className="text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8]"
-                    >
-                      + Add more attributes
-                    </button>
-                  </div>
-                  {createAttributes && (
-                    <div className="space-y-4">
-                      {attributeRows.map((row, rowIndex) => (
-                        <div key={row.id} className="grid gap-4 md:grid-cols-[240px,1fr]">
-                          <div className="flex flex-col gap-1 text-sm text-[#475569]">
-                            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef4444]">
-                              Attribute*
-                            </label>
-                            <input
-                              type="text"
-                              value={row.attribute}
-                              onChange={(e) => {
-                                const updated = [...attributeRows];
-                                updated[rowIndex].attribute = e.target.value;
-                                setAttributeRows(updated);
-                              }}
-                              placeholder="eg: color"
-                              className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ef4444]">
-                              Options*
-                            </label>
-                            <div className="flex items-center gap-2">
-                              <div className="flex flex-1 flex-wrap items-center gap-2 rounded-lg border border-[#d7dcf5] px-3 py-2 min-h-[2.5rem]">
-                                {row.options.map((opt, idx) => (
-                                  <span
-                                    key={idx}
-                                    className="inline-flex items-center gap-1 rounded-md bg-[#e0e7ff] px-2 py-1 text-sm text-[#3730a3]"
-                                  >
-                                    {opt}
-                                    <button
-                                      onClick={() => {
-                                        const updated = [...attributeRows];
-                                        updated[rowIndex].options = updated[rowIndex].options.filter((_, i) => i !== idx);
-                                        setAttributeRows(updated);
-                                      }}
-                                      className="hover:text-[#1e1b4b]"
-                                    >
-                                      <X size={14} />
-                                    </button>
-                                  </span>
-                                ))}
-                                <input
-                                  type="text"
-                                  value={row.optionInput}
-                                  onChange={(e) => {
-                                    const updated = [...attributeRows];
-                                    updated[rowIndex].optionInput = e.target.value;
-                                    setAttributeRows(updated);
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter" && row.optionInput.trim()) {
-                                      e.preventDefault();
-                                      const updated = [...attributeRows];
-                                      updated[rowIndex].options = [...updated[rowIndex].options, updated[rowIndex].optionInput.trim()];
-                                      updated[rowIndex].optionInput = "";
-                                      setAttributeRows(updated);
-                                    }
-                                  }}
-                                  data-handle-enter="true"
-                                  placeholder={row.options.length === 0 ? "Enter options separated by commas" : ""}
-                                  className="flex-1 border-0 bg-transparent px-0 py-0 text-sm text-[#1f2937] focus:outline-none"
-                                />
-                              </div>
-                              <button
-                                onClick={() => {
-                                  setAttributeRows(attributeRows.filter((_, i) => i !== rowIndex));
-                                }}
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#f1b5b5] bg-[#fff5f5] text-[#c2410c] hover:bg-[#fee2e2]"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+                <ImageUpload
+                  onImagesSelect={(images) => setGroupImages(images)}
+                  existingImages={groupImages}
+                  onRemoveImage={(index) => {
+                    setGroupImages(groupImages.filter((_, i) => i !== index));
+                  }}
+                  multiple={true}
+                />
+              </div>
             </div>
-
-            <ImageUpload
-              onImagesSelect={(images) => setGroupImages(images)}
-              existingImages={groupImages}
-              onRemoveImage={(index) => {
-                setGroupImages(groupImages.filter((_, i) => i !== index));
-              }}
-              multiple={true}
-            />
           </div>
+        </div>
 
-          <div className="space-y-6 px-8 py-8">
-            <fieldset className="flex flex-wrap gap-6 rounded-2xl border border-[#e3e8f9] bg-[#f8f9ff] px-4 py-4 text-sm font-medium text-[#1f2937]">
-              <legend className="px-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-                Select your Item Type
-              </legend>
-              <label className="inline-flex items-center gap-3 rounded-lg border border-[#dbe4ff] bg-white px-4 py-2 text-sm font-medium text-[#1f2937] shadow-sm cursor-pointer">
+        {/* Card 2: Generated Item Variants Table */}
+        <div className="bg-white border border-gray-200/80 rounded-2xl shadow-xs overflow-hidden transition-all duration-200 hover:shadow-sm">
+          <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50/80 to-white flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100/80 shadow-2xs">
+                <Layers className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-gray-900">Item Variants</h2>
+                <p className="text-[11px] text-gray-500">Configure pricing, SKU and inventory parameters for each variant</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <label className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-gray-700 shadow-2xs cursor-pointer">
                 <input
                   type="checkbox"
                   checked={sellable}
                   onChange={(e) => setSellable(e.target.checked)}
-                  className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4]"
+                  className="h-3.5 w-3.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 accent-purple-600"
                 />
                 Sellable
               </label>
-              <label className="inline-flex items-center gap-3 rounded-lg border border-[#dbe4ff] bg-white px-4 py-2 text-sm font-medium text-[#1f2937] shadow-sm cursor-pointer">
+              <label className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-gray-700 shadow-2xs cursor-pointer">
                 <input
                   type="checkbox"
                   checked={purchasable}
                   onChange={(e) => setPurchasable(e.target.checked)}
-                  className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4]"
+                  className="h-3.5 w-3.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 accent-purple-600"
                 />
                 Purchasable
               </label>
               {itemType === "goods" && <FloatingCheckbox label="Track Inventory" defaultChecked />}
-            </fieldset>
+            </div>
+          </div>
 
-            <div className="overflow-x-auto rounded-2xl border border-[#e3e8f9]">
-              <table className="min-w-full divide-y divide-[#e6eafb] text-xs uppercase tracking-[0.12em] text-[#64748b]">
-                <thead className="bg-[#f5f6ff]">
+          <div className="p-6">
+            <div className="overflow-x-auto rounded-xl border border-gray-200/80 shadow-2xs">
+              <table className="min-w-full divide-y divide-gray-200 text-xs">
+                <thead className="bg-gradient-to-r from-gray-50 to-purple-50/20">
                   <tr>
-                    <>
-                      <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                        <div>{createAttributes ? "ITEM" : "ITEM NAME*"}</div>
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                        <div>SIZE</div>
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                        <div>SKU</div>
-                        <div className="mt-1 flex gap-2 text-[10px] font-normal">
-                          <button className="table-link-button">Generate SKU</button>
-                          <button className="table-link-button">Clear</button>
-                        </div>
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                        <div>HSN CODE</div>
-                        <div className="mt-1 flex gap-2 text-[10px] font-normal">
-                          <button 
-                            onClick={() => handleCopyToAll("hsnCode")}
-                            className="table-link-button"
-                          >
-                            COPY TO ALL
-                          </button>
-                        </div>
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                        <div>REORDER POINT</div>
-                        <div className="mt-1 flex gap-2 text-[10px] font-normal">
-                          <button 
-                            onClick={() => handleCopyToAll("reorderPoint")}
-                            className="table-link-button"
-                          >
-                            COPY TO ALL
-                          </button>
-                        </div>
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                        <div>COST PRICE (₹)*</div>
-                        <div className="mt-1 flex gap-2 text-[10px] font-normal">
-                          <button className="table-link-button">PER UNIT</button>
-                          <button 
-                            onClick={() => handleCopyToAll("costPrice")}
-                            className="table-link-button"
-                          >
-                            COPY TO ALL
-                          </button>
-                        </div>
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                        <div>SELLING PRICE (₹)*</div>
-                        <div className="mt-1 flex gap-2 text-[10px] font-normal">
-                          <button className="table-link-button">PER UNIT</button>
-                          <button 
-                            onClick={() => handleCopyToAll("sellingPrice")}
-                            className="table-link-button"
-                          >
-                            COPY TO ALL
-                          </button>
-                        </div>
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-[#495580]">
-                        <div>PRICE WITH GST (₹)</div>
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-[#495580]"></th>
-                    </>
+                    <th className="px-3.5 py-3 text-left font-bold uppercase tracking-wider text-gray-700">
+                      <div>{createAttributes ? "Item" : "Item Name*"}</div>
+                    </th>
+                    <th className="px-3.5 py-3 text-left font-bold uppercase tracking-wider text-gray-700">
+                      <div>Size</div>
+                    </th>
+                    <th className="px-3.5 py-3 text-left font-bold uppercase tracking-wider text-gray-700">
+                      <div>SKU</div>
+                      <div className="mt-1 flex gap-1.5 text-[10px] font-medium normal-case">
+                        <button className="px-1.5 py-0.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200/60 transition">Generate SKU</button>
+                        <button className="px-1.5 py-0.5 rounded bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-200 transition">Clear</button>
+                      </div>
+                    </th>
+                    <th className="px-3.5 py-3 text-left font-bold uppercase tracking-wider text-gray-700">
+                      <div>HSN Code</div>
+                      <div className="mt-1 flex gap-1.5 text-[10px] font-medium normal-case">
+                        <button 
+                          onClick={() => handleCopyToAll("hsnCode")}
+                          className="px-1.5 py-0.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200/60 transition"
+                        >
+                          Copy to All
+                        </button>
+                      </div>
+                    </th>
+                    <th className="px-3.5 py-3 text-left font-bold uppercase tracking-wider text-gray-700">
+                      <div>Reorder Point</div>
+                      <div className="mt-1 flex gap-1.5 text-[10px] font-medium normal-case">
+                        <button 
+                          onClick={() => handleCopyToAll("reorderPoint")}
+                          className="px-1.5 py-0.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200/60 transition"
+                        >
+                          Copy to All
+                        </button>
+                      </div>
+                    </th>
+                    <th className="px-3.5 py-3 text-left font-bold uppercase tracking-wider text-gray-700">
+                      <div>Cost Price (₹)*</div>
+                      <div className="mt-1 flex gap-1.5 text-[10px] font-medium normal-case">
+                        <button 
+                          onClick={() => handleCopyToAll("costPrice")}
+                          className="px-1.5 py-0.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200/60 transition"
+                        >
+                          Copy to All
+                        </button>
+                      </div>
+                    </th>
+                    <th className="px-3.5 py-3 text-left font-bold uppercase tracking-wider text-gray-700">
+                      <div>Selling Price (₹)*</div>
+                      <div className="mt-1 flex gap-1.5 text-[10px] font-medium normal-case">
+                        <button 
+                          onClick={() => handleCopyToAll("sellingPrice")}
+                          className="px-1.5 py-0.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200/60 transition"
+                        >
+                          Copy to All
+                        </button>
+                      </div>
+                    </th>
+                    <th className="px-3.5 py-3 text-left font-bold uppercase tracking-wider text-gray-700">
+                      <div>Price with GST (₹)</div>
+                    </th>
+                    <th className="px-3.5 py-3 text-left font-bold uppercase tracking-wider text-gray-700"></th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-100 bg-white">
                   {!createAttributes ? (
-                    // Manual item entry when attributes are disabled
                     <>
                       {itemRows.length === 0 && (
                         <tr>
                           <td
                             colSpan={9}
-                            className="px-4 py-6 text-center text-sm font-medium text-[#94a3b8]"
+                            className="px-4 py-8 text-center text-sm font-medium text-gray-400"
                           >
-                            No manual items available
+                            No manual items configured
                           </td>
                         </tr>
                       )}
                       {itemRows.map((item, idx) => (
-                        <tr key={item.id || idx} className="hover:bg-[#fafbff]">
-                          <td className="px-4 py-3">
+                        <tr key={item.id || idx} className="hover:bg-purple-50/20 transition-colors">
+                          <td className="px-3 py-2.5">
                             <input
                               type="text"
                               value={item.name}
                               onChange={(e) => {
                                 const updated = [...itemRows];
                                 updated[idx].name = e.target.value;
-                                // Regenerate SKU if not manually edited
                                 if (!itemSkuManuallyEdited[item.id || idx]) {
                                   updated[idx].sku = generateSkuPreview(e.target.value, item.size || "");
                                 }
                                 setItemRows(updated);
                               }}
                               placeholder="Item Name"
-                              className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                              className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 outline-none transition"
                             />
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-3 py-2.5">
                             <input
                               type="text"
                               value={item.size || ""}
                               onChange={(e) => {
                                 const updated = [...itemRows];
                                 updated[idx].size = e.target.value;
-                                // Regenerate SKU if not manually edited
                                 if (!itemSkuManuallyEdited[item.id || idx]) {
                                   updated[idx].sku = generateSkuPreview(item.name || "", e.target.value);
                                 }
                                 setItemRows(updated);
                               }}
                               placeholder="Size"
-                              className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                              className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 outline-none transition"
                             />
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-3 py-2.5">
                             <input
                               type="text"
                               value={item.sku}
@@ -1500,22 +1410,20 @@ const ShoeSalesItemGroupCreate = () => {
                                 const updated = [...itemRows];
                                 updated[idx].sku = e.target.value.toUpperCase();
                                 setItemRows(updated);
-                                // Mark as manually edited
                                 setItemSkuManuallyEdited(prev => ({ ...prev, [item.id || idx]: true }));
                               }}
                               onFocus={(e) => {
-                                // Auto-generate SKU if empty and not manually edited
                                 if (!item.sku && !itemSkuManuallyEdited[item.id || idx] && item.name) {
                                   const updated = [...itemRows];
                                   updated[idx].sku = generateSkuPreview(item.name, item.size || "");
                                   setItemRows(updated);
                                 }
                               }}
-                              placeholder="Auto-generated or enter manually"
-                              className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                              placeholder="Auto-generated"
+                              className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 outline-none transition font-mono"
                             />
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-3 py-2.5">
                             <input
                               type="text"
                               value={item.hsnCode || ""}
@@ -1524,11 +1432,11 @@ const ShoeSalesItemGroupCreate = () => {
                                 updated[idx].hsnCode = e.target.value;
                                 setItemRows(updated);
                               }}
-                              placeholder="Enter HSN"
-                              className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                              placeholder="HSN"
+                              className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 outline-none transition"
                             />
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-3 py-2.5">
                             <input
                               type="text"
                               value={item.reorderPoint || ""}
@@ -1537,11 +1445,11 @@ const ShoeSalesItemGroupCreate = () => {
                                 updated[idx].reorderPoint = e.target.value;
                                 setItemRows(updated);
                               }}
-                              placeholder="Enter quantity"
-                              className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                              placeholder="Qty"
+                              className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 outline-none transition"
                             />
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-3 py-2.5">
                             <input
                               type="text"
                               value={item.costPrice}
@@ -1550,11 +1458,11 @@ const ShoeSalesItemGroupCreate = () => {
                                 updated[idx].costPrice = e.target.value;
                                 setItemRows(updated);
                               }}
-                              placeholder="0"
-                              className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                              placeholder="0.00"
+                              className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 outline-none transition font-mono"
                             />
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-3 py-2.5">
                             <input
                               type="text"
                               value={item.sellingPrice}
@@ -1563,11 +1471,11 @@ const ShoeSalesItemGroupCreate = () => {
                                 updated[idx].sellingPrice = e.target.value;
                                 setItemRows(updated);
                               }}
-                              placeholder="0"
-                              className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                              placeholder="0.00"
+                              className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 outline-none transition font-mono"
                             />
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-3 py-2.5">
                             {(() => {
                               const gstDetails = calculateGSTDetails(
                                 item.sellingPrice,
@@ -1575,25 +1483,22 @@ const ShoeSalesItemGroupCreate = () => {
                                 priceIncludesGST
                               );
                               if (!gstDetails) {
-                                return <span className="text-sm text-[#94a3b8]">—</span>;
+                                return <span className="text-xs text-gray-400 font-mono">—</span>;
                               }
                               return priceIncludesGST ? (
-                                <div className="text-xs text-[#1f2937] space-y-0.5">
-                                  <div>Base: ₹{gstDetails.basePrice}</div>
-                                  <div>GST ({gstDetails.percentage}%): ₹{gstDetails.gstAmount}</div>
-                                  <div className="text-[11px] text-[#64748b]">Total: ₹{gstDetails.finalPrice}</div>
+                                <div className="text-[11px] font-mono space-y-0.5">
+                                  <div className="text-gray-600">Base: ₹{gstDetails.basePrice}</div>
+                                  <div className="text-purple-700 font-bold">Total: ₹{gstDetails.finalPrice}</div>
                                 </div>
                               ) : (
-                                <div className="text-xs text-[#1f2937] space-y-0.5">
-                                  <div>Total: ₹{gstDetails.finalPrice}</div>
-                                  <div className="text-[11px] text-[#64748b]">
-                                    GST ({gstDetails.percentage}%): ₹{gstDetails.gstAmount}
-                                  </div>
+                                <div className="text-[11px] font-mono space-y-0.5">
+                                  <div className="text-purple-700 font-bold">Total: ₹{gstDetails.finalPrice}</div>
+                                  <div className="text-gray-500">GST ({gstDetails.percentage}%): ₹{gstDetails.gstAmount}</div>
                                 </div>
                               );
                             })()}
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-3 py-2.5">
                             <button
                               onClick={() => {
                                 const confirmDelete = window.confirm(`Are you sure you want to delete "${item.name || "this item"}"?`);
@@ -1601,7 +1506,7 @@ const ShoeSalesItemGroupCreate = () => {
                                   setItemRows(itemRows.filter((_, i) => i !== idx));
                                 }
                               }}
-                              className="table-action-button inline-flex h-6 w-6 items-center justify-center rounded bg-[#ef4444] text-white hover:bg-[#dc2626]"
+                              className="h-7 w-7 rounded-lg text-red-500 hover:bg-red-50 hover:text-red-700 transition flex items-center justify-center cursor-pointer"
                             >
                               <X size={14} />
                             </button>
@@ -1610,27 +1515,23 @@ const ShoeSalesItemGroupCreate = () => {
                       ))}
                     </>
                   ) : createAttributes && generatedItems.length > 0 ? (
-                    // Auto-generated items from attributes
                     generatedItems.map((item, idx) => {
-                      // Always regenerate name from attributeCombination to show latest changes
                       let displayName = item.name;
                       if (item.attributeCombination && Array.isArray(item.attributeCombination) && item.attributeCombination.length > 0) {
                         const optionsStr = item.attributeCombination.join("/");
                         displayName = `${itemGroupName || "Item"} - ${optionsStr}`;
                       }
                       
-                      // Extract size from attributeCombination or use stored size
                       const sizeAttributeIndex = attributeRows.findIndex(row => row.attribute?.toLowerCase() === "size");
                       const sizeValue = sizeAttributeIndex !== -1 && item.attributeCombination && item.attributeCombination[sizeAttributeIndex] 
                         ? item.attributeCombination[sizeAttributeIndex] 
                         : (item.size || "");
                       
-                      // Base name for SKU generation (without size in the name)
                       const baseName = itemGroupName || "Item";
                       
                       return (
-                      <tr key={item.id} className="hover:bg-[#fafbff]">
-                        <td className="px-4 py-3 text-sm font-medium text-[#1f2937]">
+                      <tr key={item.id} className="hover:bg-purple-50/20 transition-colors">
+                        <td className="px-3.5 py-3 text-xs font-semibold text-gray-900">
                           <div className="flex items-center gap-2">
                             <span>{displayName}</span>
                             <button
@@ -1641,7 +1542,6 @@ const ShoeSalesItemGroupCreate = () => {
                                   if (trimmedName !== "") {
                                     const updated = [...generatedItems];
                                     updated[idx].name = trimmedName;
-                                    // If SKU hasn't been manually edited, regenerate with new name + size + attribute combo
                                     if (!itemSkuManuallyEdited[item.id]) {
                                       updated[idx].sku = generateSkuPreview(baseName, sizeValue, item.attributeCombination);
                                     }
@@ -1650,13 +1550,14 @@ const ShoeSalesItemGroupCreate = () => {
                                   }
                                 }
                               }}
-                              className="table-action-button inline-flex h-6 w-6 items-center justify-center rounded bg-[#2563eb] text-white hover:bg-[#1d4ed8]"
+                              className="h-5 w-5 rounded-md bg-purple-50 text-purple-600 hover:bg-purple-100 flex items-center justify-center transition cursor-pointer"
+                              title="Rename Item"
                             >
-                              <Edit size={14} />
+                              <Edit size={12} />
                             </button>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5">
                           <input
                             type="text"
                             value={sizeValue}
@@ -1664,11 +1565,9 @@ const ShoeSalesItemGroupCreate = () => {
                               const updated = [...generatedItems];
                               const newSize = e.target.value;
                               updated[idx].size = newSize;
-                              // Update attributeCombination if size attribute exists
                               if (sizeAttributeIndex !== -1 && updated[idx].attributeCombination) {
                                 updated[idx].attributeCombination[sizeAttributeIndex] = newSize;
                               }
-                              // Regenerate SKU if not manually edited
                               if (!itemSkuManuallyEdited[item.id]) {
                                 updated[idx].sku = generateSkuPreview(baseName, newSize, updated[idx].attributeCombination);
                               }
@@ -1676,10 +1575,10 @@ const ShoeSalesItemGroupCreate = () => {
                               previousGeneratedItemsRef.current = updated;
                             }}
                             placeholder="Size"
-                            className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                            className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 outline-none transition"
                           />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5">
                           <input
                             type="text"
                             value={item.sku}
@@ -1687,13 +1586,10 @@ const ShoeSalesItemGroupCreate = () => {
                               const updated = [...generatedItems];
                               updated[idx].sku = e.target.value.toUpperCase();
                               setGeneratedItems(updated);
-                              // Update ref as well
                               previousGeneratedItemsRef.current = updated;
-                              // Mark as manually edited
                               setItemSkuManuallyEdited(prev => ({ ...prev, [item.id]: true }));
                             }}
                             onFocus={(e) => {
-                              // Auto-generate SKU if empty and not manually edited
                               if (!item.sku && !itemSkuManuallyEdited[item.id] && baseName) {
                                 const updated = [...generatedItems];
                                 updated[idx].sku = generateSkuPreview(baseName, sizeValue, item.attributeCombination);
@@ -1701,11 +1597,11 @@ const ShoeSalesItemGroupCreate = () => {
                                 previousGeneratedItemsRef.current = updated;
                               }
                             }}
-                            placeholder="Auto-generated or enter manually"
-                            className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                            placeholder="Auto-generated"
+                            className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 outline-none transition font-mono"
                           />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5">
                           <input
                             type="text"
                             value={item.hsnCode || ""}
@@ -1715,11 +1611,11 @@ const ShoeSalesItemGroupCreate = () => {
                               setGeneratedItems(updated);
                               previousGeneratedItemsRef.current = updated;
                             }}
-                            placeholder="Enter HSN"
-                            className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                            placeholder="HSN"
+                            className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 outline-none transition"
                           />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5">
                           <input
                             type="text"
                             value={item.reorderPoint || ""}
@@ -1729,11 +1625,11 @@ const ShoeSalesItemGroupCreate = () => {
                               setGeneratedItems(updated);
                               previousGeneratedItemsRef.current = updated;
                             }}
-                            placeholder="Enter quantity"
-                            className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                            placeholder="Qty"
+                            className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 outline-none transition"
                           />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5">
                           <input
                             type="text"
                             value={item.costPrice}
@@ -1742,11 +1638,11 @@ const ShoeSalesItemGroupCreate = () => {
                               updated[idx].costPrice = e.target.value;
                               setGeneratedItems(updated);
                             }}
-                            placeholder="0"
-                            className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                            placeholder="0.00"
+                            className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 outline-none transition font-mono"
                           />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5">
                           <input
                             type="text"
                             value={item.sellingPrice}
@@ -1755,11 +1651,11 @@ const ShoeSalesItemGroupCreate = () => {
                               updated[idx].sellingPrice = e.target.value;
                               setGeneratedItems(updated);
                             }}
-                            placeholder="0"
-                            className="w-full rounded border border-[#d7dcf5] bg-white px-2 py-1.5 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+                            placeholder="0.00"
+                            className="w-full h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 outline-none transition font-mono"
                           />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5">
                           {(() => {
                             const gstDetails = calculateGSTDetails(
                               item.sellingPrice,
@@ -1767,25 +1663,22 @@ const ShoeSalesItemGroupCreate = () => {
                               priceIncludesGST
                             );
                             if (!gstDetails) {
-                              return <span className="text-sm text-[#94a3b8]">—</span>;
+                              return <span className="text-xs text-gray-400 font-mono">—</span>;
                             }
                             return priceIncludesGST ? (
-                              <div className="text-xs text-[#1f2937] space-y-0.5">
-                                <div>Base: ₹{gstDetails.basePrice}</div>
-                                <div>GST ({gstDetails.percentage}%): ₹{gstDetails.gstAmount}</div>
-                                <div className="text-[11px] text-[#64748b]">Total: ₹{gstDetails.finalPrice}</div>
+                              <div className="text-[11px] font-mono space-y-0.5">
+                                <div className="text-gray-600">Base: ₹{gstDetails.basePrice}</div>
+                                <div className="text-purple-700 font-bold">Total: ₹{gstDetails.finalPrice}</div>
                               </div>
                             ) : (
-                              <div className="text-xs text-[#1f2937] space-y-0.5">
-                                <div>Total: ₹{gstDetails.finalPrice}</div>
-                                <div className="text-[11px] text-[#64748b]">
-                                  GST ({gstDetails.percentage}%): ₹{gstDetails.gstAmount}
-                                </div>
+                              <div className="text-[11px] font-mono space-y-0.5">
+                                <div className="text-purple-700 font-bold">Total: ₹{gstDetails.finalPrice}</div>
+                                <div className="text-gray-500">GST ({gstDetails.percentage}%): ₹{gstDetails.gstAmount}</div>
                               </div>
                             );
                           })()}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5">
                           <button 
                             onClick={() => {
                               const confirmDelete = window.confirm(`Are you sure you want to delete "${displayName}"?`);
@@ -1795,7 +1688,7 @@ const ShoeSalesItemGroupCreate = () => {
                                 previousGeneratedItemsRef.current = updated;
                               }
                             }}
-                            className="table-action-button inline-flex h-6 w-6 items-center justify-center rounded bg-[#ef4444] text-white hover:bg-[#dc2626]"
+                            className="h-7 w-7 rounded-lg text-red-500 hover:bg-red-50 hover:text-red-700 transition flex items-center justify-center cursor-pointer"
                           >
                             <X size={14} />
                           </button>
@@ -1807,7 +1700,7 @@ const ShoeSalesItemGroupCreate = () => {
                     <tr>
                       <td
                         colSpan={9}
-                        className="px-4 py-6 text-center text-sm font-medium text-[#94a3b8]"
+                        className="px-4 py-8 text-center text-sm font-medium text-gray-400"
                       >
                         Please enter attributes and options to generate items.
                       </td>
@@ -1816,17 +1709,27 @@ const ShoeSalesItemGroupCreate = () => {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <button 
-                  onClick={handleSave}
-                  className="rounded-md bg-[#3762f9] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#2748c9]"
-                >
-                  {isEditMode ? "Update Item Group" : "Save Item Group"}
-                </button>
-              </div>
-            </div>
+        {/* Sticky Action Footer */}
+        <div className="sticky bottom-4 z-30 bg-white/95 backdrop-blur-md border border-gray-200/80 rounded-2xl shadow-lg p-4 flex items-center justify-between gap-4 flex-wrap">
+          <div className="text-xs text-gray-500 font-medium">
+            {createAttributes ? `${generatedItems.length} variant(s) generated` : `${itemRows.length} item(s) configured`}
+          </div>
+          <div className="flex items-center gap-3">
+            <Link
+              to={isEditMode ? `/shoe-sales/item-groups/${id}` : "/shoe-sales/item-groups"}
+              className="inline-flex items-center justify-center h-10 px-5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 shadow-xs transition-colors cursor-pointer"
+            >
+              Cancel
+            </Link>
+            <button 
+              onClick={handleSave}
+              className="inline-flex items-center justify-center h-10 px-6 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-purple-500/20 transition transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+            >
+              {isEditMode ? "Update Item Group" : "Save Item Group"}
+            </button>
           </div>
         </div>
       </div>
@@ -1929,15 +1832,12 @@ const ShoeSalesItemGroupCreate = () => {
           onYes={() => {
             switchToManualMode();
             setShowSingleItemModal(false);
-            // Navigate to items section - you can add navigation here if needed
           }}
           onNo={() => {
             setShowSingleItemModal(false);
-            // Stay on page, keep attributes visible
           }}
           onClose={() => {
             setShowSingleItemModal(false);
-            // Reset checkbox if user closes modal
             setCreateAttributes(true);
           }}
         />
@@ -1949,7 +1849,6 @@ const ShoeSalesItemGroupCreate = () => {
 const InventoryValuationSelect = ({ label, value, onChange }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [hoveredIndex, setHoveredIndex] = useState(-1);
   const containerRef = useRef(null);
 
   const options = [
@@ -1963,7 +1862,6 @@ const InventoryValuationSelect = ({ label, value, onChange }) => {
       if (containerRef.current && !containerRef.current.contains(event.target)) {
         setOpen(false);
         setSearch("");
-        setHoveredIndex(-1);
       }
     };
 
@@ -1982,40 +1880,39 @@ const InventoryValuationSelect = ({ label, value, onChange }) => {
   const displayValue = value || "";
 
   return (
-    <div className="relative flex w-full flex-col gap-1 text-sm text-[#475569]" ref={containerRef}>
-      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">{label}</span>
+    <div className="relative flex w-full flex-col gap-1.5 text-sm" ref={containerRef}>
+      <span className="text-xs font-semibold text-gray-700">{label}</span>
       <div
-        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-all duration-200 ease-in-out ${
-          open ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]" : "border-[#d7dcf5] hover:border-[#94a3b8]"
-        } bg-white text-[#1f2937] cursor-pointer`}
+        className={`flex h-10 items-center justify-between rounded-xl border px-3.5 text-sm transition ${
+          open ? "border-purple-500 ring-2 ring-purple-100" : "border-gray-200 hover:border-gray-300"
+        } bg-white text-gray-900 cursor-pointer`}
         onClick={() => setOpen((prev) => !prev)}
       >
-        <span className={`transition-colors duration-150 ${value ? "text-[#1f2937]" : "text-[#9ca3af]"}`}>{displayValue || "Select valuation method"}</span>
+        <span className={value ? "text-gray-900 font-medium" : "text-gray-400"}>{displayValue || "Select valuation method"}</span>
         <ChevronDown
           size={16}
-          className={`ml-3 text-[#9ca3af] transition-transform duration-200 ease-in-out ${open ? "rotate-180" : "rotate-0"}`}
+          className={`ml-3 text-gray-400 transition-transform duration-200 ${open ? "rotate-180 text-purple-600" : "rotate-0"}`}
         />
       </div>
       {open && (
-        <div className="absolute z-50 mt-2 w-full rounded-xl border border-[#d7dcf5] bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.45)]">
-          <div className="flex items-center gap-2 border-b border-[#edf1ff] px-3 py-2">
-            <Search size={14} className="text-[#9ca3af]" />
+        <div className="absolute top-full z-50 mt-1.5 w-full rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100">
+          <div className="flex items-center gap-2 border-b border-gray-100 px-3.5 py-2.5 bg-gray-50/50">
+            <Search size={14} className="text-gray-400" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search"
-              className="h-8 w-full border-none text-sm text-[#1f2937] outline-none placeholder:text-[#9ca3af]"
+              placeholder="Search..."
+              className="h-7 w-full border-none text-xs text-gray-900 outline-none placeholder:text-gray-400 bg-transparent"
               onClick={(e) => e.stopPropagation()}
               autoFocus
             />
           </div>
-          <div className="py-2">
+          <div className="max-h-60 overflow-y-auto py-1">
             {filteredOptions.length === 0 ? (
-              <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
+              <p className="px-4 py-6 text-center text-xs text-gray-400">No matching results</p>
             ) : (
-              filteredOptions.map((option, index) => {
+              filteredOptions.map((option) => {
                 const isSelected = value === option;
-                const isHovered = hoveredIndex === index;
                 return (
                   <div
                     key={option}
@@ -2023,22 +1920,15 @@ const InventoryValuationSelect = ({ label, value, onChange }) => {
                       onChange(option);
                       setOpen(false);
                       setSearch("");
-                      setHoveredIndex(-1);
                     }}
-                    onMouseEnter={() => setHoveredIndex(index)}
-                    onMouseLeave={() => setHoveredIndex(-1)}
-                    className={`flex items-center justify-between px-4 py-2.5 text-sm cursor-pointer transition-all duration-150 ease-in-out ${
+                    className={`flex items-center justify-between px-3.5 py-2 text-xs cursor-pointer transition ${
                       isSelected
-                        ? "bg-[#f1f5f9] text-[#1f2937]"
-                        : isHovered
-                        ? "bg-[#2563eb] text-white"
-                        : "bg-white text-[#475569] hover:bg-[#f8fafc]"
+                        ? "bg-purple-50 font-bold text-purple-700"
+                        : "text-gray-700 hover:bg-gray-50"
                     }`}
                   >
                     <span>{option}</span>
-                    {isSelected && (
-                      <Check size={16} className={isHovered ? "text-white" : "text-[#2563eb]"} />
-                    )}
+                    {isSelected && <Check size={14} className="text-purple-600" />}
                   </div>
                 );
               })
@@ -2052,33 +1942,37 @@ const InventoryValuationSelect = ({ label, value, onChange }) => {
 
 const SingleItemModal = ({ onYes, onNo, onClose }) => {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="relative w-full max-w-2xl rounded-2xl border border-[#d7dcf5] bg-white shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs px-4">
+      <div className="relative w-full max-w-lg rounded-2xl border border-gray-100 bg-white shadow-2xl p-6 overflow-hidden">
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-lg bg-[#2563eb] text-white transition hover:bg-[#1d4ed8]"
+          className="absolute right-4 top-4 p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-lg transition"
         >
-          <X size={16} />
+          <X size={18} />
         </button>
-        <div className="px-8 py-8">
-          <h2 className="mb-8 text-2xl font-semibold text-[#1f2937]">Do you want to create a single item?</h2>
-          <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <h2 className="mb-6 text-lg font-bold text-gray-900">Do you want to create a single item?</h2>
+          <div className="grid gap-3 md:grid-cols-2">
             <button
               onClick={onYes}
-              className="flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-[#2563eb] bg-[#2563eb] p-8 text-center transition-all duration-200 hover:bg-[#1d4ed8] hover:border-[#1d4ed8] hover:shadow-lg"
+              className="flex flex-col items-center justify-center gap-3 rounded-xl border border-purple-200 bg-purple-50/50 p-6 text-center transition hover:bg-purple-100/70 hover:border-purple-300 cursor-pointer shadow-2xs"
             >
-              <ShoppingBag size={40} className="text-white" />
-              <p className="text-sm font-medium leading-relaxed text-white">
-                Yes, proceed to the Items section to create a single item.
+              <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs">
+                <ShoppingBag size={20} />
+              </div>
+              <p className="text-xs font-semibold text-purple-950 leading-relaxed">
+                Yes, proceed to create a single standalone item.
               </p>
             </button>
             <button
               onClick={onNo}
-              className="flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-[#2563eb] bg-[#2563eb] p-8 text-center transition-all duration-200 hover:bg-[#1d4ed8] hover:border-[#1d4ed8] hover:shadow-lg"
+              className="flex flex-col items-center justify-center gap-3 rounded-xl border border-gray-200 bg-gray-50/50 p-6 text-center transition hover:bg-gray-100 hover:border-gray-300 cursor-pointer shadow-2xs"
             >
-              <ShoppingCart size={40} className="text-white" />
-              <p className="text-sm font-medium leading-relaxed text-white">
-                No, continue on this page to create items in a group.
+              <div className="w-10 h-10 rounded-xl bg-gray-800 text-white flex items-center justify-center shadow-xs">
+                <ShoppingCart size={20} />
+              </div>
+              <p className="text-xs font-semibold text-gray-800 leading-relaxed">
+                No, continue on this page to create grouped items.
               </p>
             </button>
           </div>
@@ -2089,33 +1983,20 @@ const SingleItemModal = ({ onYes, onNo, onClose }) => {
 };
 
 export default ShoeSalesItemGroupCreate;
+
 const FloatingCheckbox = ({ label, defaultChecked = false, checked, onChange }) => (
-  <label className="inline-flex items-center gap-3 rounded-lg border border-[#dbe4ff] bg-white px-4 py-2 text-sm font-medium text-[#1f2937] shadow-sm">
+  <label className="inline-flex items-center gap-2.5 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-semibold text-gray-700 cursor-pointer hover:border-purple-200 hover:bg-purple-50/30 transition select-none shadow-2xs">
     <input
       type="checkbox"
       checked={checked !== undefined ? checked : defaultChecked}
       onChange={onChange}
-      className="h-4 w-4 rounded border-[#cbd5f5] text-[#4285f4] focus:ring-[#4285f4]"
+      className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 disabled:cursor-not-allowed cursor-pointer accent-purple-600"
     />
     {label}
   </label>
 );
 
-const FloatingSelect = ({ label, placeholder, options = [] }) => (
-  <label className="flex w-full flex-col gap-1 text-sm text-[#475569]">
-    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">{label}</span>
-    <select className="rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none">
-      <option value="">{placeholder}</option>
-      {options.map((option) => (
-        <option key={option} value={option}>
-          {option}
-        </option>
-      ))}
-    </select>
-  </label>
-);
-
-const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
+const UnitSelect = ({ label, placeholder, value, onChange, options = [], required = false }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const containerRef = useRef(null);
@@ -2143,39 +2024,27 @@ const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
   const displayValue = value || "";
 
   return (
-    <div className="relative flex w-full flex-col gap-1 text-sm text-[#475569]" ref={containerRef}>
-      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">{label}</span>
+    <div className="relative flex w-full flex-col gap-1.5 text-sm" ref={containerRef}>
+      <span className="text-xs font-semibold text-gray-700">
+        {label}
+        {required && <span className="text-red-500 ml-1">*</span>}
+      </span>
       <div
-        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-all duration-200 ease-in-out ${
-          open ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]" : "border-[#d7dcf5] hover:border-[#94a3b8]"
-        } bg-white text-[#1f2937] cursor-pointer`}
+        className={`flex h-10 items-center justify-between rounded-xl border px-3.5 text-sm transition ${
+          open ? "border-purple-500 ring-2 ring-purple-100" : "border-gray-200 hover:border-gray-300"
+        } bg-white text-gray-900 cursor-pointer`}
         onClick={() => setOpen((prev) => !prev)}
       >
-        <span className={`transition-colors duration-150 ${value ? "text-[#1f2937]" : "text-[#9ca3af]"}`}>{displayValue || placeholder}</span>
+        <span className={value ? "text-gray-900 font-medium" : "text-gray-400"}>{displayValue || placeholder}</span>
         <ChevronDown
           size={16}
-          className={`ml-3 text-[#9ca3af] transition-transform duration-200 ease-in-out ${open ? "rotate-180" : "rotate-0"}`}
+          className={`ml-3 text-gray-400 transition-transform duration-200 ${open ? "rotate-180 text-purple-600" : "rotate-0"}`}
         />
       </div>
       {open && (
-        <div className="absolute z-50 mt-2 w-full rounded-xl border border-[#d7dcf5] bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.45)] dropdown-animate">
-          <style>{`
-            @keyframes dropdownFadeIn {
-              from {
-                opacity: 0;
-                transform: translateY(-8px);
-              }
-              to {
-                opacity: 1;
-                transform: translateY(0);
-              }
-            }
-            .dropdown-animate {
-              animation: dropdownFadeIn 0.2s ease-out;
-            }
-          `}</style>
-          <div className="flex items-center gap-2 bg-[#2563eb] px-3 py-2 text-white rounded-t-xl">
-            <Search size={14} className="text-white" />
+        <div className="absolute top-full z-50 mt-1.5 w-full rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100">
+          <div className="flex items-center gap-2 border-b border-gray-100 px-3.5 py-2.5 bg-gray-50/50">
+            <Search size={14} className="text-gray-400" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -2187,28 +2056,13 @@ const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
                   setSearch("");
                 }
               }}
-              placeholder="Select or type to add"
-              className="h-8 w-full border-none bg-transparent text-sm text-white outline-none placeholder:text-white/80"
+              placeholder="Select or type to add..."
+              className="h-7 w-full border-none bg-transparent text-xs text-gray-900 outline-none placeholder:text-gray-400"
               onClick={(e) => e.stopPropagation()}
+              autoFocus
             />
           </div>
-          <div className="max-h-60 overflow-y-scroll py-2 unit-select-scroll bg-white rounded-b-xl" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
-            <style>{`
-              .unit-select-scroll::-webkit-scrollbar {
-                width: 8px;
-              }
-              .unit-select-scroll::-webkit-scrollbar-track {
-                background: #f1f5f9;
-                border-radius: 4px;
-              }
-              .unit-select-scroll::-webkit-scrollbar-thumb {
-                background: #cbd5e1;
-                border-radius: 4px;
-              }
-              .unit-select-scroll::-webkit-scrollbar-thumb:hover {
-                background: #94a3b8;
-              }
-            `}</style>
+          <div className="max-h-60 overflow-y-auto py-1">
             {filteredOptions.length === 0 && search.trim() ? (
               <div
                 onClick={() => {
@@ -2216,12 +2070,12 @@ const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
                   setOpen(false);
                   setSearch("");
                 }}
-                className="flex w-full items-center px-4 py-2 text-left text-sm cursor-pointer transition-all duration-150 ease-in-out text-[#2563eb] hover:bg-[#e9f0ff] font-semibold"
+                className="flex w-full items-center px-3.5 py-2.5 text-left text-xs cursor-pointer transition font-bold text-purple-600 hover:bg-purple-50"
               >
-                Add "{search.trim()}"
+                + Add "{search.trim()}"
               </div>
             ) : filteredOptions.length === 0 ? (
-              <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
+              <p className="px-4 py-6 text-center text-xs text-gray-400">No matching results</p>
             ) : (
               <>
                 {search.trim() && !filteredOptions.includes(search.trim()) && (
@@ -2231,9 +2085,9 @@ const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
                       setOpen(false);
                       setSearch("");
                     }}
-                    className="flex w-full items-center px-4 py-2 text-left text-sm cursor-pointer transition-all duration-150 ease-in-out text-[#2563eb] hover:bg-[#e9f0ff] font-semibold border-b border-[#e7ebf8]"
+                    className="flex w-full items-center px-3.5 py-2.5 text-left text-xs cursor-pointer transition font-bold text-purple-600 hover:bg-purple-50 border-b border-gray-100"
                   >
-                    Add "{search.trim()}"
+                    + Add "{search.trim()}"
                   </div>
                 )}
                 {filteredOptions.map((option) => {
@@ -2246,10 +2100,10 @@ const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
                         setOpen(false);
                         setSearch("");
                       }}
-                      className={`flex w-full items-center px-4 py-2 text-left text-sm cursor-pointer transition-all duration-150 ease-in-out ${
+                      className={`flex w-full items-center px-3.5 py-2 text-left text-xs cursor-pointer transition ${
                         isSelected
-                          ? "text-[#2563eb] font-semibold"
-                          : "text-[#475569] hover:text-[#2563eb]"
+                          ? "bg-purple-50 font-bold text-purple-700"
+                          : "text-gray-700 hover:bg-gray-50"
                       }`}
                     >
                       {option}
@@ -2265,7 +2119,7 @@ const UnitSelect = ({ label, placeholder, value, onChange, options = [] }) => {
   );
 };
 
-const ManufacturerSelect = ({ label, placeholder, value, onChange, manufacturers, onManageClick }) => {
+const ManufacturerSelect = ({ label, placeholder, value, onChange, manufacturers = [], onManageClick }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const containerRef = useRef(null);
@@ -2293,53 +2147,36 @@ const ManufacturerSelect = ({ label, placeholder, value, onChange, manufacturers
   const displayValue = value || "";
 
   return (
-    <div className="relative flex w-full flex-col gap-1 text-sm text-[#475569]" ref={containerRef}>
-      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">{label}</span>
+    <div className="relative flex w-full flex-col gap-1.5 text-sm" ref={containerRef}>
+      <span className="text-xs font-semibold text-gray-700">{label}</span>
       <div
-        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition ${
-          open ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]" : "border-[#d7dcf5]"
-        } bg-white text-[#1f2937] cursor-pointer`}
+        className={`flex h-10 items-center justify-between rounded-xl border px-3.5 text-sm transition ${
+          open ? "border-purple-500 ring-2 ring-purple-100" : "border-gray-200 hover:border-gray-300"
+        } bg-white text-gray-900 cursor-pointer`}
         onClick={() => setOpen((prev) => !prev)}
       >
-        <span className={value ? "text-[#1f2937]" : "text-[#9ca3af]"}>{displayValue || placeholder}</span>
+        <span className={displayValue ? "text-gray-900 font-medium" : "text-gray-400"}>{displayValue || placeholder}</span>
         <ChevronDown
           size={16}
-          className={`ml-3 text-[#9ca3af] transition-transform ${open ? "rotate-180" : "rotate-0"}`}
+          className={`ml-3 text-gray-400 transition-transform duration-200 ${open ? "rotate-180 text-purple-600" : "rotate-0"}`}
         />
       </div>
       {open && (
-        <div className="absolute z-50 mt-2 w-full rounded-xl border border-[#d7dcf5] bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.45)]">
-          <div className="flex items-center gap-2 border-b border-[#edf1ff] px-3 py-2 text-[#475569]">
-            <Search size={14} className="text-[#9ca3af]" />
+        <div className="absolute top-full z-50 mt-1.5 w-full rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100">
+          <div className="flex items-center gap-2 border-b border-gray-100 px-3.5 py-2.5 bg-gray-50/50">
+            <Search size={14} className="text-gray-400" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search"
-              className="h-8 w-full border-none text-sm text-[#1f2937] outline-none placeholder:text-[#9ca3af]"
+              placeholder="Search manufacturer..."
+              className="h-7 w-full border-none text-xs text-gray-900 outline-none placeholder:text-gray-400 bg-transparent"
               onClick={(e) => e.stopPropagation()}
+              autoFocus
             />
           </div>
-          <div className="max-h-60 overflow-y-scroll py-2 manufacturer-select-scroll" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
-            <style>{`
-              .manufacturer-select-scroll::-webkit-scrollbar {
-                width: 8px;
-              }
-              .manufacturer-select-scroll::-webkit-scrollbar-track {
-                background: #f1f5f9;
-                border-radius: 4px;
-              }
-              .manufacturer-select-scroll::-webkit-scrollbar-thumb {
-                background: #cbd5e1;
-                border-radius: 4px;
-              }
-              .manufacturer-select-scroll::-webkit-scrollbar-thumb:hover {
-                background: #94a3b8;
-              }
-            `}</style>
-            {filteredManufacturers.length === 0 && manufacturers.length === 0 ? (
-              <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No manufacturers added yet</p>
-            ) : filteredManufacturers.length === 0 ? (
-              <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
+          <div className="max-h-56 overflow-y-auto py-1">
+            {filteredManufacturers.length === 0 ? (
+              <p className="px-4 py-6 text-center text-xs text-gray-400">No matching results</p>
             ) : (
               filteredManufacturers.map((manufacturer) => {
                 const isSelected = value === manufacturer;
@@ -2352,10 +2189,10 @@ const ManufacturerSelect = ({ label, placeholder, value, onChange, manufacturers
                       setOpen(false);
                       setSearch("");
                     }}
-                    className={`select-option flex w-full items-center rounded-md px-4 py-2 text-left text-sm transition ${
+                    className={`flex w-full items-center px-3.5 py-2 text-left text-xs transition ${
                       isSelected
-                        ? "bg-[#f6f8ff] text-[#2563eb] font-semibold"
-                        : "bg-white text-[#475569] hover:bg-[#f6f8ff]"
+                        ? "bg-purple-50 font-bold text-purple-700"
+                        : "text-gray-700 hover:bg-gray-50"
                     }`}
                   >
                     {manufacturer}
@@ -2364,21 +2201,23 @@ const ManufacturerSelect = ({ label, placeholder, value, onChange, manufacturers
               })
             )}
           </div>
-          <div className="border-t border-[#edf1ff] px-3 py-2">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onManageClick();
-                setOpen(false);
-                setSearch("");
-              }}
-              className="flex w-full items-center gap-2 text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8] transition"
-            >
-              <Settings size={14} />
-              Manage Manufacturers
-            </button>
-          </div>
+          {onManageClick && (
+            <div className="border-t border-gray-100 px-3.5 py-2 bg-gray-50/50">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onManageClick();
+                  setOpen(false);
+                  setSearch("");
+                }}
+                className="flex w-full items-center gap-2 text-xs font-semibold text-purple-600 hover:text-purple-700 transition"
+              >
+                <Settings size={13} />
+                Manage Manufacturers
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -2394,43 +2233,43 @@ const ManufacturerModal = ({ onClose, onAdd, newManufacturer, setNewManufacturer
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="relative w-full max-w-md rounded-2xl border border-[#d7dcf5] bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4">
-          <h2 className="text-lg font-semibold text-[#1f2937]">Add Manufacturer</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs px-4">
+      <div className="relative w-full max-w-md rounded-2xl border border-gray-100 bg-white shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-150">
+        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 bg-gradient-to-r from-gray-50/80 to-white">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-gray-900">Add Manufacturer</h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition"
+            className="p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-lg transition"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="px-6 py-4">
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-              Manufacturer Name*
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-gray-700">
+              Manufacturer Name <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={newManufacturer}
               onChange={(e) => setNewManufacturer(e.target.value)}
               placeholder="Enter manufacturer name"
-              className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+              className="w-full h-10 rounded-xl border border-gray-200 bg-white px-3.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition outline-none"
               autoFocus
             />
           </div>
-          <div className="mt-6 flex items-center justify-end gap-3">
+          <div className="flex items-center justify-end gap-2.5 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md border border-[#d7dcf5] px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-[#f1f5f9]"
+              className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!newManufacturer.trim()}
-              className="rounded-md border border-[#d7dcf5] px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-white disabled:bg-[#f1f5f9] disabled:text-[#9ca3af] disabled:cursor-not-allowed"
+              className="rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-5 py-2 text-xs font-bold text-white transition hover:from-purple-700 hover:to-indigo-700 shadow-sm shadow-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Add Manufacturer
             </button>
@@ -2441,7 +2280,7 @@ const ManufacturerModal = ({ onClose, onAdd, newManufacturer, setNewManufacturer
   );
 };
 
-const BrandSelect = ({ label, placeholder, value, onChange, brands, onManageClick }) => {
+const BrandSelect = ({ label, placeholder, value, onChange, brands = [], onManageClick }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const containerRef = useRef(null);
@@ -2469,53 +2308,36 @@ const BrandSelect = ({ label, placeholder, value, onChange, brands, onManageClic
   const displayValue = value || "";
 
   return (
-    <div className="relative flex w-full flex-col gap-1 text-sm text-[#475569]" ref={containerRef}>
-      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">{label}</span>
+    <div className="relative flex w-full flex-col gap-1.5 text-sm" ref={containerRef}>
+      <span className="text-xs font-semibold text-gray-700">{label}</span>
       <div
-        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-all duration-200 ease-in-out ${
-          open ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]" : "border-[#d7dcf5] hover:border-[#94a3b8]"
-        } bg-white text-[#1f2937] cursor-pointer`}
+        className={`flex h-10 items-center justify-between rounded-xl border px-3.5 text-sm transition ${
+          open ? "border-purple-500 ring-2 ring-purple-100" : "border-gray-200 hover:border-gray-300"
+        } bg-white text-gray-900 cursor-pointer`}
         onClick={() => setOpen((prev) => !prev)}
       >
-        <span className={`transition-colors duration-150 ${value ? "text-[#1f2937]" : "text-[#9ca3af]"}`}>{displayValue || placeholder}</span>
+        <span className={displayValue ? "text-gray-900 font-medium" : "text-gray-400"}>{displayValue || placeholder}</span>
         <ChevronDown
           size={16}
-          className={`ml-3 text-[#9ca3af] transition-transform duration-200 ease-in-out ${open ? "rotate-180" : "rotate-0"}`}
+          className={`ml-3 text-gray-400 transition-transform duration-200 ${open ? "rotate-180 text-purple-600" : "rotate-0"}`}
         />
       </div>
       {open && (
-        <div className="absolute z-50 mt-2 w-full rounded-xl border border-[#d7dcf5] bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.45)]">
-          <div className="flex items-center gap-2 border-b border-[#edf1ff] px-3 py-2 text-[#475569]">
-            <Search size={14} className="text-[#9ca3af]" />
+        <div className="absolute top-full z-50 mt-1.5 w-full rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100">
+          <div className="flex items-center gap-2 border-b border-gray-100 px-3.5 py-2.5 bg-gray-50/50">
+            <Search size={14} className="text-gray-400" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search"
-              className="h-8 w-full border-none text-sm text-[#1f2937] outline-none placeholder:text-[#9ca3af]"
+              placeholder="Search brand..."
+              className="h-7 w-full border-none bg-transparent text-xs text-gray-900 outline-none placeholder:text-gray-400"
               onClick={(e) => e.stopPropagation()}
+              autoFocus
             />
           </div>
-          <div className="max-h-60 overflow-y-scroll py-2 brand-select-scroll" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
-            <style>{`
-              .brand-select-scroll::-webkit-scrollbar {
-                width: 8px;
-              }
-              .brand-select-scroll::-webkit-scrollbar-track {
-                background: #f1f5f9;
-                border-radius: 4px;
-              }
-              .brand-select-scroll::-webkit-scrollbar-thumb {
-                background: #cbd5e1;
-                border-radius: 4px;
-              }
-              .brand-select-scroll::-webkit-scrollbar-thumb:hover {
-                background: #94a3b8;
-              }
-            `}</style>
-            {filteredBrands.length === 0 && brands.length === 0 ? (
-              <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No brands added yet</p>
-            ) : filteredBrands.length === 0 ? (
-              <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
+          <div className="max-h-56 overflow-y-auto py-1">
+            {filteredBrands.length === 0 ? (
+              <p className="px-4 py-6 text-center text-xs text-gray-400">No matching results</p>
             ) : (
               filteredBrands.map((brand) => {
                 const isSelected = value === brand;
@@ -2527,10 +2349,10 @@ const BrandSelect = ({ label, placeholder, value, onChange, brands, onManageClic
                       setOpen(false);
                       setSearch("");
                     }}
-                    className={`flex w-full items-center px-4 py-2 text-left text-sm cursor-pointer transition-all duration-150 ease-in-out ${
+                    className={`flex w-full items-center px-3.5 py-2 text-left text-xs cursor-pointer transition ${
                       isSelected
-                        ? "text-[#2563eb] font-semibold"
-                        : "text-[#475569] hover:text-[#2563eb]"
+                        ? "bg-purple-50 font-bold text-purple-700"
+                        : "text-gray-700 hover:bg-gray-50"
                     }`}
                   >
                     {brand}
@@ -2539,21 +2361,23 @@ const BrandSelect = ({ label, placeholder, value, onChange, brands, onManageClic
               })
             )}
           </div>
-          <div className="border-t border-[#edf1ff] px-3 py-2">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onManageClick();
-                setOpen(false);
-                setSearch("");
-              }}
-              className="flex w-full items-center gap-2 text-sm font-medium text-[#2563eb] hover:text-[#1d4ed8] transition"
-            >
-              <Settings size={14} />
-              Manage Brands
-            </button>
-          </div>
+          {onManageClick && (
+            <div className="border-t border-gray-100 px-3.5 py-2 bg-gray-50/50">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onManageClick();
+                  setOpen(false);
+                  setSearch("");
+                }}
+                className="flex w-full items-center gap-2 text-xs font-semibold text-purple-600 hover:text-purple-700 transition"
+              >
+                <Settings size={13} />
+                Manage Brands
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -2569,43 +2393,43 @@ const BrandModal = ({ onClose, onAdd, newBrand, setNewBrand }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="relative w-full max-w-md rounded-2xl border border-[#d7dcf5] bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-[#e7ebf8] px-6 py-4">
-          <h2 className="text-lg font-semibold text-[#1f2937]">Add Brand</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs px-4">
+      <div className="relative w-full max-w-md rounded-2xl border border-gray-100 bg-white shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-150">
+        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 bg-gradient-to-r from-gray-50/80 to-white">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-gray-900">Add Brand</h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-[#9ca3af] hover:bg-[#f1f5f9] hover:text-[#475569] transition"
+            className="p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-lg transition"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="px-6 py-4">
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b]">
-              Brand Name*
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-gray-700">
+              Brand Name <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={newBrand}
               onChange={(e) => setNewBrand(e.target.value)}
               placeholder="Enter brand name"
-              className="w-full rounded-lg border border-[#d7dcf5] px-3 py-2 text-sm text-[#1f2937] focus:border-[#4285f4] focus:outline-none"
+              className="w-full h-10 rounded-xl border border-gray-200 bg-white px-3.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition outline-none"
               autoFocus
             />
           </div>
-          <div className="mt-6 flex items-center justify-end gap-3">
+          <div className="flex items-center justify-end gap-2.5 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md border border-[#d7dcf5] px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-[#f1f5f9]"
+              className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!newBrand.trim()}
-              className="rounded-md border border-[#d7dcf5] px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-white disabled:bg-[#f1f5f9] disabled:text-[#9ca3af] disabled:cursor-not-allowed"
+              className="rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-5 py-2 text-xs font-bold text-white transition hover:from-purple-700 hover:to-indigo-700 shadow-sm shadow-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Add Brand
             </button>
@@ -2619,10 +2443,8 @@ const BrandModal = ({ onClose, onAdd, newBrand, setNewBrand }) => {
 const TaxRateSelect = ({ label, value, onChange, type }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [hoveredIndex, setHoveredIndex] = useState(-1);
   const containerRef = useRef(null);
 
-  // Tax rate options based on type
   const taxRateOptions = type === "intra" 
     ? [
         "GST0 [0%]",
@@ -2644,7 +2466,6 @@ const TaxRateSelect = ({ label, value, onChange, type }) => {
       if (containerRef.current && !containerRef.current.contains(event.target)) {
         setOpen(false);
         setSearch("");
-        setHoveredIndex(-1);
       }
     };
 
@@ -2663,92 +2484,63 @@ const TaxRateSelect = ({ label, value, onChange, type }) => {
   const displayValue = value || "";
 
   return (
-    <div className="relative flex w-full flex-col gap-1 text-sm text-[#475569]" ref={containerRef}>
-      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b] cursor-pointer border-b border-dotted border-[#64748b] pb-0.5 inline-block w-fit">
+    <div className="relative flex w-full flex-col gap-1.5 text-sm" ref={containerRef}>
+      <label className="text-xs font-semibold text-gray-700">
         {label}
       </label>
       <div
-        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-all duration-200 ease-in-out ${
-          open ? "border-[#2563eb] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]" : "border-[#d7dcf5] hover:border-[#94a3b8]"
-        } bg-white text-[#1f2937] cursor-pointer`}
+        className={`flex h-10 items-center justify-between rounded-xl border px-3.5 text-sm transition ${
+          open ? "border-purple-500 ring-2 ring-purple-100" : "border-gray-200 hover:border-gray-300"
+        } bg-white text-gray-900 cursor-pointer`}
         onClick={() => setOpen((prev) => !prev)}
       >
-        <span className={`transition-colors duration-150 ${value ? "text-[#1f2937]" : "text-[#9ca3af]"}`}>
+        <span className={value ? "text-gray-900 font-medium" : "text-gray-400"}>
           {displayValue || "Select tax rate"}
         </span>
         <ChevronDown
           size={16}
-          className={`ml-3 text-[#9ca3af] transition-transform duration-200 ease-in-out ${open ? "rotate-180" : "rotate-0"}`}
+          className={`ml-3 text-gray-400 transition-transform duration-200 ${open ? "rotate-180 text-purple-600" : "rotate-0"}`}
         />
       </div>
       {open && (
-        <div className="absolute z-50 mt-2 w-full rounded-xl border border-[#d7dcf5] bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.45)]">
-          <div className="flex items-center gap-2 border-b border-[#edf1ff] px-3 py-2 bg-[#2563eb] rounded-t-xl">
-            <Search size={14} className="text-white" />
+        <div className="absolute top-full z-50 mt-1.5 w-full rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100">
+          <div className="flex items-center gap-2 border-b border-gray-100 px-3.5 py-2.5 bg-gray-50/50">
+            <Search size={14} className="text-gray-400" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search"
-              className="h-8 w-full border-none bg-transparent text-sm text-white outline-none placeholder:text-white/80"
+              placeholder="Search tax rate..."
+              className="h-7 w-full border-none bg-transparent text-xs text-gray-900 outline-none placeholder:text-gray-400"
               onClick={(e) => e.stopPropagation()}
               autoFocus
             />
           </div>
-          <div className="py-2">
-            <div className="px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#64748b]">
-              Tax
-            </div>
-            <div className="max-h-60 overflow-y-scroll tax-rate-select-scroll">
-              <style>{`
-                .tax-rate-select-scroll::-webkit-scrollbar {
-                  width: 8px;
-                }
-                .tax-rate-select-scroll::-webkit-scrollbar-track {
-                  background: #f1f5f9;
-                  border-radius: 4px;
-                }
-                .tax-rate-select-scroll::-webkit-scrollbar-thumb {
-                  background: #cbd5e1;
-                  border-radius: 4px;
-                }
-                .tax-rate-select-scroll::-webkit-scrollbar-thumb:hover {
-                  background: #94a3b8;
-                }
-              `}</style>
-              {filteredOptions.length === 0 ? (
-                <p className="px-4 py-6 text-center text-xs text-[#9ca3af]">No matching results</p>
-              ) : (
-                filteredOptions.map((option, index) => {
-                  const isSelected = value === option;
-                  const isHovered = hoveredIndex === index;
-                  return (
-                    <div
-                      key={option}
-                      onClick={() => {
-                        onChange(option);
-                        setOpen(false);
-                        setSearch("");
-                        setHoveredIndex(-1);
-                      }}
-                      onMouseEnter={() => setHoveredIndex(index)}
-                      onMouseLeave={() => setHoveredIndex(-1)}
-                      className={`flex items-center justify-between px-4 py-2.5 text-sm cursor-pointer transition-all duration-150 ease-in-out ${
-                        isSelected
-                          ? "bg-[#2563eb] text-white"
-                          : isHovered
-                          ? "bg-[#2563eb] text-white"
-                          : "bg-white text-[#475569] hover:bg-[#f8fafc]"
-                      }`}
-                    >
-                      <span>{option}</span>
-                      {isSelected && (
-                        <Check size={16} className="text-white" />
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
+          <div className="max-h-60 overflow-y-auto py-1">
+            {filteredOptions.length === 0 ? (
+              <p className="px-4 py-6 text-center text-xs text-gray-400">No matching results</p>
+            ) : (
+              filteredOptions.map((option) => {
+                const isSelected = value === option;
+                return (
+                  <div
+                    key={option}
+                    onClick={() => {
+                      onChange(option);
+                      setOpen(false);
+                      setSearch("");
+                    }}
+                    className={`flex items-center justify-between px-3.5 py-2 text-xs cursor-pointer transition ${
+                      isSelected
+                        ? "bg-purple-50 font-bold text-purple-700"
+                        : "text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    <span>{option}</span>
+                    {isSelected && <Check size={14} className="text-purple-600" />}
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       )}

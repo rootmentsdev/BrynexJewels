@@ -1482,11 +1482,10 @@ const ShoeSalesItemDetailFromGroup = () => {
                     onClick={() => {
                       navigate(`/shoe-sales/item-groups/${id}/items/${itemId}/stocks?type=${stockType}`);
                     }}
-                    className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-400 cursor-pointer"
                   >
-                    <Settings size={15} className="text-[#6B7280]" />
-                    <span className="text-sm font-bold uppercase tracking-wider text-[#111827]">Stock Locations</span>
-                    <ChevronDown size={15} className="text-[#6B7280]" />
+                    <Plus size={16} className="text-[#8B5CF6]" />
+                    <span>Add Stock</span>
                   </button>
                   <div className="flex items-center gap-2">
                     <button

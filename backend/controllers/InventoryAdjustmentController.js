@@ -1,11 +1,15 @@
-// Updated to use PostgreSQL (Sequelize) instead of MongoDB
-import { Op } from "sequelize";
-import { InventoryAdjustment } from "../models/sequelize/index.js";
-// Also import MongoDB model for dual-save
-import MongoInventoryAdjustment from "../model/InventoryAdjustment.js";
+import InventoryAdjustment from "../model/InventoryAdjustment.js";
 import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
 import { nextInventoryAdjustment } from "../utils/nextInventoryAdjustment.js";
+
+// Helper function to format inventory adjustment for frontend compatibility
+const formatAdjustment = (doc) => {
+  if (!doc) return null;
+  const obj = doc.toObject ? doc.toObject() : { ...doc };
+  obj.id = obj._id.toString();
+  return obj;
+};
 
 // Helper function to update warehouse stock for inventory adjustment
 const adjustItemStock = async (itemIdValue, quantityAdjustment, warehouseName, itemName = null, itemGroupId = null, itemSku = null) => {
@@ -19,84 +23,21 @@ const adjustItemStock = async (itemIdValue, quantityAdjustment, warehouseName, i
   console.log(`   itemGroupId: ${itemGroupId}`);
   console.log(`   itemSku: ${itemSku}`);
   
-  // Helper function to update warehouse stock
-  const updateWarehouseStock = (warehouseStocks, qtyAdjustment, targetWarehouse) => {
-    if (!warehouseStocks || warehouseStocks.length === 0) {
-      // Create new warehouse entry
-      return [{
-        warehouse: targetWarehouse,
-        openingStock: 0,
-        openingStockValue: 0,
-        stockOnHand: qtyAdjustment,
-        committedStock: 0,
-        availableForSale: qtyAdjustment,
-        physicalOpeningStock: 0,
-        physicalStockOnHand: qtyAdjustment,
-        physicalCommittedStock: 0,
-        physicalAvailableForSale: qtyAdjustment,
-      }];
-    }
-    
-    // Find the specific warehouse (case-insensitive match)
-    let warehouseStock = warehouseStocks.find(ws => 
-      ws.warehouse && ws.warehouse.toString().trim().toLowerCase() === targetWarehouse.trim().toLowerCase()
-    );
-    
-    if (!warehouseStock) {
-      // Create new warehouse entry if it doesn't exist
-      warehouseStock = {
-        warehouse: targetWarehouse,
-        openingStock: 0,
-        openingStockValue: 0,
-        stockOnHand: qtyAdjustment,
-        committedStock: 0,
-        availableForSale: qtyAdjustment,
-        physicalOpeningStock: 0,
-        physicalStockOnHand: qtyAdjustment,
-        physicalCommittedStock: 0,
-        physicalAvailableForSale: qtyAdjustment,
-      };
-      warehouseStocks.push(warehouseStock);
-      return warehouseStocks;
-    }
-    
-    const currentStockOnHand = parseFloat(warehouseStock.stockOnHand) || 0;
-    const currentAvailableForSale = parseFloat(warehouseStock.availableForSale) || 0;
-    const currentPhysicalStockOnHand = parseFloat(warehouseStock.physicalStockOnHand) || 0;
-    const currentPhysicalAvailableForSale = parseFloat(warehouseStock.physicalAvailableForSale) || 0;
-    
-    // Apply adjustment (can be positive or negative)
-    warehouseStock.stockOnHand = Math.max(0, currentStockOnHand + qtyAdjustment);
-    warehouseStock.availableForSale = Math.max(0, currentAvailableForSale + qtyAdjustment);
-    warehouseStock.physicalStockOnHand = Math.max(0, currentPhysicalStockOnHand + qtyAdjustment);
-    warehouseStock.physicalAvailableForSale = Math.max(0, currentPhysicalAvailableForSale + qtyAdjustment);
-    
-    return warehouseStocks;
-  };
-  
-  // If itemId is null but we have itemGroupId and itemName, use name-based search
   if ((!itemIdValue || itemIdValue === null || itemIdValue === "null") && itemGroupId && itemName) {
     return await adjustItemStockByName(itemGroupId, itemName, quantityAdjustment, targetWarehouse, itemSku);
   }
   
-  // First, try to find as standalone item
   let shoeItem = null;
   if (itemIdValue && itemIdValue !== null && itemIdValue !== "null") {
     shoeItem = await ShoeItem.findById(itemIdValue);
   }
   
   if (shoeItem) {
-    // Convert to plain object, modify, then update using $set (same fix as PurchaseReceiveController)
     const itemPlain = shoeItem.toObject();
-    const oldStock = itemPlain.warehouseStocks?.find(ws => 
-      ws.warehouse && ws.warehouse.toString().trim().toLowerCase() === targetWarehouse.trim().toLowerCase()
-    )?.stockOnHand || 0;
-    
     if (!itemPlain.warehouseStocks || !Array.isArray(itemPlain.warehouseStocks)) {
       itemPlain.warehouseStocks = [];
     }
     
-    // Find or create warehouse stock entry
     let wsEntry = itemPlain.warehouseStocks.find(ws => 
       ws.warehouse && ws.warehouse.toString().trim().toLowerCase() === targetWarehouse.trim().toLowerCase()
     );
@@ -117,7 +58,6 @@ const adjustItemStock = async (itemIdValue, quantityAdjustment, warehouseName, i
       itemPlain.warehouseStocks.push(wsEntry);
     }
     
-    // Update stock values
     const currentStock = parseFloat(wsEntry.stockOnHand) || 0;
     const newStock = Math.max(0, currentStock + quantityAdjustment);
     wsEntry.stockOnHand = newStock;
@@ -128,7 +68,6 @@ const adjustItemStock = async (itemIdValue, quantityAdjustment, warehouseName, i
     
     console.log(`   📊 Inventory adjustment: ${currentStock} ${quantityAdjustment >= 0 ? '+' : ''}${quantityAdjustment} = ${newStock}`);
     
-    // Update using $set to replace entire warehouseStocks array
     const updatedItem = await ShoeItem.findByIdAndUpdate(
       itemIdValue,
       {
@@ -156,7 +95,6 @@ const adjustItemStock = async (itemIdValue, quantityAdjustment, warehouseName, i
     };
   }
   
-  // Item not found in standalone items, try to find in item groups
   if (itemGroupId && itemName) {
     const nameBasedResult = await adjustItemStockByName(itemGroupId, itemName, quantityAdjustment, targetWarehouse, itemSku);
     if (nameBasedResult.success) {
@@ -164,7 +102,6 @@ const adjustItemStock = async (itemIdValue, quantityAdjustment, warehouseName, i
     }
   }
   
-  // Search all item groups if itemGroupId not provided
   let itemGroups = [];
   if (itemGroupId) {
     const group = await ItemGroup.findById(itemGroupId);
@@ -182,7 +119,6 @@ const adjustItemStock = async (itemIdValue, quantityAdjustment, warehouseName, i
     });
     
     if (itemIndex !== -1) {
-      // Use the same fix - convert to plain object, modify, then update using $set
       const groupPlain = group.toObject();
       const itemPlain = groupPlain.items[itemIndex];
       
@@ -210,7 +146,6 @@ const adjustItemStock = async (itemIdValue, quantityAdjustment, warehouseName, i
         itemPlain.warehouseStocks.push(wsEntry);
       }
       
-      // Update stock values
       const currentStock = parseFloat(wsEntry.stockOnHand) || 0;
       const newStock = Math.max(0, currentStock + quantityAdjustment);
       wsEntry.stockOnHand = newStock;
@@ -219,7 +154,6 @@ const adjustItemStock = async (itemIdValue, quantityAdjustment, warehouseName, i
       wsEntry.physicalAvailableForSale = Math.max(0, (parseFloat(wsEntry.physicalAvailableForSale) || 0) + quantityAdjustment);
       wsEntry.warehouse = targetWarehouse;
       
-      // Update using $set
       const updateResult = await ItemGroup.findByIdAndUpdate(
         group._id,
         {
@@ -231,7 +165,6 @@ const adjustItemStock = async (itemIdValue, quantityAdjustment, warehouseName, i
       );
       
       if (updateResult) {
-        // Reload to get actual saved values
         const savedGroup = await ItemGroup.findById(group._id);
         const savedItem = savedGroup.items[itemIndex];
         const savedStock = savedItem.warehouseStocks.find(ws => 
@@ -278,65 +211,9 @@ const adjustItemStockByName = async (itemGroupId, itemName, quantityAdjustment, 
   }
   
   const groupItem = group.items[itemIndex];
-  
-  const updateWarehouseStock = (warehouseStocks, qtyAdjustment, targetWarehouse) => {
-    if (!warehouseStocks || warehouseStocks.length === 0) {
-      return [{
-        warehouse: targetWarehouse,
-        openingStock: 0,
-        openingStockValue: 0,
-        stockOnHand: qtyAdjustment,
-        committedStock: 0,
-        availableForSale: qtyAdjustment,
-        physicalOpeningStock: 0,
-        physicalStockOnHand: qtyAdjustment,
-        physicalCommittedStock: 0,
-        physicalAvailableForSale: qtyAdjustment,
-      }];
-    }
-    
-    let warehouseStock = warehouseStocks.find(ws => 
-      ws.warehouse && ws.warehouse.toString().trim().toLowerCase() === targetWarehouse.trim().toLowerCase()
-    );
-    
-    if (!warehouseStock) {
-      warehouseStock = {
-        warehouse: targetWarehouse,
-        openingStock: 0,
-        openingStockValue: 0,
-        stockOnHand: qtyAdjustment,
-        committedStock: 0,
-        availableForSale: qtyAdjustment,
-        physicalOpeningStock: 0,
-        physicalStockOnHand: qtyAdjustment,
-        physicalCommittedStock: 0,
-        physicalAvailableForSale: qtyAdjustment,
-      };
-      warehouseStocks.push(warehouseStock);
-      return warehouseStocks;
-    }
-    
-    const currentStockOnHand = parseFloat(warehouseStock.stockOnHand) || 0;
-    const currentAvailableForSale = parseFloat(warehouseStock.availableForSale) || 0;
-    const currentPhysicalStockOnHand = parseFloat(warehouseStock.physicalStockOnHand) || 0;
-    const currentPhysicalAvailableForSale = parseFloat(warehouseStock.physicalAvailableForSale) || 0;
-    
-    warehouseStock.stockOnHand = Math.max(0, currentStockOnHand + qtyAdjustment);
-    warehouseStock.availableForSale = Math.max(0, currentAvailableForSale + qtyAdjustment);
-    warehouseStock.physicalStockOnHand = Math.max(0, currentPhysicalStockOnHand + qtyAdjustment);
-    warehouseStock.physicalAvailableForSale = Math.max(0, currentPhysicalAvailableForSale + qtyAdjustment);
-    
-    return warehouseStocks;
-  };
-  
-  // Convert group to plain object, modify, then update using $set (same fix as PurchaseReceiveController)
   const groupPlain = group.toObject();
   const itemPlain = groupPlain.items[itemIndex];
-  const oldStock = itemPlain.warehouseStocks?.find(ws => 
-    ws.warehouse && ws.warehouse.toString().trim().toLowerCase() === targetWarehouse.trim().toLowerCase()
-  )?.stockOnHand || 0;
   
-  // Find or create warehouse stock entry
   if (!itemPlain.warehouseStocks) {
     itemPlain.warehouseStocks = [];
   }
@@ -361,7 +238,6 @@ const adjustItemStockByName = async (itemGroupId, itemName, quantityAdjustment, 
     itemPlain.warehouseStocks.push(wsEntry);
   }
   
-  // Update stock values
   const currentStock = parseFloat(wsEntry.stockOnHand) || 0;
   const newStock = Math.max(0, currentStock + quantityAdjustment);
   wsEntry.stockOnHand = newStock;
@@ -372,7 +248,6 @@ const adjustItemStockByName = async (itemGroupId, itemName, quantityAdjustment, 
   
   console.log(`   📊 Inventory adjustment: ${currentStock} ${quantityAdjustment >= 0 ? '+' : ''}${quantityAdjustment} = ${newStock}`);
   
-  // Update the entire items array using $set
   const updateResult = await ItemGroup.findByIdAndUpdate(
     itemGroupId,
     {
@@ -388,14 +263,11 @@ const adjustItemStockByName = async (itemGroupId, itemName, quantityAdjustment, 
     return { success: false, message: "Failed to update stock" };
   }
   
-  // Reload to get actual saved values
   const savedGroup = await ItemGroup.findById(itemGroupId);
   const savedItem = savedGroup.items[itemIndex];
   const savedStock = savedItem.warehouseStocks.find(ws => 
     ws.warehouse && ws.warehouse.toString().trim().toLowerCase() === targetWarehouse.trim().toLowerCase()
   ) || savedItem.warehouseStocks[0];
-  
-  console.log(`   ✅ Stock updated successfully: ${savedStock?.stockOnHand || 0}`);
   
   return { 
     success: true, 
@@ -411,11 +283,9 @@ const adjustItemStockByName = async (itemGroupId, itemName, quantityAdjustment, 
 const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, itemGroupId = null, itemSku = null) => {
   const targetWarehouse = warehouseName?.trim() || "Warehouse";
   
-  // Try standalone item first
   if (itemIdValue && itemIdValue !== null && itemIdValue !== "null") {
     const shoeItem = await ShoeItem.findById(itemIdValue);
     if (shoeItem) {
-      // Use flexible matching for warehouse
       const targetWarehouseLower = targetWarehouse.trim().toLowerCase();
       let warehouseStock = shoeItem.warehouseStocks?.find(ws => {
         if (!ws.warehouse) return false;
@@ -423,7 +293,6 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
         return wsLower === targetWarehouseLower || wsLower.includes(targetWarehouseLower) || targetWarehouseLower.includes(wsLower);
       });
       
-      // If no match found, use first warehouse with stock
       if (!warehouseStock && shoeItem.warehouseStocks && shoeItem.warehouseStocks.length > 0) {
         warehouseStock = shoeItem.warehouseStocks[0];
       }
@@ -432,12 +301,11 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
         success: true,
         currentQuantity: warehouseStock?.stockOnHand || 0,
         currentValue: (warehouseStock?.stockOnHand || 0) * (shoeItem.costPrice || 0),
-        warehouseStocks: shoeItem.warehouseStocks || [], // Include full warehouse stocks array
+        warehouseStocks: shoeItem.warehouseStocks || [],
       };
     }
   }
   
-  // Try item groups
   if (itemGroupId && itemName) {
     const group = await ItemGroup.findById(itemGroupId);
     if (group) {
@@ -449,7 +317,6 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
       });
       
       if (item) {
-        // Use flexible matching for warehouse
         const targetWarehouseLower = targetWarehouse.trim().toLowerCase();
         let warehouseStock = item.warehouseStocks?.find(ws => {
           if (!ws.warehouse) return false;
@@ -457,7 +324,6 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
           return wsLower === targetWarehouseLower || wsLower.includes(targetWarehouseLower) || targetWarehouseLower.includes(wsLower);
         });
         
-        // If no match found, use first warehouse with stock
         if (!warehouseStock && item.warehouseStocks && item.warehouseStocks.length > 0) {
           warehouseStock = item.warehouseStocks[0];
         }
@@ -465,14 +331,19 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
         return {
           success: true,
           currentQuantity: warehouseStock?.stockOnHand || 0,
-          currentValue: (warehouseStock?.stockOnHand || 0) * (item.costPrice || 0),
-          warehouseStocks: item.warehouseStocks || [], // Include full warehouse stocks array
+          currentValue: (warehouseStock?.stockOnHand || 0) * (item.costPrice || group.costPrice || 0),
+          warehouseStocks: item.warehouseStocks || [],
         };
       }
     }
   }
   
-  return { success: false, currentQuantity: 0, currentValue: 0, warehouseStocks: [] };
+  return {
+    success: false,
+    currentQuantity: 0,
+    currentValue: 0,
+    warehouseStocks: [],
+  };
 };
 
 // Create a new inventory adjustment
@@ -480,30 +351,25 @@ export const createInventoryAdjustment = async (req, res) => {
   try {
     const adjustmentData = req.body;
     
-    // Safely parse user info
     let userId = "";
     let createdBy = "";
     try {
       const userStr = req.headers['user'] || req.body.userId;
       if (userStr) {
-        // Check if it's already an object
         if (typeof userStr === 'object' && userStr !== null) {
           userId = userStr.email || userStr._id || userStr.id || adjustmentData.userId || "";
           createdBy = userStr.name || userStr.displayName || userId;
         } else if (typeof userStr === 'string') {
-          // Check if it's a JSON string (starts with { or [)
           if (userStr.trim().startsWith('{') || userStr.trim().startsWith('[')) {
             try {
               const user = JSON.parse(userStr);
               userId = user?.email || user?._id || user?.id || adjustmentData.userId || "";
               createdBy = user?.name || user?.displayName || userId;
             } catch (e) {
-              // If JSON parse fails, treat as plain string (email)
               userId = userStr || adjustmentData.userId || "";
               createdBy = userId;
             }
           } else {
-            // It's a plain string (like an email), use it directly
             userId = userStr || adjustmentData.userId || "";
             createdBy = userId;
           }
@@ -516,40 +382,34 @@ export const createInventoryAdjustment = async (req, res) => {
         createdBy = userId;
       }
     } catch (parseError) {
-      console.warn("Error parsing user info, using fallback:", parseError);
       userId = adjustmentData.userId || "";
       createdBy = userId;
     }
     
-    // Validate required fields
     if (!adjustmentData.date || !adjustmentData.warehouse || !adjustmentData.account || !adjustmentData.reason) {
       return res.status(400).json({ 
         message: "Missing required fields: date, warehouse, account, and reason are required" 
       });
     }
     
-    // Validate adjustmentType
     if (adjustmentData.adjustmentType && !["quantity", "value"].includes(adjustmentData.adjustmentType)) {
       return res.status(400).json({ 
         message: "Invalid adjustmentType. Must be 'quantity' or 'value'" 
       });
     }
     
-    // Validate status
     if (adjustmentData.status && !["draft", "adjusted"].includes(adjustmentData.status)) {
       return res.status(400).json({ 
         message: "Invalid status. Must be 'draft' or 'adjusted'" 
       });
     }
     
-    // Validate userId
     if (!userId || userId === "") {
       return res.status(400).json({ 
         message: "User ID is required. Please ensure you are logged in." 
       });
     }
     
-    // Parse date safely
     let adjustmentDate;
     try {
       if (adjustmentData.date instanceof Date) {
@@ -563,16 +423,13 @@ export const createInventoryAdjustment = async (req, res) => {
         return res.status(400).json({ message: "Date is required and must be a valid date" });
       }
     } catch (dateError) {
-      console.error("Error parsing date:", dateError);
       return res.status(400).json({ message: "Invalid date format" });
     }
     
-    // Process items and calculate totals
     let totalQuantityAdjusted = 0;
     let totalValueAdjusted = 0;
     const processedItems = [];
     
-    // Validate items array
     if (!Array.isArray(adjustmentData.items) || adjustmentData.items.length === 0) {
       return res.status(400).json({ message: "At least one item is required" });
     }
@@ -581,7 +438,6 @@ export const createInventoryAdjustment = async (req, res) => {
       if (!item.itemName) continue;
       
       try {
-        // Get current stock
         const stockInfo = await getCurrentStock(
           item.itemId || null,
           adjustmentData.warehouse,
@@ -601,12 +457,10 @@ export const createInventoryAdjustment = async (req, res) => {
         if (adjustmentData.adjustmentType === "quantity") {
           quantityAdjusted = parseFloat(item.quantityAdjusted) || 0;
           newQuantity = Math.max(0, currentQuantity + quantityAdjusted);
-          // For quantity adjustment, use current item cost if available
           const itemCost = parseFloat(item.unitCost) || 0;
           newValue = newQuantity * itemCost;
           totalQuantityAdjusted += Math.abs(quantityAdjusted);
         } else {
-          // Value adjustment
           const unitCost = parseFloat(item.unitCost) || 0;
           const newQty = parseFloat(item.newQuantity) || currentQuantity;
           newQuantity = newQty;
@@ -615,10 +469,9 @@ export const createInventoryAdjustment = async (req, res) => {
           totalValueAdjusted += Math.abs(valueAdjusted);
         }
         
-        // Store itemId and itemGroupId as strings (PostgreSQL doesn't use ObjectId)
         processedItems.push({
-          itemId: item.itemId ? String(item.itemId) : null,
-          itemGroupId: item.itemGroupId ? String(item.itemGroupId) : null,
+          itemId: item.itemId ? item.itemId : null,
+          itemGroupId: item.itemGroupId ? item.itemGroupId : null,
           itemName: item.itemName,
           itemSku: item.itemSku || "",
           currentQuantity,
@@ -631,7 +484,6 @@ export const createInventoryAdjustment = async (req, res) => {
         });
       } catch (itemError) {
         console.error(`Error processing item ${item.itemName}:`, itemError);
-        // Continue with other items, but log the error
       }
     }
     
@@ -639,13 +491,11 @@ export const createInventoryAdjustment = async (req, res) => {
       return res.status(400).json({ message: "No valid items to process" });
     }
     
-    // Auto-generate reference number if not provided
     let referenceNumber = adjustmentData.referenceNumber || "";
     if (!referenceNumber || referenceNumber.trim() === "") {
       referenceNumber = await nextInventoryAdjustment("IA-");
     }
     
-    // Create adjustment record in PostgreSQL
     const adjustment = await InventoryAdjustment.create({
       adjustmentType: adjustmentData.adjustmentType || "quantity",
       referenceNumber: referenceNumber,
@@ -658,75 +508,18 @@ export const createInventoryAdjustment = async (req, res) => {
       items: processedItems,
       totalQuantityAdjusted,
       totalValueAdjusted,
-      userId, // Store the email/userId
-      createdBy: userId || createdBy, // Store email/userId as createdBy
+      userId,
+      createdBy: userId || createdBy,
       status: adjustmentData.status || "draft",
       locCode: adjustmentData.locCode || "",
     });
     
-    // DUAL-SAVE: Also save to MongoDB for safety/redundancy
-    try {
-      console.log(`💾 Dual-saving inventory adjustment to MongoDB for safety...`);
-      
-      // Convert PostgreSQL items to MongoDB format
-      const mongoItems = processedItems.map(item => ({
-        itemId: item.itemId ? item.itemId : null,
-        itemGroupId: item.itemGroupId ? item.itemGroupId : null,
-        itemName: item.itemName,
-        itemSku: item.itemSku,
-        currentQuantity: item.currentQuantity,
-        currentValue: item.currentValue,
-        quantityAdjusted: item.quantityAdjusted,
-        newQuantity: item.newQuantity,
-        unitCost: item.unitCost,
-        valueAdjusted: item.valueAdjusted,
-        newValue: item.newValue,
-      }));
-      
-      const mongoAdjustment = await MongoInventoryAdjustment.create({
-        adjustmentType: adjustmentData.adjustmentType || "quantity",
-        referenceNumber: referenceNumber,
-        date: adjustmentDate,
-        account: adjustmentData.account,
-        reason: adjustmentData.reason,
-        branch: adjustmentData.branch || "Head Office",
-        warehouse: adjustmentData.warehouse,
-        description: adjustmentData.description || "",
-        items: mongoItems,
-        totalQuantityAdjusted,
-        totalValueAdjusted,
-        userId,
-        createdBy: userId || createdBy,
-        status: adjustmentData.status || "draft",
-        locCode: adjustmentData.locCode || "",
-        // Add PostgreSQL ID as reference
-        postgresqlId: adjustment.id,
-      });
-      
-      console.log(`✅ Successfully saved to MongoDB with ID: ${mongoAdjustment._id}`);
-    } catch (mongoError) {
-      console.error(`⚠️  Failed to save to MongoDB (PostgreSQL save was successful):`, mongoError);
-      // Don't fail the entire operation if MongoDB save fails
-    }
-    
-    // If status is "adjusted", apply the adjustments to stock
+    // If status is "adjusted", apply adjustments to stock
     if (adjustment.status === "adjusted") {
-      console.log(`\n=== APPLYING STOCK ADJUSTMENTS ===`);
-      console.log(`Adjustment ID: ${adjustment.id}`);
-      console.log(`Warehouse: ${adjustmentData.warehouse}`);
-      console.log(`Items to adjust: ${processedItems.length}`);
-      
       for (const item of processedItems) {
         if (adjustmentData.adjustmentType === "quantity" && item.quantityAdjusted !== 0) {
-          console.log(`\n📦 Adjusting item: ${item.itemName}`);
-          console.log(`   Item ID: ${item.itemId}`);
-          console.log(`   Item Group ID: ${item.itemGroupId}`);
-          console.log(`   SKU: ${item.itemSku}`);
-          console.log(`   Quantity Adjustment: ${item.quantityAdjusted}`);
-          console.log(`   Warehouse: ${adjustmentData.warehouse}`);
-          
           try {
-            const result = await adjustItemStock(
+            await adjustItemStock(
               item.itemId,
               item.quantityAdjusted,
               adjustmentData.warehouse,
@@ -734,33 +527,16 @@ export const createInventoryAdjustment = async (req, res) => {
               item.itemGroupId,
               item.itemSku
             );
-            
-            if (!result.success) {
-              console.error(`   ❌ Failed to adjust stock: ${result.message}`);
-            } else {
-              console.log(`   ✅ Stock adjusted successfully`);
-              console.log(`   New quantity: ${result.newQuantity}`);
-              console.log(`   Type: ${result.type}`);
-            }
           } catch (stockError) {
-            console.error(`   ❌ Error adjusting stock:`, stockError);
-            console.error(`   Stack:`, stockError.stack);
-            // Continue with other items
+            console.error(`Error adjusting stock for ${item.itemName}:`, stockError);
           }
-        } else {
-          console.log(`\n⏭️  Skipping item: ${item.itemName} (no quantity adjustment or value adjustment type)`);
         }
       }
-      
-      console.log(`\n=== STOCK ADJUSTMENTS COMPLETE ===\n`);
-    } else {
-      console.log(`\n⏭️  Stock adjustments skipped - status is "${adjustment.status}" (not "adjusted")\n`);
     }
     
-    res.status(201).json(adjustment);
+    res.status(201).json(formatAdjustment(adjustment));
   } catch (error) {
     console.error("Error creating inventory adjustment:", error);
-    console.error("Error stack:", error.stack);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
@@ -769,60 +545,40 @@ export const createInventoryAdjustment = async (req, res) => {
 export const getInventoryAdjustments = async (req, res) => {
   try {
     const { userId, userPower, warehouse, status, adjustmentType, startDate, endDate, locCode } = req.query;
+    const query = {};
     
-    const where = {};
-    
-    // User is admin if: power === 'admin' OR locCode === '858' (Warehouse) OR email === 'officerootments@gmail.com'
     const adminEmails = ['officerootments@gmail.com'];
     const isAdminEmail = userId && typeof userId === 'string' && adminEmails.some(email => userId.toLowerCase() === email.toLowerCase());
     const isAdmin = isAdminEmail ||
                     (userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin')) ||
                     (locCode && (locCode === '858' || locCode === '103'));
     
-    // If admin has switched to a specific store (not Warehouse), filter by that store
     const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "All Stores";
     
     if ((!isAdmin || isAdminViewingSpecificStore) && warehouse) {
-      where.warehouse = warehouse;
-      console.log(`📊 Filtering inventory adjustments for warehouse: ${warehouse}`);
+      query.warehouse = warehouse;
     } else if (!isAdmin && userId) {
-      where.userId = userId;
+      query.userId = userId;
     }
     
     if (warehouse && isAdmin && !isAdminViewingSpecificStore) {
-      where.warehouse = warehouse;
+      query.warehouse = warehouse;
     }
     
-    if (status) {
-      where.status = status;
-    }
-    
-    if (adjustmentType) {
-      where.adjustmentType = adjustmentType;
-    }
+    if (status) query.status = status;
+    if (adjustmentType) query.adjustmentType = adjustmentType;
     
     if (startDate || endDate) {
-      where.date = {};
-      if (startDate) where.date[Op.gte] = new Date(startDate);
-      if (endDate) where.date[Op.lte] = new Date(endDate);
+      query.date = {};
+      if (startDate) query.date.$gte = new Date(startDate);
+      if (endDate) query.date.$lte = new Date(endDate);
     }
     
-    const adjustments = await InventoryAdjustment.findAll({
-      where,
-      order: [['date', 'DESC'], ['createdAt', 'DESC']],
-      limit: 1000,
-    });
+    const adjustments = await InventoryAdjustment.find(query)
+      .sort({ date: -1, createdAt: -1 })
+      .limit(1000);
     
-    // Transform to include both id and _id for compatibility
-    const transformedAdjustments = adjustments.map(adj => {
-      const adjData = adj.toJSON();
-      return {
-        ...adjData,
-        _id: adjData.id, // Add _id for compatibility with frontend
-      };
-    });
-    
-    res.status(200).json(transformedAdjustments);
+    res.status(200).json(adjustments.map(formatAdjustment));
   } catch (error) {
     console.error("Error fetching inventory adjustments:", error);
     res.status(500).json({ message: "Server error", error: error.message });
@@ -833,20 +589,13 @@ export const getInventoryAdjustments = async (req, res) => {
 export const getInventoryAdjustmentById = async (req, res) => {
   try {
     const { id } = req.params;
-    const adjustment = await InventoryAdjustment.findByPk(id);
+    const adjustment = await InventoryAdjustment.findById(id);
     
     if (!adjustment) {
       return res.status(404).json({ message: "Inventory adjustment not found" });
     }
     
-    // Transform to include both id and _id for compatibility
-    const adjData = adjustment.toJSON();
-    const transformedAdjustment = {
-      ...adjData,
-      _id: adjData.id, // Add _id for compatibility with frontend
-    };
-    
-    res.status(200).json(transformedAdjustment);
+    res.status(200).json(formatAdjustment(adjustment));
   } catch (error) {
     console.error("Error fetching inventory adjustment:", error);
     res.status(500).json({ message: "Server error", error: error.message });
@@ -859,48 +608,7 @@ export const updateInventoryAdjustment = async (req, res) => {
     const { id } = req.params;
     const adjustmentData = req.body;
     
-    // Safely parse user info (same logic as createInventoryAdjustment)
-    let userId = "";
-    let modifiedBy = "";
-    try {
-      const userStr = req.headers['user'] || req.body.userId;
-      if (userStr) {
-        // Check if it's already an object
-        if (typeof userStr === 'object' && userStr !== null) {
-          userId = userStr.email || userStr._id || userStr.id || adjustmentData.userId || "";
-          modifiedBy = userStr.name || userStr.displayName || userId;
-        } else if (typeof userStr === 'string') {
-          // Check if it's a JSON string (starts with { or [)
-          if (userStr.trim().startsWith('{') || userStr.trim().startsWith('[')) {
-            try {
-              const user = JSON.parse(userStr);
-              userId = user?.email || user?._id || user?.id || adjustmentData.userId || "";
-              modifiedBy = user?.name || user?.displayName || userId;
-            } catch (e) {
-              // If JSON parse fails, treat as plain string (email)
-              userId = userStr || adjustmentData.userId || "";
-              modifiedBy = userId;
-            }
-          } else {
-            // It's a plain string (like an email), use it directly
-            userId = userStr || adjustmentData.userId || "";
-            modifiedBy = userId;
-          }
-        } else {
-          userId = adjustmentData.userId || "";
-          modifiedBy = userId;
-        }
-      } else {
-        userId = adjustmentData.userId || "";
-        modifiedBy = userId;
-      }
-    } catch (parseError) {
-      console.warn("Error parsing user info, using fallback:", parseError);
-      userId = adjustmentData.userId || "";
-      modifiedBy = userId;
-    }
-    
-    const existingAdjustment = await InventoryAdjustment.findByPk(id);
+    const existingAdjustment = await InventoryAdjustment.findById(id);
     if (!existingAdjustment) {
       return res.status(404).json({ message: "Inventory adjustment not found" });
     }
@@ -912,72 +620,11 @@ export const updateInventoryAdjustment = async (req, res) => {
     const warehouse = adjustmentData.warehouse || existingAdjustment.warehouse;
     const adjustmentType = adjustmentData.adjustmentType || existingAdjustment.adjustmentType;
     
-    console.log(`\n=== UPDATE INVENTORY ADJUSTMENT ===`);
-    console.log(`Adjustment ID: ${id}`);
-    console.log(`Old Status: ${oldStatus}, New Status: ${newStatus}`);
-    console.log(`Old Items Count: ${oldItems.length}, New Items Count: ${newItems.length}`);
-    console.log(`Adjustment Type: ${adjustmentType}`);
-    
-    // Helper function to create a comparison key for an item
-    const getItemKey = (item) => {
-      const itemId = item.itemId ? String(item.itemId) : 'null';
-      const itemGroupId = item.itemGroupId ? String(item.itemGroupId) : 'null';
-      const itemName = item.itemName || '';
-      return `${itemId}_${itemGroupId}_${itemName}`;
-    };
-    
-    // Check if quantities have changed (for adjusted adjustments)
-    // Compare old and new items by creating maps and comparing quantities
-    let quantitiesChanged = false;
-    if (oldStatus === "adjusted" && newStatus === "adjusted") {
-      // Create maps for easy lookup
-      const oldItemsMap = new Map();
-      oldItems.forEach(item => {
-        const key = getItemKey(item);
-        oldItemsMap.set(key, item);
-        console.log(`  Old Item: ${key}, qtyAdjusted: ${item.quantityAdjusted}`);
-      });
-      
-      const newItemsMap = new Map();
-      newItems.forEach(item => {
-        const key = getItemKey(item);
-        newItemsMap.set(key, item);
-        console.log(`  New Item: ${key}, qtyAdjusted: ${item.quantityAdjusted}`);
-      });
-      
-      // Check if any quantities changed or items were added/removed
-      if (oldItemsMap.size !== newItemsMap.size) {
-        quantitiesChanged = true;
-        console.log(`  Quantities changed: Item count changed (${oldItemsMap.size} -> ${newItemsMap.size})`);
-      } else {
-        for (const [key, oldItem] of oldItemsMap) {
-          const newItem = newItemsMap.get(key);
-          const oldQty = parseFloat(oldItem.quantityAdjusted) || 0;
-          const newQty = parseFloat(newItem?.quantityAdjusted) || 0;
-          const diff = Math.abs(oldQty - newQty);
-          
-          if (!newItem) {
-            quantitiesChanged = true;
-            console.log(`  Quantities changed: Item removed: ${key}`);
-            break;
-          } else if (diff > 0.01) {
-            quantitiesChanged = true;
-            console.log(`  Quantities changed: ${key}, old: ${oldQty}, new: ${newQty}, diff: ${diff}`);
-            break;
-          }
-        }
-      }
-    }
-    
-    console.log(`Quantities Changed: ${quantitiesChanged}`);
-    
     // If changing from draft to adjusted, apply stock changes
     if (oldStatus === "draft" && newStatus === "adjusted") {
-      console.log(`📊 Updating adjustment: Applying stock changes (draft -> adjusted)`);
       for (const item of newItems) {
         if (adjustmentType === "quantity" && item.quantityAdjusted !== 0) {
           const qtyToApply = parseFloat(item.quantityAdjusted) || 0;
-          console.log(`   Applying adjustment: ${item.itemName || 'Unknown'}, qty: ${qtyToApply}`);
           try {
             await adjustItemStock(
               item.itemId,
@@ -987,9 +634,8 @@ export const updateInventoryAdjustment = async (req, res) => {
               item.itemGroupId,
               item.itemSku
             );
-            console.log(`   ✅ Applied: ${item.itemName}`);
           } catch (error) {
-            console.error(`   ❌ Error applying: ${item.itemName}`, error);
+            console.error(`Error applying adjustment for ${item.itemName}:`, error);
           }
         }
       }
@@ -997,13 +643,10 @@ export const updateInventoryAdjustment = async (req, res) => {
     
     // If changing from adjusted to draft, reverse stock changes
     if (oldStatus === "adjusted" && newStatus === "draft") {
-      console.log(`📊 Updating adjustment: Reversing stock changes (adjusted -> draft)`);
       for (const item of oldItems) {
         if (adjustmentType === "quantity" && item.quantityAdjusted !== 0) {
           const qtyToReverse = parseFloat(item.quantityAdjusted) || 0;
-          console.log(`   Reversing adjustment: ${item.itemName || 'Unknown'}, qty: ${qtyToReverse}`);
           try {
-            // Reverse the adjustment
             await adjustItemStock(
               item.itemId,
               -qtyToReverse,
@@ -1012,28 +655,18 @@ export const updateInventoryAdjustment = async (req, res) => {
               item.itemGroupId,
               item.itemSku
             );
-            console.log(`   ✅ Reversed: ${item.itemName}`);
           } catch (error) {
-            console.error(`   ❌ Error reversing: ${item.itemName}`, error);
+            console.error(`Error reversing adjustment for ${item.itemName}:`, error);
           }
         }
       }
     }
     
-    // If status is "adjusted" and we're updating, always reverse old and apply new
-    // This ensures stock is correct even if comparison logic misses changes
+    // If status remains adjusted, reverse old and apply new
     if (oldStatus === "adjusted" && newStatus === "adjusted") {
-      if (quantitiesChanged) {
-        console.log(`📊 Updating adjustment: Quantities changed, reversing old and applying new`);
-      } else {
-        console.log(`📊 Updating adjustment: Status remains "adjusted" - reversing old and applying new to ensure accuracy`);
-      }
-      
-      // First, reverse all old adjustments
       for (const item of oldItems) {
         if (adjustmentType === "quantity" && item.quantityAdjusted !== 0) {
           const qtyToReverse = parseFloat(item.quantityAdjusted) || 0;
-          console.log(`   Reversing old adjustment: ${item.itemName || 'Unknown'}, qty: ${qtyToReverse}`);
           try {
             await adjustItemStock(
               item.itemId,
@@ -1043,18 +676,15 @@ export const updateInventoryAdjustment = async (req, res) => {
               item.itemGroupId,
               item.itemSku
             );
-            console.log(`   ✅ Reversed: ${item.itemName}`);
           } catch (error) {
-            console.error(`   ❌ Error reversing: ${item.itemName}`, error);
+            console.error(`Error reversing old adjustment for ${item.itemName}:`, error);
           }
         }
       }
       
-      // Then, apply all new adjustments
       for (const item of newItems) {
         if (adjustmentType === "quantity" && item.quantityAdjusted !== 0) {
           const qtyToApply = parseFloat(item.quantityAdjusted) || 0;
-          console.log(`   Applying new adjustment: ${item.itemName || 'Unknown'}, qty: ${qtyToApply}`);
           try {
             await adjustItemStock(
               item.itemId,
@@ -1064,107 +694,20 @@ export const updateInventoryAdjustment = async (req, res) => {
               item.itemGroupId,
               item.itemSku
             );
-            console.log(`   ✅ Applied: ${item.itemName}`);
           } catch (error) {
-            console.error(`   ❌ Error applying: ${item.itemName}`, error);
+            console.error(`Error applying new adjustment for ${item.itemName}:`, error);
           }
         }
       }
-      console.log(`✅ Stock update completed`);
     }
     
-    // Update the adjustment - ensure modifiedBy is set to the email/userId
-    const updateData = {
-      ...adjustmentData,
-      modifiedBy: userId || modifiedBy, // Use userId (email) as modifiedBy
-    };
+    const updatedAdjustment = await InventoryAdjustment.findByIdAndUpdate(
+      id,
+      { $set: adjustmentData },
+      { new: true }
+    );
     
-    await existingAdjustment.update(updateData);
-    
-    // Reload to get updated data
-    await existingAdjustment.reload();
-    
-    // DUAL-SAVE: Also update in MongoDB for safety/redundancy
-    try {
-      console.log(`💾 Dual-updating inventory adjustment in MongoDB for safety...`);
-      
-      // Find the MongoDB record by PostgreSQL ID or reference number
-      const mongoAdjustment = await MongoInventoryAdjustment.findOne({
-        $or: [
-          { postgresqlId: id },
-          { referenceNumber: existingAdjustment.referenceNumber }
-        ]
-      });
-      
-      if (mongoAdjustment) {
-        // Convert PostgreSQL items to MongoDB format
-        const mongoItems = (adjustmentData.items || existingAdjustment.items || []).map(item => ({
-          itemId: item.itemId ? item.itemId : null,
-          itemGroupId: item.itemGroupId ? item.itemGroupId : null,
-          itemName: item.itemName,
-          itemSku: item.itemSku,
-          currentQuantity: item.currentQuantity,
-          currentValue: item.currentValue,
-          quantityAdjusted: item.quantityAdjusted,
-          newQuantity: item.newQuantity,
-          unitCost: item.unitCost,
-          valueAdjusted: item.valueAdjusted,
-          newValue: item.newValue,
-        }));
-        
-        await mongoAdjustment.updateOne({
-          ...updateData,
-          items: mongoItems,
-          postgresqlId: id, // Maintain reference
-        });
-        
-        console.log(`✅ Successfully updated in MongoDB`);
-      } else {
-        console.log(`⚠️  MongoDB record not found, creating new one...`);
-        
-        // Create new MongoDB record if not found
-        const mongoItems = (adjustmentData.items || existingAdjustment.items || []).map(item => ({
-          itemId: item.itemId ? item.itemId : null,
-          itemGroupId: item.itemGroupId ? item.itemGroupId : null,
-          itemName: item.itemName,
-          itemSku: item.itemSku,
-          currentQuantity: item.currentQuantity,
-          currentValue: item.currentValue,
-          quantityAdjusted: item.quantityAdjusted,
-          newQuantity: item.newQuantity,
-          unitCost: item.unitCost,
-          valueAdjusted: item.valueAdjusted,
-          newValue: item.newValue,
-        }));
-        
-        await MongoInventoryAdjustment.create({
-          adjustmentType: existingAdjustment.adjustmentType,
-          referenceNumber: existingAdjustment.referenceNumber,
-          date: existingAdjustment.date,
-          account: existingAdjustment.account,
-          reason: existingAdjustment.reason,
-          branch: existingAdjustment.branch,
-          warehouse: existingAdjustment.warehouse,
-          description: existingAdjustment.description,
-          items: mongoItems,
-          totalQuantityAdjusted: existingAdjustment.totalQuantityAdjusted,
-          totalValueAdjusted: existingAdjustment.totalValueAdjusted,
-          userId: existingAdjustment.userId,
-          createdBy: existingAdjustment.createdBy,
-          modifiedBy: userId || modifiedBy,
-          status: existingAdjustment.status,
-          locCode: existingAdjustment.locCode,
-          postgresqlId: id,
-        });
-        
-        console.log(`✅ Successfully created new record in MongoDB`);
-      }
-    } catch (mongoError) {
-      console.error(`⚠️  Failed to update MongoDB (PostgreSQL update was successful):`, mongoError);
-      // Don't fail the entire operation if MongoDB update fails
-    }
-    
-    res.status(200).json(existingAdjustment);
+    res.status(200).json(formatAdjustment(updatedAdjustment));
   } catch (error) {
     console.error("Error updating inventory adjustment:", error);
     res.status(500).json({ message: "Server error", error: error.message });
@@ -1175,53 +718,34 @@ export const updateInventoryAdjustment = async (req, res) => {
 export const deleteInventoryAdjustment = async (req, res) => {
   try {
     const { id } = req.params;
-    const adjustment = await InventoryAdjustment.findByPk(id);
     
+    const adjustment = await InventoryAdjustment.findById(id);
     if (!adjustment) {
       return res.status(404).json({ message: "Inventory adjustment not found" });
     }
     
-    // If status is "adjusted", reverse the stock changes before deleting
     if (adjustment.status === "adjusted") {
       const items = adjustment.items || [];
       for (const item of items) {
         if (adjustment.adjustmentType === "quantity" && item.quantityAdjusted !== 0) {
-          // Reverse the adjustment
-          await adjustItemStock(
-            item.itemId,
-            -item.quantityAdjusted,
-            adjustment.warehouse,
-            item.itemName,
-            item.itemGroupId,
-            item.itemSku
-          );
+          const qtyToReverse = parseFloat(item.quantityAdjusted) || 0;
+          try {
+            await adjustItemStock(
+              item.itemId,
+              -qtyToReverse,
+              adjustment.warehouse,
+              item.itemName,
+              item.itemGroupId,
+              item.itemSku
+            );
+          } catch (error) {
+            console.error(`Error reversing stock for deleted adjustment item ${item.itemName}:`, error);
+          }
         }
       }
     }
     
-    await adjustment.destroy();
-    
-    // DUAL-DELETE: Also delete from MongoDB for consistency
-    try {
-      console.log(`💾 Dual-deleting inventory adjustment from MongoDB for consistency...`);
-      
-      const mongoResult = await MongoInventoryAdjustment.deleteOne({
-        $or: [
-          { postgresqlId: id },
-          { referenceNumber: adjustment.referenceNumber }
-        ]
-      });
-      
-      if (mongoResult.deletedCount > 0) {
-        console.log(`✅ Successfully deleted from MongoDB`);
-      } else {
-        console.log(`⚠️  No matching record found in MongoDB to delete`);
-      }
-    } catch (mongoError) {
-      console.error(`⚠️  Failed to delete from MongoDB (PostgreSQL delete was successful):`, mongoError);
-      // Don't fail the entire operation if MongoDB delete fails
-    }
-    
+    await InventoryAdjustment.findByIdAndDelete(id);
     res.status(200).json({ message: "Inventory adjustment deleted successfully" });
   } catch (error) {
     console.error("Error deleting inventory adjustment:", error);
@@ -1239,7 +763,6 @@ export const getItemStock = async (req, res) => {
     }
     
     const stockInfo = await getCurrentStock(itemId, warehouse, itemName, itemGroupId, itemSku);
-    
     res.status(200).json(stockInfo);
   } catch (error) {
     console.error("Error fetching item stock:", error);

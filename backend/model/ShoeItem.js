@@ -222,6 +222,15 @@ const ShoeItemSchema = new mongoose.Schema(
   }
 );
 
+// Performance Indexes
+ShoeItemSchema.index({ sku: 1 });
+ShoeItemSchema.index({ itemName: 1 });
+ShoeItemSchema.index({ category: 1 });
+ShoeItemSchema.index({ brand: 1 });
+ShoeItemSchema.index({ manufacturer: 1 });
+ShoeItemSchema.index({ createdAt: -1 });
+ShoeItemSchema.index({ "stockByWarehouse.warehouse": 1 });
+
 const ShoeItem = mongoose.model("ShoeItem", ShoeItemSchema);
 
 export default ShoeItem;

@@ -5,6 +5,7 @@ import dns from 'node:dns';
 
 // Fix for querySrv ECONNREFUSED on Windows / local DNS resolvers
 try {
+  dns.setDefaultResultOrder('ipv4first');
   dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
 } catch (dnsErr) {
   console.warn('⚠️ Could not override DNS servers:', dnsErr.message);
@@ -26,37 +27,43 @@ const connectMongoDB = async () => {
   if (!dbURI) {
     console.error('❌ MONGODB_URI is not defined in environment file.');
     console.error('Available env vars:', Object.keys(process.env).filter(key => key.includes('MONGODB')));
-    process.exit(1);
+    return;
   }
 
   // 🛑 Safety check: Prevent connecting to production DB locally
   if (env !== 'production' && dbURI.includes('rootfin.onrender.com')) {
     console.warn('❌ Aborting: Trying to connect to production DB from non-production env.');
-    process.exit(1);
+    return;
   }
 
-  try {
-    // Add connection event listeners for resilience against network drops
-    mongoose.connection.on('disconnected', () => {
-      console.warn('⚠️ MongoDB disconnected. Attempting automatic reconnection...');
-    });
-    mongoose.connection.on('reconnected', () => {
-      console.log('✅ MongoDB reconnected successfully.');
-    });
-    mongoose.connection.on('error', (err) => {
-      console.error('❌ MongoDB runtime connection error:', err.message);
-    });
+  // Add connection event listeners for resilience against network drops
+  mongoose.connection.on('disconnected', () => {
+    console.warn('⚠️ MongoDB disconnected. Attempting automatic reconnection...');
+  });
+  mongoose.connection.on('reconnected', () => {
+    console.log('✅ MongoDB reconnected successfully.');
+  });
+  mongoose.connection.on('error', (err) => {
+    console.error('❌ MongoDB runtime connection error:', err.message);
+  });
 
-    // Connect to MongoDB
-    await mongoose.connect(dbURI, {
-      serverSelectionTimeoutMS: 10000,
-      socketTimeoutMS: 45000,
-    });
-    console.log(`✅ MongoDB connected [${env}]`);
-  } catch (error) {
-    console.error('❌ MongoDB connection error:', error.message);
-    process.exit(1);
-  }
+  const attemptConnect = async (attempt = 1) => {
+    try {
+      await mongoose.connect(dbURI, {
+        serverSelectionTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+        maxPoolSize: 20,
+        minPoolSize: 2,
+      });
+      console.log(`✅ MongoDB connected successfully [${env}]`);
+    } catch (error) {
+      console.error(`⚠️ MongoDB connection attempt ${attempt} failed:`, error.message);
+      console.log(`⏳ Retrying MongoDB connection in 5 seconds...`);
+      setTimeout(() => attemptConnect(attempt + 1), 5000);
+    }
+  };
+
+  await attemptConnect();
 };
 
 export default connectMongoDB;

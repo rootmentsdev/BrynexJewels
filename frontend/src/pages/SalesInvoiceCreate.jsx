@@ -706,65 +706,6 @@ const TaxDropdown = ({ rowId, value, onChange, taxOptions, nonTaxableOptions, on
   );
 };
 
-// Simple SubCategory Dropdown Component - Opens Downwards
-const SubCategoryDropdown = ({ value, onChange, subtleControlBase }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef(null);
-
-  const options = [
-    { value: "", label: "Select sub category" },
-    { value: "shoe sales", label: "Shoe Sales" },
-    { value: "shirt sales", label: "Shirt Sales" },
-    { value: "mixed sales", label: "Mixed Sales (Shoes & Shirts)" }, // New option for mixed sales
-  ];
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const selectedLabel = options.find(opt => opt.value === value)?.label || "Select sub category";
-
-  return (
-    <div ref={dropdownRef} className="relative w-full">
-      <input
-        type="text"
-        readOnly
-        onClick={() => setIsOpen(!isOpen)}
-        value={selectedLabel}
-        className="w-full h-[42px] rounded-none border border-[#e5e7eb] bg-white text-sm text-[#111827] hover:border-[#8b5cf6] focus:border-[#8b5cf6] focus:outline-none transition-all cursor-pointer px-3.5 pr-8 appearance-none"
-        style={{ backgroundImage: 'none' }}
-      />
-      <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280]" />
-
-      {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e5e7eb] rounded-none shadow-lg z-50 max-h-64 overflow-y-auto">
-          {options.map((option) => (
-            <div
-              key={option.value}
-              onClick={() => {
-                onChange(option.value);
-                setIsOpen(false);
-              }}
-              className={`px-3 py-2.5 text-sm cursor-pointer transition-colors ${
-                value === option.value
-                  ? "bg-[#f3f4f6] text-[#111827] font-medium border-l-4 border-l-[#9ca3af]"
-                  : "text-[#111827] hover:bg-[#f9fafb]"
-              }`}
-            >
-              {option.label}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
 
 const SalesInvoiceCreate = () => {
   const isSidebarOpen = useSidebar();
@@ -1417,7 +1358,7 @@ const SalesInvoiceCreate = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: user.email,
+          userId: user.email || user.username || "",
           locCode: (() => {
             const branchLocCode = getLocCodeForBranch(branch);
             console.log(`🔢 Next Invoice Number - Branch: "${branch}" → LocCode: "${branchLocCode}"`);
@@ -1716,11 +1657,6 @@ const SalesInvoiceCreate = () => {
       return;
     }
 
-    // Validate sub category is required
-    if (!subCategory.trim()) {
-      showStockAlert("Please select a sub category", 'error');
-      return;
-    }
 
     // Validate that at least one item is added
     if (!lineItems || lineItems.length === 0) {
@@ -1866,7 +1802,7 @@ const SalesInvoiceCreate = () => {
         adjustmentAmount: parseFloat(totals.adjustmentAmount) || 0,
         finalTotal: parseFloat(totals.finalTotal) || 0,
         status,
-        userId: user.email,
+        userId: user.email || user.username || "",
         locCode: (() => {
           const branchLocCode = getLocCodeForBranch(branch);
           console.log(`🏢 Invoice Creation - Branch: "${branch}" → LocCode: "${branchLocCode}"`);
@@ -3256,7 +3192,7 @@ Customer Service Available`;
                   <p className="mb-4 text-xs font-bold uppercase tracking-wider text-[#8B5CF6]">
                     CLASSIFICATION
                   </p>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-[#374151] mb-1.5">
                         Branch <span className="text-red-500">*</span>
@@ -3279,28 +3215,8 @@ Customer Service Available`;
                             }}
                             className="w-full h-[42px] appearance-none rounded-none border border-[#E5E7EB] bg-white px-3.5 pr-8 text-sm text-[#111827] focus:border-[#8B5CF6] focus:outline-none transition-colors cursor-pointer"
                           >
-                            <option value="Head Office">Head Office</option>
                             <option value="Warehouse">Warehouse</option>
-                            <option value="Calicut">Calicut</option>
-                            <option value="Chavakkad Branch">Chavakkad Branch</option>
-                            <option value="Edapally Branch">Edapally Branch</option>
-                            <option value="Edappal Branch">Edappal Branch</option>
-                            <option value="Grooms Trivandrum">Grooms Trivandrum</option>
-                            <option value="Kalpetta Branch">Kalpetta Branch</option>
-                            <option value="Kannur Branch">Kannur Branch</option>
-                            <option value="Kottakkal Branch">Kottakkal Branch</option>
-                            <option value="Kottayam Branch">Kottayam Branch</option>
-                            <option value="Manjery Branch">Manjery Branch</option>
-                            <option value="Palakkad Branch">Palakkad Branch</option>
-                            <option value="Perinthalmanna Branch">Perinthalmanna Branch</option>
-                            <option value="Perumbavoor Branch">Perumbavoor Branch</option>
-                            <option value="SuitorGuy MG Road">SuitorGuy MG Road</option>
-                            <option value="Thrissur Branch">Thrissur Branch</option>
-                            <option value="Vadakara Branch">Vadakara Branch</option>
-                            <option value="Z-Edapally1 Branch">Z-Edapally1 Branch</option>
-                            <option value="Z-Edappal Branch">Z-Edappal Branch</option>
-                            <option value="Z-Perinthalmanna Branch">Z-Perinthalmanna Branch</option>
-                            <option value="Z-Kottakkal Branch">Z-Kottakkal Branch</option>
+                            <option value="SuitorGuy MG Road">MG Road</option>
                           </select>
                           <ChevronDown
                             size={16}
@@ -3327,18 +3243,6 @@ Customer Service Available`;
                           className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280]"
                         />
                       </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-[#374151] mb-1.5">
-                        Sub Category <span className="text-red-500">*</span>
-                      </label>
-                      <SubCategoryDropdown value={subCategory} onChange={setSubCategory} />
-                      {subCategory === "mixed sales" && (
-                        <p className="mt-1 text-xs text-[#6B7280]">
-                          💡 Mixed Sales allows shoes & shirts in one invoice
-                        </p>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -3370,7 +3274,7 @@ Customer Service Available`;
                             SIZE
                           </th>
                           <th className="w-28 px-2 py-3 text-center text-xs font-bold uppercase tracking-wider text-white">
-                            SUB CATEGORY
+                            QUANTITY
                           </th>
                           <th className="w-24 px-2 py-3 text-center text-xs font-bold uppercase tracking-wider text-white">
                             REMARKS

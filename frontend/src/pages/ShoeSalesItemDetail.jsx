@@ -1553,11 +1553,10 @@ const ShoeSalesItemDetail = () => {
                         onClick={() => {
                           navigate(`/shoe-sales/items/${itemId}/stocks?type=${stockType}`);
                         }}
-                        className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-400 cursor-pointer"
                       >
-                        <Settings size={16} className="text-[#64748b]" />
-                        <span className="text-base font-semibold text-[#1f2937]">Stock Locations</span>
-                        <ChevronDown size={16} className="text-[#64748b]" />
+                        <Plus size={16} className="text-[#8B5CF6]" />
+                        <span>Add Stock</span>
                       </button>
                       
                       {/* Manual Refresh Button for Testing */}

@@ -251,6 +251,14 @@ const ItemGroupSchema = new mongoose.Schema(
   }
 );
 
+// Performance Indexes
+ItemGroupSchema.index({ name: 1 });
+ItemGroupSchema.index({ sku: 1 });
+ItemGroupSchema.index({ category: 1 });
+ItemGroupSchema.index({ brand: 1 });
+ItemGroupSchema.index({ manufacturer: 1 });
+ItemGroupSchema.index({ createdAt: -1 });
+
 const ItemGroup = mongoose.model("ItemGroup", ItemGroupSchema);
 
 export default ItemGroup;

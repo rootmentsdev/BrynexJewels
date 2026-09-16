@@ -9,17 +9,16 @@ import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping
 import useSidebar from "../hooks/useSidebar";
 
 const Label = ({ children, required = false }) => (
-  <span className={`text-xs font-semibold uppercase tracking-[0.18em] ${required ? "text-[#ef4444]" : "text-[#64748b]"}`}>
+  <label className="block text-xs font-medium text-gray-700 mb-1.5">
     {children}
-    {required && <span className="ml-0.5">*</span>}
-  </span>
+    {required && <span className="text-red-500 ml-0.5">*</span>}
+  </label>
 );
 
 const Input = ({ placeholder = "", className = "", ...props }) => {
-  const isSidebarOpen = useSidebar();
-  const baseClasses = "w-full rounded-md border border-[#d7dcf5] bg-white text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb] transition-colors";
+  const baseClasses = "w-full rounded-lg border border-gray-200 bg-white text-sm text-gray-900 placeholder:text-gray-400 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600 transition-colors";
   const tableInputClasses = "h-[36px] px-[10px] py-[6px]";
-  const defaultClasses = "px-3 py-2.5";
+  const defaultClasses = "px-3.5 py-2.5";
   
   const isTableInput = className.includes("table-input");
   const finalClasses = `${baseClasses} ${isTableInput ? tableInputClasses : defaultClasses} ${className}`;
@@ -109,22 +108,22 @@ const WarehouseDropdown = ({ value, onChange, options, placeholder = "Select war
         zIndex: 999999,
       }}
     >
-      <div className="rounded-lg border border-[#d7dcf5] bg-white shadow-lg max-h-60 overflow-y-auto">
-        <div className="flex items-center gap-2 p-2 border-b border-[#e2e8f0]">
-          <Search size={14} className="text-[#94a3b8]" />
+      <div className="rounded-lg border border-gray-200 bg-white shadow-xl max-h-60 overflow-y-auto">
+        <div className="flex items-center gap-2 p-2 border-b border-gray-100">
+          <Search size={14} className="text-gray-400 ml-1" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search warehouses..."
-            className="flex-1 rounded-md border border-[#d7dcf5] px-3 py-2 text-sm focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+            className="flex-1 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600"
             onClick={(e) => e.stopPropagation()}
             autoFocus
           />
         </div>
         <div className="py-1">
           {filteredOptions.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-[#64748b]">No warehouses found</div>
+            <div className="px-3 py-2 text-sm text-gray-500">No warehouses found</div>
           ) : (
             filteredOptions.map((option) => (
               <div
@@ -134,8 +133,8 @@ const WarehouseDropdown = ({ value, onChange, options, placeholder = "Select war
                   setIsOpen(false);
                   setSearchTerm("");
                 }}
-                className={`px-3 py-2 text-sm cursor-pointer hover:bg-[#f1f5f9] ${
-                  value === option ? "bg-[#eef2ff] text-[#2563eb]" : "text-[#1f2937]"
+                className={`px-3.5 py-2 text-sm cursor-pointer transition-colors ${
+                  value === option ? "bg-purple-50 text-purple-700 font-semibold" : "text-gray-800 hover:bg-gray-50"
                 }`}
               >
                 {option}
@@ -579,6 +578,7 @@ const ItemDropdown = ({ rowId, value, onChange, storeWarehouse, onStockFetched, 
 };
 
 const StoreOrderCreate = () => {
+  const isSidebarOpen = useSidebar();
   const { id } = useParams();
   const navigate = useNavigate();
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
@@ -909,204 +909,245 @@ const StoreOrderCreate = () => {
   
   if (loading) {
     return (
-      <div className={`transition-all duration-300 p-6 bg-[#f5f7fb] min-h-screen flex items-center justify-center ${isSidebarOpen ? 'ml-64' : 'ml-0'}`}>
-        <div className="text-[#64748b]">Loading store order...</div>
+      <div className={`transition-all duration-300 p-8 bg-[#f8f9fa] min-h-screen flex items-center justify-center ${isSidebarOpen ? 'ml-64' : 'ml-0'}`}>
+        <div className="text-gray-500 font-medium text-sm">Loading store order...</div>
       </div>
     );
   }
   
   return (
-    <div className="min-h-screen bg-[#f7f9ff]">
-      <Head
-        title={isEditMode ? "Edit Store Order" : "New Store Order"}
-        description="Request items from warehouse to your store."
-        actions={
-          <Link
-            to="/inventory/store-orders"
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-[#cbd5f5] px-4 text-sm font-medium text-[#1f2937] transition hover:bg-white"
-          >
-            Back to Store Orders
-          </Link>
-        }
-      />
-
-      <div className={`transition-all duration-300 px-10 pb-16 pt-8 ${isSidebarOpen ? 'ml-64' : 'ml-0'}`}>
-        <div className="rounded-3xl border border-[#e6ebfa] bg-white">
-          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#edf1ff] px-10 py-6">
-            <div className="space-y-1">
-              <h1 className="text-[20px] font-semibold text-[#101828]">
-                {isEditMode ? "Edit Store Order" : "New Store Order"}
-              </h1>
-              <p className="text-sm text-[#6c728a]">
-                Add items and quantities to request stock from the warehouse.
-              </p>
-            </div>
+    <div className={`transition-all duration-300 min-h-screen bg-[#f8f9fa] ${isSidebarOpen ? 'ml-64' : 'ml-0'}`}>
+      <div className="p-6 md:p-8 space-y-6">
+        {/* Top Header Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+              {isEditMode ? "Edit Store Order" : "New Store Order"}
+            </h1>
+            <p className="text-xs text-gray-500 mt-1">
+              Add items and quantities to request stock transfer from the main warehouse.
+            </p>
           </div>
-
-          <div className="space-y-12 px-10 py-12">
-            <section className="grid gap-8 lg:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Order Number</Label>
-                <div className="flex items-center gap-3 rounded-lg border border-[#d9def1] bg-[#fcfdff] px-4 py-2.5">
-                  <input
-                    value={orderNumberLoading ? "Generating..." : orderNumber}
-                    onChange={(e) => {
-                      // Only allow editing if in edit mode, otherwise it's auto-generated
-                      if (!isEditMode) return;
-                      setOrderNumber(e.target.value);
-                    }}
-                    placeholder={orderNumberLoading ? "Generating..." : "Auto-generated"}
-                    readOnly={!isEditMode}
-                    disabled={orderNumberLoading}
-                    className={`w-full border-0 bg-transparent text-sm text-[#101828] placeholder:text-[#b0b8d9] focus:ring-0 ${
-                      !isEditMode ? "cursor-default" : ""
-                    } ${orderNumberLoading ? "opacity-50" : ""}`}
-                  />
-                  <span className="text-xs text-[#94a3b8] whitespace-nowrap">Auto</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label required>Date</Label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full rounded-lg border border-[#d9def1] bg-[#fcfdff] px-4 py-2.5 text-sm text-[#101828] focus:border-[#94a3b8] focus:outline-none"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label required>Store Warehouse</Label>
-                <WarehouseDropdown
-                  value={storeWarehouse}
-                  onChange={(value) => setStoreWarehouse(value)}
-                  options={availableWarehouseOptions}
-                  placeholder="Select store warehouse"
-                  required
-                  disabled={isStoreUser}
-                />
-                {isStoreUser && (
-                  <p className="text-xs text-[#64748b]">This is your store warehouse (read-only)</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label>Destination Warehouse</Label>
-                <input
-                  type="text"
-                  value="Warehouse"
-                  readOnly
-                  className="w-full rounded-lg border border-[#d9def1] bg-[#f3f4f6] px-4 py-2.5 text-sm text-[#6b7280] cursor-not-allowed"
-                />
-                <p className="text-xs text-[#64748b]">Orders are always sent to the main Warehouse</p>
-              </div>
-              <div className="space-y-2 lg:col-span-2">
-                <Label>Reason</Label>
-                <textarea
-                  rows={3}
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  placeholder="Describe the reason for this order"
-                  className="w-full rounded-lg border border-[#d9def1] bg-[#fcfdff] px-4 py-3 text-sm text-[#101828] focus:border-[#94a3b8] focus:outline-none"
-                />
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-[#edf1ff] bg-[#fcfdff]">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf1ff] px-8 py-4">
-                <span className="text-xs font-semibold uppercase tracking-[0.3em] text-[#8a94b0]">Items</span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="min-w-full table-fixed border-collapse text-sm text-[#111827]">
-                  <thead className="bg-white text-[11px] uppercase tracking-[0.28em] text-[#9aa2bd]">
-                    <tr>
-                      <th className="px-6 py-3 text-left font-semibold text-[#6b7280]">Item Details</th>
-                      <th className="px-6 py-3 text-left font-semibold text-[#6b7280]">Current Stock (Read-only)</th>
-                      <th className="px-6 py-3 text-left font-semibold text-[#6b7280]">Quantity Requested</th>
-                      <th className="w-12 px-6 py-3"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tableRows.map((row) => (
-                      <tr key={row.id} className="border-t border-[#f0f3ff]">
-                        <td className="px-6 py-4">
-                          <ItemDropdown
-                            rowId={row.id}
-                            value={row.item}
-                            onChange={(item) => handleItemSelect(row.id, item)}
-                            storeWarehouse={storeWarehouse}
-                            onStockFetched={handleStockFetched(row.id)}
-                            isStoreUser={isStoreUser}
-                            userWarehouse={userWarehouse}
-                          />
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="rounded-lg border border-[#edf1ff] bg-[#f9faff] px-4 py-3">
-                            <span className="block text-[10px] uppercase tracking-[0.28em] text-[#9ca3af]">
-                              Current Stock
-                            </span>
-                            <span className="mt-1 block text-sm font-semibold text-[#101828]">
-                              {Math.round(row.currentStock)} Units
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2 rounded-lg border border-[#d9def1] bg-white px-4 py-2.5">
-                            <input
-                              type="number"
-                              value={row.quantity}
-                              onChange={(e) => handleQuantityChange(row.id, e.target.value)}
-                              placeholder="0"
-                              min="0"
-                              step="1"
-                              className="w-full border-0 text-right text-sm text-[#101828] focus:ring-0"
-                            />
-                            <span className="text-xs text-[#98a2b3]">Units</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <button
-                            type="button"
-                            className="text-[#ef4444] transition hover:text-[#dc2626]"
-                            onClick={() => handleRemoveRow(row.id)}
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-4 border-t border-[#edf1ff] px-8 py-4 text-sm">
-                <button
-                  type="button"
-                  onClick={handleAddRow}
-                  className="inline-flex items-center gap-2 rounded-lg border border-dashed border-[#cbd5f5] px-4 py-2 text-[#4662ff] hover:bg-[#eef2ff] transition-colors"
-                >
-                  <Plus size={16} />
-                  Add Row
-                </button>
-              </div>
-            </section>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[#edf1ff] bg-[#fbfcff] px-10 py-6">
+          <div className="flex items-center gap-3">
             <button
-              onClick={handleSave}
-              disabled={saving || !date || !storeWarehouse}
-              className="rounded-lg bg-[#2563eb] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:bg-[#b8ccff]"
-            >
-              {saving ? "Saving..." : isEditMode ? "Update Order" : "Submit Order"}
-            </button>
-            <button
+              type="button"
               onClick={() => navigate("/inventory/store-orders")}
               disabled={saving}
-              className="rounded-lg border border-[#d4dcf4] px-4 py-2 text-sm font-medium text-[#6b7280] transition hover:bg-white disabled:opacity-50"
+              className="px-4 py-2 border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg text-xs font-medium transition-colors bg-white shadow-sm cursor-pointer disabled:opacity-50"
             >
-              Cancel
+              Back to Store Orders
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving || !date || !storeWarehouse}
+              className="px-5 py-2 bg-[#9333ea] hover:bg-[#7e22ce] active:bg-[#6b21a8] text-white rounded-lg text-xs font-semibold shadow-sm hover:shadow transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <span>{saving ? "Saving..." : isEditMode ? "Update Order" : "Submit Order"}</span>
             </button>
           </div>
+        </div>
+
+        {/* Section 1: Store Order Information */}
+        <div className="bg-white rounded-xl p-6 md:p-8 border border-gray-100 shadow-sm space-y-6">
+          <div className="text-purple-600 font-bold text-[11px] tracking-wider uppercase">
+            STORE ORDER INFORMATION
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Order Number */}
+            <div>
+              <Label>Order Number</Label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={orderNumberLoading ? "Generating..." : orderNumber}
+                  onChange={(e) => {
+                    if (!isEditMode) return;
+                    setOrderNumber(e.target.value);
+                  }}
+                  placeholder={orderNumberLoading ? "Generating..." : "Auto-generated"}
+                  readOnly={!isEditMode}
+                  disabled={orderNumberLoading}
+                  className={`w-full h-10 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600 pr-14 ${
+                    !isEditMode ? "bg-gray-50/60" : ""
+                  } ${orderNumberLoading ? "opacity-50" : ""}`}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded">
+                  Auto
+                </span>
+              </div>
+            </div>
+
+            {/* Date */}
+            <div>
+              <Label required>Date</Label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full h-10 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm text-gray-900 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600"
+              />
+            </div>
+
+            {/* Store Warehouse */}
+            <div>
+              <Label required>Store Warehouse</Label>
+              <WarehouseDropdown
+                value={storeWarehouse}
+                onChange={(value) => setStoreWarehouse(value)}
+                options={availableWarehouseOptions}
+                placeholder="Select store warehouse"
+                required
+                disabled={isStoreUser}
+              />
+              {isStoreUser && (
+                <p className="text-[11px] text-gray-400 mt-1">This is your assigned store (read-only)</p>
+              )}
+            </div>
+
+            {/* Destination Warehouse */}
+            <div>
+              <Label>Destination Warehouse</Label>
+              <input
+                type="text"
+                value="Warehouse"
+                readOnly
+                className="w-full h-10 rounded-lg border border-gray-200 bg-gray-50/80 px-3.5 py-2 text-sm text-gray-600 cursor-not-allowed"
+              />
+              <p className="text-[11px] text-gray-400 mt-1">Orders are always requested from main Warehouse</p>
+            </div>
+
+            {/* Reason */}
+            <div className="md:col-span-2 lg:col-span-4">
+              <Label>Reason</Label>
+              <textarea
+                rows={2}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Describe the reason for this order..."
+                className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Section 2: Requested Items Table */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="text-purple-600 font-bold text-[11px] tracking-wider uppercase">
+              REQUESTED ITEMS
+            </div>
+            <span className="text-xs text-gray-400 font-medium">
+              {tableRows.length} item{tableRows.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-[#18181b] text-white text-xs font-bold uppercase tracking-wider select-none">
+                  <th className="py-3.5 px-4 text-left border-r border-zinc-700/60 min-w-[280px]">
+                    ITEM DETAILS
+                  </th>
+                  <th className="py-3.5 px-4 text-center border-r border-zinc-700/60 w-48">
+                    CURRENT STORE STOCK
+                  </th>
+                  <th className="py-3.5 px-4 text-center border-r border-zinc-700/60 w-48">
+                    QUANTITY REQUESTED
+                  </th>
+                  <th className="py-3.5 px-4 text-center w-20">
+                    ACTIONS
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-sm text-gray-700 bg-white">
+                {tableRows.map((row) => (
+                  <tr key={row.id} className="hover:bg-gray-50/70 transition-colors">
+                    {/* Item Details */}
+                    <td className="py-3 px-4 border-r border-gray-200 align-top">
+                      <ItemDropdown
+                        rowId={row.id}
+                        value={row.item}
+                        onChange={(item) => handleItemSelect(row.id, item)}
+                        storeWarehouse={storeWarehouse}
+                        onStockFetched={handleStockFetched(row.id)}
+                        isStoreUser={isStoreUser}
+                        userWarehouse={userWarehouse}
+                      />
+                    </td>
+
+                    {/* Current Stock */}
+                    <td className="py-3 px-4 border-r border-gray-200 text-center align-top">
+                      <div className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-100">
+                        {Math.round(row.currentStock || 0)} Units
+                      </div>
+                    </td>
+
+                    {/* Quantity Requested */}
+                    <td className="py-3 px-4 border-r border-gray-200 align-top">
+                      <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 focus-within:ring-1 focus-within:ring-purple-600 focus-within:border-purple-600">
+                        <input
+                          type="number"
+                          value={row.quantity}
+                          onChange={(e) => handleQuantityChange(row.id, e.target.value)}
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                          className="w-full border-0 text-right text-sm font-semibold text-gray-900 focus:outline-none focus:ring-0"
+                        />
+                        <span className="text-xs text-gray-400 font-medium">Units</span>
+                      </div>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="py-3 px-4 text-center align-top">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveRow(row.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                        title="Remove item"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Add Row Bar */}
+          <div className="p-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleAddRow}
+              className="px-4 py-2 text-sm font-semibold text-[#9333ea] hover:bg-purple-50 border border-dashed border-[#9333ea] rounded-lg transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+            >
+              <Plus size={16} />
+              <span>Add Row</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Bottom Actions Bar */}
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={() => navigate("/inventory/store-orders")}
+            disabled={saving}
+            className="px-5 py-2.5 border border-gray-300 text-gray-700 hover:bg-gray-100 rounded-lg text-sm font-medium transition shadow-sm cursor-pointer disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || !date || !storeWarehouse}
+            className="px-6 py-2.5 bg-[#9333ea] hover:bg-[#7e22ce] active:bg-[#6b21a8] text-white rounded-lg text-sm font-semibold shadow-sm hover:shadow transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {saving ? "Saving..." : isEditMode ? "Update Order" : "Submit Order"}
+          </button>
         </div>
       </div>
     </div>
