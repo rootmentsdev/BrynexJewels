@@ -1,34 +1,13 @@
 import Store from "../model/Store.js";
 import mongoose from "mongoose";
 
-// Fallback stores list
+// Fallback stores list - restricted to Warehouse and MG Road
 const fallbackStores = [
   { name: "Warehouse", locCode: "858", locName: "Warehouse", isActive: true },
-  { name: "G-Edappally", locCode: "702", locName: "G-Edappally", isActive: true },
-  { name: "HEAD OFFICE01", locCode: "759", locName: "HEAD OFFICE01", isActive: true },
-  { name: "SG-Trivandrum", locCode: "700", locName: "SG-Trivandrum", isActive: true },
-  { name: "Z-Edapally", locCode: "144", locName: "Z-Edapally", isActive: true },
-  { name: "Z-Edappal", locCode: "100", locName: "Z-Edappal", isActive: true },
-  { name: "Z-Perinthalmanna", locCode: "133", locName: "Z-Perinthalmanna", isActive: true },
-  { name: "Z-Kottakkal", locCode: "122", locName: "Z-Kottakkal", isActive: true },
-  { name: "G-Kottayam", locCode: "701", locName: "G-Kottayam", isActive: true },
-  { name: "G-Perumbavoor", locCode: "703", locName: "G-Perumbavoor", isActive: true },
-  { name: "G-Thrissur", locCode: "704", locName: "G-Thrissur", isActive: true },
-  { name: "G-Chavakkad", locCode: "706", locName: "G-Chavakkad", isActive: true },
-  { name: "G-Calicut", locCode: "712", locName: "G-Calicut", isActive: true },
-  { name: "G-Vadakara", locCode: "708", locName: "G-Vadakara", isActive: true },
-  { name: "G-Edappal", locCode: "707", locName: "G-Edappal", isActive: true },
-  { name: "G-Perinthalmanna", locCode: "709", locName: "G-Perinthalmanna", isActive: true },
-  { name: "G-Kottakkal", locCode: "711", locName: "G-Kottakkal", isActive: true },
-  { name: "G-Manjeri", locCode: "710", locName: "G-Manjeri", isActive: true },
-  { name: "G-Palakkad", locCode: "705", locName: "G-Palakkad", isActive: true },
-  { name: "G-Kalpetta", locCode: "717", locName: "G-Kalpetta", isActive: true },
-  { name: "G-Kannur", locCode: "716", locName: "G-Kannur", isActive: true },
   { name: "G-Mg Road", locCode: "718", locName: "G-Mg Road", isActive: true },
-  { name: "Production", locCode: "101", locName: "Production", isActive: true },
-  { name: "Office", locCode: "102", locName: "Office", isActive: true },
-  { name: "WAREHOUSE", locCode: "103", locName: "WAREHOUSE", isActive: true },
-  { name: "Dappr Squad", locCode: "555", locName: "Dappr Squad", isActive: true }
+  { name: "MG Road", locCode: "718", locName: "MG Road", isActive: true },
+  { name: "SuitorGuy MG Road", locCode: "718", locName: "SuitorGuy MG Road", isActive: true },
+  { name: "WAREHOUSE", locCode: "103", locName: "WAREHOUSE", isActive: true }
 ];
 
 // Create a new store

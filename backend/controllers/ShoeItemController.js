@@ -365,6 +365,51 @@ export const createShoeItem = async (req, res) => {
   }
 };
 
+// Helper function to match warehouse names accurately
+const matchesWarehouse = (itemWarehouse, targetWarehouse) => {
+  if (!itemWarehouse || !targetWarehouse) return false;
+  
+  // Normalize both warehouse names
+  const normalizedItem = normalizeWarehouseName(itemWarehouse);
+  const normalizedTarget = normalizeWarehouseName(targetWarehouse);
+  
+  // Exact match after normalization
+  if (normalizedItem && normalizedTarget && normalizedItem.toLowerCase() === normalizedTarget.toLowerCase()) {
+    return true;
+  }
+  
+  const itemWarehouseLower = itemWarehouse.toString().toLowerCase().trim();
+  const targetWarehouseLower = targetWarehouse.toLowerCase().trim();
+  
+  // Exact match
+  if (itemWarehouseLower === targetWarehouseLower) {
+    return true;
+  }
+  
+  // Base name match (e.g., "warehouse" matches "Warehouse", "kannur" matches "Kannur Branch")
+  const itemBase = itemWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+  const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse)\s*$/i, "").trim();
+  
+  if (itemBase && targetBase && itemBase === targetBase) {
+    return true;
+  }
+  
+  // Special handling for Trivandrum variations
+  const trivandrumVariations = ["trivandrum", "grooms trivandrum", "sg-trivandrum", "trivandrum branch"];
+  const stockIsTrivandrum = trivandrumVariations.some(v => itemWarehouseLower.includes(v));
+  const targetIsTrivandrum = trivandrumVariations.some(v => targetWarehouseLower.includes(v));
+  if (stockIsTrivandrum && targetIsTrivandrum) {
+    return true;
+  }
+
+  // Partial match (e.g., "kannur branch" contains "kannur")
+  if (itemWarehouseLower.includes(targetWarehouseLower) || targetWarehouseLower.includes(itemWarehouseLower)) {
+    return true;
+  }
+  
+  return false;
+};
+
 // Helper function to check if item belongs to warehouse (show items even with 0 stock)
 const itemBelongsToWarehouse = (warehouseStocks, targetWarehouse) => {
   if (!warehouseStocks || !Array.isArray(warehouseStocks) || warehouseStocks.length === 0) {

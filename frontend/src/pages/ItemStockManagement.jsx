@@ -1,29 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useEnterToSave } from "../hooks/useEnterToSave";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { X, Trash2, Plus } from "lucide-react";
+import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
+import { X, Trash2, Plus, Copy, Package, Store, Check, ArrowLeft, Layers } from "lucide-react";
 import baseUrl from "../api/api";
 import useSidebar from "../hooks/useSidebar";
 
-// Warehouse names for the dropdown
+// Warehouse names for the dropdown - restricted to Warehouse and MG Road
 const WAREHOUSES = [
-  "Palakkad Branch",
   "Warehouse",
-  "Calicut",
-  "Manjery Branch",
-  "Kannur Branch",
-  "Edappal Branch",
-  "Kalpetta Branch",
-  "Kottakkal Branch",
-  "Perinthalmanna Branch",
-  "Grooms Trivandum",
-  "Chavakkad Branch",
-  "Thrissur Branch",
-  "Perumbavoor Branch",
-  "Kottayam Branch",
-  "Edapally Branch",
-  "MG Road",
-  "Vadakara Branch"
+  "MG Road"
 ];
 
 const ItemStockManagement = () => {
@@ -35,6 +20,7 @@ const ItemStockManagement = () => {
   const [itemGroup, setItemGroup] = useState(null);
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [copiedField, setCopiedField] = useState(null);
   const [stockRows, setStockRows] = useState([
     { warehouse: "", openingStock: "0", openingStockValue: "0", physicalOpeningStock: "0" }
   ]);
@@ -55,7 +41,6 @@ const ItemStockManagement = () => {
     const fetchData = async () => {
       try {
         const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
-        // Add cache-busting parameter to ensure fresh data
         const timestamp = new Date().getTime();
         const response = await fetch(`${API_URL}/api/shoe-sales/item-groups/${id}?_=${timestamp}`);
         
@@ -64,11 +49,6 @@ const ItemStockManagement = () => {
         }
         
         const data = await response.json();
-        console.log("📦 ItemStockManagement: Fetched item group data", {
-          groupId: id,
-          itemId,
-          groupName: data.name
-        });
         setItemGroup(data);
         
         // Find the specific item
@@ -81,7 +61,6 @@ const ItemStockManagement = () => {
               const existingRows = foundItem.warehouseStocks
                 .filter(stock => stock.warehouse && WAREHOUSES.includes(stock.warehouse))
                 .map(stock => {
-                  // ALWAYS use stockOnHand for current stock display
                   const stockOnHandValue = parseFloat(stock.stockOnHand) || 0;
                   const physicalStockOnHandValue = parseFloat(stock.physicalStockOnHand) || 0;
                   
@@ -111,12 +90,9 @@ const ItemStockManagement = () => {
     }
   }, [id, itemId]);
 
-  // Listen for stock update events (from inventory adjustments, purchase receives, etc.)
+  // Listen for stock update events
   useEffect(() => {
     const handleStockUpdate = (event) => {
-      console.log("📦 Stock update event received in ItemStockManagement", event.detail);
-      
-      // Check if this item was affected
       const itemIds = event.detail?.itemIds || [];
       const itemNames = event.detail?.items || [];
       
@@ -127,27 +103,19 @@ const ItemStockManagement = () => {
                         itemNames.some(name => name === currentItemName);
       
       if (isAffected) {
-        console.log("🔄 This item was affected, refreshing stock data...");
-        
-        // Refetch the item group data
         const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
         fetch(`${API_URL}/api/shoe-sales/item-groups/${id}`)
           .then(res => res.json())
           .then(data => {
             setItemGroup(data);
-            
-            // Find the specific item
             if (data.items && Array.isArray(data.items)) {
               const foundItem = data.items.find(i => (i._id || i.id) === itemId);
               if (foundItem) {
                 setItem(foundItem);
-                
-                // Update stock rows with new data
                 if (foundItem.warehouseStocks && Array.isArray(foundItem.warehouseStocks) && foundItem.warehouseStocks.length > 0) {
                   const existingRows = foundItem.warehouseStocks
                     .filter(stock => stock.warehouse && WAREHOUSES.includes(stock.warehouse))
                     .map(stock => {
-                      // ALWAYS use stockOnHand for current stock display
                       const stockOnHandValue = parseFloat(stock.stockOnHand) || 0;
                       const physicalStockOnHandValue = parseFloat(stock.physicalStockOnHand) || 0;
                       
@@ -161,7 +129,6 @@ const ItemStockManagement = () => {
                   
                   if (existingRows.length > 0) {
                     setStockRows(existingRows);
-                    console.log("✅ Stock rows updated with new data");
                   }
                 }
               }
@@ -199,104 +166,69 @@ const ItemStockManagement = () => {
       const value = stockRows[0][field];
       const newRows = stockRows.map(row => ({ ...row, [field]: value }));
       setStockRows(newRows);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 1500);
     }
   };
+
+  // Quick calculations for stats bar
+  const totalStock = useMemo(() => {
+    return stockRows.reduce((sum, r) => sum + (parseFloat(r.openingStock) || 0), 0);
+  }, [stockRows]);
+
+  const configuredBranchesCount = useMemo(() => {
+    return stockRows.filter(r => r.warehouse && r.warehouse.trim() !== "").length;
+  }, [stockRows]);
 
   const handleSave = async () => {
     try {
       setLoading(true);
       const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
       
-      // Calculate total available stock from all warehouses (especially from "Warehouse" where purchase receives add stock)
-      const existingItem = item || {};
-      const existingStocks = Array.isArray(existingItem.warehouseStocks) ? existingItem.warehouseStocks : [];
-      const totalAvailableStock = existingStocks.reduce((sum, stock) => {
-        // Don't fallback to openingStock if stockOnHand is 0 - 0 is a valid value!
-        const stockOnHand = stock.stockOnHand !== undefined && stock.stockOnHand !== null
-          ? parseFloat(stock.stockOnHand)
-          : parseFloat(stock.openingStock || 0);
-        return sum + stockOnHand;
-      }, 0);
-      
-      console.log(`Total available stock to redistribute: ${totalAvailableStock}`);
-      
-      // Calculate total stock being assigned in the form
-      const totalAssignedStock = stockRows
-        .filter(row => row.warehouse && row.warehouse.trim() !== "")
-        .reduce((sum, row) => {
-          const opening = parseFloat(row.openingStock) || 0;
-          return sum + opening;
-        }, 0);
-      
-      console.log(`Total stock being assigned: ${totalAssignedStock}`);
-      
-      // Start fresh - only use what's in the form
       const byWarehouse = new Map();
       
-      // Clear all existing warehouse stocks - we'll only keep what's in the form
-      console.log(`Clearing all existing stocks, will only use form values`);
-
-      // Now assign stock to the warehouses specified in the form
       stockRows
         .filter(row => row.warehouse && row.warehouse.trim() !== "")
         .forEach(row => {
           const opening = parseFloat(row.openingStock) || 0;
-          const openingValue = parseFloat(row.openingStockValue) || 0;
-          const pOpening = parseFloat(row.physicalOpeningStock) || 0;
           const current = byWarehouse.get(row.warehouse) || { warehouse: row.warehouse };
 
-          // Set the stock values (redistributing, not adding)
           if (!Number.isNaN(opening)) {
             current.openingStock = opening;
-            current.openingStockValue = openingValue;
+            current.openingStockValue = 0;
             current.stockOnHand = opening;
             current.availableForSale = opening;
-          }
-          if (!Number.isNaN(pOpening)) {
-            current.physicalOpeningStock = pOpening;
-            current.physicalStockOnHand = pOpening;
-            current.physicalAvailableForSale = pOpening;
+            current.physicalOpeningStock = opening;
+            current.physicalStockOnHand = opening;
+            current.physicalAvailableForSale = opening;
           }
 
           byWarehouse.set(row.warehouse, current);
         });
 
-      // Don't redistribute remaining stock - user explicitly set the stock values
-      // If they want stock in a warehouse, they should add it to the form
-      // If they delete all rows, all stock should be cleared
-      console.log(`Total assigned stock (${totalAssignedStock}) will be used as-is, no redistribution`);
-
-      // Only include warehouses that have stock > 0 or are explicitly in the form
       const stockData = Array.from(byWarehouse.values()).filter(stock => {
         const stockOnHand = parseFloat(stock.stockOnHand) || 0;
-        const physicalStockOnHand = parseFloat(stock.physicalStockOnHand) || 0;
-        // Keep if has any stock
-        return stockOnHand > 0 || physicalStockOnHand > 0;
+        return stockOnHand > 0;
       });
-      
-      console.log(`Final stock data to save:`, stockData.map(s => `${s.warehouse}: ${s.stockOnHand}`).join(", "));
 
-      // Update item with stock data in the itemGroup
       const updatedItems = itemGroup.items.map(i => {
         const currentItemId = (i._id || i.id || "").toString();
         const targetItemId = itemId.toString();
         if (currentItemId === targetItemId) {
           return {
             ...i,
-            _id: i._id || i.id, // Preserve _id
-            id: i.id || i._id, // Preserve id
+            _id: i._id || i.id,
+            id: i.id || i._id,
             warehouseStocks: stockData,
-            isActive: i.isActive !== undefined ? i.isActive : true // Preserve item's isActive status
+            isActive: i.isActive !== undefined ? i.isActive : true
           };
         }
         return i;
       });
 
-      // Get current user for history tracking
       const currentUser = JSON.parse(localStorage.getItem("rootfinuser")) || {};
       const changedBy = currentUser.username || currentUser.locName || "System";
 
-      // Update the item group with the modified items
       const updatePayload = {
         name: itemGroup.name,
         sku: itemGroup.sku || "",
@@ -332,11 +264,7 @@ const ItemStockManagement = () => {
         throw new Error(payload?.message || payload?.errors?.join(", ") || "Failed to save stock data");
       }
       
-      // Show success message
       const successMsg = "Stock data saved successfully!";
-      
-      // Navigate back with a flag to indicate data was saved
-      // Add skipWarehouseFilter to show all items after stock update
       navigate(`/shoe-sales/item-groups/${id}/items/${itemId}?stocksUpdated=true&skipWarehouseFilter=true&message=${encodeURIComponent(successMsg)}`, { replace: true });
     } catch (error) {
       console.error("Error saving stock:", error);
@@ -346,168 +274,220 @@ const ItemStockManagement = () => {
     }
   };
 
-  // Enter key to save stock
   useEnterToSave(() => handleSave(), loading);
 
   if (!itemGroup || !item) {
     return (
-      <div className={`transition-all duration-300 p-6 bg-[#f5f7fb] min-h-screen ${isSidebarOpen ? 'ml-64' : 'ml-0'}`}>
-        <div className="rounded-2xl border border-[#e4e6f2] bg-white shadow-lg p-8 text-center">
-          <p className="text-lg font-medium text-[#475569]">Item not found</p>
+      <div className={`transition-all duration-300 p-8 bg-[#f8fafc] min-h-screen ${isSidebarOpen ? 'ml-64' : 'ml-0'}`}>
+        <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm p-12 text-center max-w-lg mx-auto">
+          <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4 text-slate-400">
+            <Package size={24} />
+          </div>
+          <p className="text-base font-semibold text-slate-800">Item not found</p>
+          <p className="text-sm text-slate-500 mt-1">Unable to load item stock details.</p>
+          <button
+            onClick={() => navigate(-1)}
+            className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-all"
+          >
+            <ArrowLeft size={16} />
+            <span>Go Back</span>
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`transition-all duration-300 p-6 bg-[#f5f7fb] min-h-screen ${isSidebarOpen ? 'ml-64' : 'ml-0'}`}>
-      <div className="rounded-2xl border border-[#e4e6f2] bg-white shadow-[0_18px_50px_-24px_rgba(15,23,42,0.18)]">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#e4e6f2] px-8 py-6">
-          <h1 className="text-2xl font-bold text-[#1f2937]">{item.name || "Item Stock Management"}</h1>
-          <button
-            onClick={() => navigate(`/shoe-sales/item-groups/${id}/items/${itemId}`)}
-            className="no-blue-button inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#d7dcf5] bg-white text-[#475569] shadow-sm transition-all duration-200 hover:bg-[#f8fafc] hover:border-[#cbd5f5] hover:shadow-md"
-          >
-            <X size={18} className="text-[#64748b]" />
-          </button>
-        </div>
+    <div className={`transition-all duration-300 p-6 md:p-8 bg-[#f8fafc] min-h-screen ${isSidebarOpen ? 'ml-64' : 'ml-0'}`}>
+      <div className="max-w-4xl mx-auto space-y-6">
+        
+        {/* Main Card */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white shadow-[0_10px_35px_-15px_rgba(0,0,0,0.06)] overflow-hidden">
+          
+          {/* Header */}
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 px-6 sm:px-8 py-5 bg-gradient-to-r from-white via-white to-slate-50/50">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-xs">
+                <Store size={20} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                    {item.name || item.itemName || "Item Stock Management"}
+                  </h1>
+                  {item.sku && (
+                    <span className="text-[11px] font-semibold uppercase tracking-wider bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200/60">
+                      SKU: {item.sku}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                  <span>Group: <strong className="text-slate-700 font-medium">{itemGroup.name}</strong></span>
+                  {item.size && (
+                    <>
+                      <span>•</span>
+                      <span>Size: <strong className="text-slate-700 font-medium">{item.size}</strong></span>
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
 
-        {/* Content */}
-        <div className="p-8">
-          <div className="overflow-x-auto rounded-lg border border-[#e4e6f2]">
-            <table className="min-w-full">
-              <thead className="bg-[#f1f4ff]">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[#4a5b8b]">
-                    Warehouse
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[#4a5b8b]">
-                    <div className="flex items-center justify-between">
-                      <span>Opening Stock (Accounting)</span>
-                      <button
-                        onClick={() => handleCopyToAll("openingStock")}
-                        className="ml-4 text-xs font-medium text-[#475569] hover:text-[#1f2937] transition-colors"
-                      >
-                        COPY TO ALL
-                      </button>
-                    </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[#4a5b8b]">
-                    <div className="flex items-center justify-between">
-                      <span>Physical Stock</span>
-                      <button
-                        onClick={() => handleCopyToAll("physicalOpeningStock")}
-                        className="ml-4 text-xs font-medium text-[#475569] hover:text-[#1f2937] transition-colors"
-                      >
-                        COPY TO ALL
-                      </button>
-                    </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[#4a5b8b]">
-                    <div className="flex items-center justify-between">
-                      <span>Opening Stock Value Per Unit</span>
-                      <button
-                        onClick={() => handleCopyToAll("openingStockValue")}
-                        className="ml-4 text-xs font-medium text-[#475569] hover:text-[#1f2937] transition-colors"
-                      >
-                        COPY TO ALL
-                      </button>
-                    </div>
-                  </th>
-                  <th className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-[0.14em] text-[#4a5b8b] w-20">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#eef2ff] bg-white">
-                {stockRows.map((row, index) => (
-                  <tr key={index} className="hover:bg-[#f7f9ff]">
-                    <td className="px-6 py-4">
-                      <select
-                        value={row.warehouse}
-                        onChange={(e) => handleInputChange(index, "warehouse", e.target.value)}
-                        className="w-full rounded-lg border border-[#d7dcf5] bg-white px-3 py-2.5 text-sm text-[#1f2937] focus:border-[#cbd5f5] focus:outline-none focus:ring-2 focus:ring-[#e0e7ff] transition-all"
-                      >
-                        <option value="" className="bg-blue-500 text-white font-semibold">Select Store</option>
-                        {warehouses.map((wh, idx) => (
-                          <option key={idx} value={wh}>{wh}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-6 py-4">
-                      <input
-                        type="number"
-                        value={row.openingStock}
-                        onChange={(e) => handleInputChange(index, "openingStock", e.target.value)}
-                        className="w-full rounded-lg border border-[#d7dcf5] bg-white px-3 py-2.5 text-sm text-[#1f2937] focus:border-[#cbd5f5] focus:outline-none focus:ring-2 focus:ring-[#e0e7ff] transition-all"
-                        placeholder="0"
-                        step="1"
-                      />
-                    </td>
-                    <td className="px-6 py-4">
-                      <input
-                        type="number"
-                        value={row.physicalOpeningStock}
-                        onChange={(e) => handleInputChange(index, "physicalOpeningStock", e.target.value)}
-                        className="w-full rounded-lg border border-[#d7dcf5] bg-white px-3 py-2.5 text-sm text-[#1f2937] focus:border-[#cbd5f5] focus:outline-none focus:ring-2 focus:ring-[#e0e7ff] transition-all"
-                        placeholder="0"
-                        step="1"
-                      />
-                    </td>
-                    <td className="px-6 py-4">
-                      <input
-                        type="number"
-                        value={row.openingStockValue}
-                        onChange={(e) => handleInputChange(index, "openingStockValue", e.target.value)}
-                        className="w-full rounded-lg border border-[#d7dcf5] bg-white px-3 py-2.5 text-sm text-[#1f2937] focus:border-[#cbd5f5] focus:outline-none focus:ring-2 focus:ring-[#e0e7ff] transition-all"
-                        placeholder="0"
-                        step="0.01"
-                      />
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      {stockRows.length > 1 && (
-                        <button
-                          onClick={() => handleDeleteRow(index)}
-                          className="no-blue-button flex h-9 w-9 items-center justify-center rounded-lg text-[#ef4444] transition-colors hover:bg-[#fef2f2] mx-auto"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate(`/shoe-sales/item-groups/${id}/items/${itemId}`)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-2xs hover:bg-slate-100 hover:text-slate-800 transition-all"
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
           </div>
 
-          {/* Add New Row Button */}
-          <div className="mt-6">
-            <button
-              onClick={handleAddRow}
-              className="no-blue-button inline-flex items-center gap-2 rounded-lg border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] shadow-sm transition-all duration-200 hover:bg-[#f8fafc] hover:border-[#cbd5f5] hover:shadow-md"
-            >
-              <Plus size={16} className="text-[#64748b]" />
-              <span>+ New Row</span>
-            </button>
+          {/* Stats Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-6 sm:px-8 py-4 bg-slate-50/60 border-b border-slate-100">
+            <div className="bg-white rounded-xl p-3.5 border border-slate-200/70 shadow-2xs flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Configured Locations</p>
+                <p className="text-lg font-bold text-slate-900 mt-0.5">{configuredBranchesCount} / {warehouses.length}</p>
+              </div>
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <Store size={16} />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl p-3.5 border border-slate-200/70 shadow-2xs flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Total Stock</p>
+                <p className="text-lg font-bold text-slate-900 mt-0.5">{totalStock} <span className="text-xs font-normal text-slate-400">units</span></p>
+              </div>
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <Package size={16} />
+              </div>
+            </div>
           </div>
 
-          {/* Footer Actions */}
-          <div className="mt-8 flex items-center justify-start gap-3 border-t border-[#e4e6f2] pt-6">
-            <button
-              onClick={handleSave}
-              disabled={loading}
-              className="no-blue-button rounded-lg bg-[#475569] px-6 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#334155] disabled:opacity-50"
-            >
-              {loading ? "Saving..." : "Save"}
-            </button>
-            <button
-              onClick={() => navigate(`/shoe-sales/item-groups/${id}/items/${itemId}`)}
-              disabled={loading}
-              className="no-blue-button rounded-lg border border-[#d7dcf5] bg-white px-6 py-2.5 text-sm font-medium text-[#475569] transition hover:bg-[#f1f5f9] disabled:opacity-50"
-            >
-              Cancel
-            </button>
+          {/* Table Content */}
+          <div className="p-6 sm:p-8">
+            <div className="overflow-hidden rounded-xl border border-slate-200/90 shadow-2xs">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-slate-50/90">
+                    <tr>
+                      <th scope="col" className="px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-600 w-1/2">
+                        Store / Warehouse
+                      </th>
+                      <th scope="col" className="px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                        <div className="flex items-center justify-between gap-2">
+                          <span>Opening Stock</span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyToAll("openingStock")}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 shadow-2xs transition-all active:scale-95"
+                          >
+                            {copiedField === "openingStock" ? (
+                              <>
+                                <Check size={12} className="text-emerald-600" />
+                                <span className="text-emerald-600">Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy size={11} className="text-slate-400" />
+                                <span>Copy All</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </th>
+                      <th scope="col" className="px-4 py-3.5 text-center text-[11px] font-bold uppercase tracking-wider text-slate-600 w-16">
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {stockRows.map((row, index) => (
+                      <tr key={index} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="px-5 py-3.5">
+                          <select
+                            value={row.warehouse}
+                            onChange={(e) => handleInputChange(index, "warehouse", e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-800 focus:border-slate-400 focus:outline-none focus:ring-3 focus:ring-slate-100 transition-all shadow-2xs"
+                          >
+                            <option value="">Select Store</option>
+                            {warehouses.map((wh, idx) => (
+                              <option key={idx} value={wh}>{wh}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <input
+                            type="number"
+                            value={row.openingStock}
+                            onChange={(e) => handleInputChange(index, "openingStock", e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-800 focus:border-slate-400 focus:outline-none focus:ring-3 focus:ring-slate-100 transition-all shadow-2xs"
+                            placeholder="0"
+                            step="1"
+                          />
+                        </td>
+                        <td className="px-4 py-3.5 text-center">
+                          {stockRows.length > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteRow(index)}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors mx-auto"
+                              title="Delete Row"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          ) : (
+                            <span className="text-slate-300 text-xs">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Add New Row Button */}
+            <div className="mt-4 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={handleAddRow}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-2xs transition-all hover:bg-slate-50 hover:border-slate-300 active:scale-[0.99]"
+              >
+                <Plus size={16} className="text-slate-500" />
+                <span>Add Store Row</span>
+              </button>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="mt-8 flex items-center justify-start gap-3 border-t border-slate-100 pt-6">
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={loading}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-xs transition-all hover:bg-slate-800 hover:shadow disabled:opacity-50 active:scale-[0.99]"
+              >
+                {loading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <span>Save Changes</span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate(`/shoe-sales/item-groups/${id}/items/${itemId}`)}
+                disabled={loading}
+                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-semibold text-slate-700 shadow-2xs transition-all hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       </div>

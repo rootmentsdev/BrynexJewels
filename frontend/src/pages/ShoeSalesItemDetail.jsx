@@ -113,24 +113,9 @@ const WAREHOUSE_NAME_MAPPING = {
   "Vadakara Branch": "Vadakara Branch"
 };
 
-// Display names for the Stocks page (what users see) - Updated with Vadakara Branch
+// Display names for the Stocks page (what users see) - restricted to Warehouse and MG Road
 const ALLOWED_WAREHOUSES_DISPLAY = [
-  "Palakkad Branch",
   "Warehouse",
-  "Calicut",
-  "Manjery Branch",
-  "Kannur Branch",
-  "Edappal Branch",
-  "Kalpetta Branch",
-  "Kottakkal Branch",
-  "Perinthalmanna Branch",
-  "Grooms Trivandum",
-  "Chavakkad Branch",
-  "Thrissur Branch",
-  "Vadakara Branch", 
-  "Perumbavoor Branch",
-  "Kottayam Branch",
-  "Edapally Branch",
   "MG Road"
 ];
 

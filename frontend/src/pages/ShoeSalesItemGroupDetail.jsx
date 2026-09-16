@@ -7,30 +7,10 @@ import AttachmentDisplay from "../components/AttachmentDisplay";
 import baseUrl from "../api/api";
 import useSidebar from "../hooks/useSidebar";
 
-// All warehouses/stores in the system
+// All warehouses/stores in the system - restricted to Warehouse and MG Road
 const ALL_WAREHOUSES = [
   "Warehouse",
-  "Palakkad Branch",
-  "Calicut",
-  "Manjery Branch",
-  "Kannur Branch",
-  "Edappal Branch",
-  "Kalpetta Branch",
-  "Kottakkal Branch",
-  "Perinthalmanna Branch",
-  "Grooms Trivandrum",
-  "Chavakkad Branch",
-  "Thrissur Branch",
-  "Perumbavoor Branch",
-  "Kottayam Branch",
-  "Edapally Branch",
   "MG Road",
-  "Head Office",
-  "Production",
-  "Office",
-  "Z-Edapally Branch",
-  "Z-Edappal Branch",
-  "Vadakara Branch",
 ];
 
 const ShoeSalesItemGroupDetail = () => {
