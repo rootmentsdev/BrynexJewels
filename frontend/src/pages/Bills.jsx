@@ -853,6 +853,65 @@ const ItemDropdown = ({
   );
 };
 
+// Indian States List for Supply
+const SUPPLY_STATE_OPTIONS = [
+  { code: "KL", name: "Kerala", value: "[KL] - Kerala" },
+  { code: "TN", name: "Tamil Nadu", value: "[TN] - Tamil Nadu" },
+  { code: "KA", name: "Karnataka", value: "[KA] - Karnataka" },
+  { code: "MH", name: "Maharashtra", value: "[MH] - Maharashtra" },
+  { code: "DL", name: "Delhi", value: "[DL] - Delhi" },
+  { code: "GJ", name: "Gujarat", value: "[GJ] - Gujarat" },
+  { code: "RJ", name: "Rajasthan", value: "[RJ] - Rajasthan" },
+  { code: "UP", name: "Uttar Pradesh", value: "[UP] - Uttar Pradesh" },
+  { code: "WB", name: "West Bengal", value: "[WB] - West Bengal" },
+  { code: "AP", name: "Andhra Pradesh", value: "[AP] - Andhra Pradesh" },
+  { code: "TS", name: "Telangana", value: "[TS] - Telangana" },
+  { code: "AR", name: "Arunachal Pradesh", value: "[AR] - Arunachal Pradesh" },
+  { code: "AS", name: "Assam", value: "[AS] - Assam" },
+  { code: "BR", name: "Bihar", value: "[BR] - Bihar" },
+  { code: "CG", name: "Chhattisgarh", value: "[CG] - Chhattisgarh" },
+  { code: "GA", name: "Goa", value: "[GA] - Goa" },
+  { code: "HR", name: "Haryana", value: "[HR] - Haryana" },
+  { code: "HP", name: "Himachal Pradesh", value: "[HP] - Himachal Pradesh" },
+  { code: "JH", name: "Jharkhand", value: "[JH] - Jharkhand" },
+  { code: "MP", name: "Madhya Pradesh", value: "[MP] - Madhya Pradesh" },
+  { code: "MN", name: "Manipur", value: "[MN] - Manipur" },
+  { code: "ML", name: "Meghalaya", value: "[ML] - Meghalaya" },
+  { code: "MZ", name: "Mizoram", value: "[MZ] - Mizoram" },
+  { code: "NL", name: "Nagaland", value: "[NL] - Nagaland" },
+  { code: "OR", name: "Odisha", value: "[OR] - Odisha" },
+  { code: "PB", name: "Punjab", value: "[PB] - Punjab" },
+  { code: "SK", name: "Sikkim", value: "[SK] - Sikkim" },
+  { code: "TR", name: "Tripura", value: "[TR] - Tripura" },
+  { code: "UK", name: "Uttarakhand", value: "[UK] - Uttarakhand" },
+  { code: "AN", name: "Andaman and Nicobar Islands", value: "[AN] - Andaman and Nicobar Islands" },
+  { code: "CH", name: "Chandigarh", value: "[CH] - Chandigarh" },
+  { code: "DN", name: "Dadra and Nagar Haveli and Daman and Diu", value: "[DN] - Dadra and Nagar Haveli and Daman and Diu" },
+  { code: "JK", name: "Jammu and Kashmir", value: "[JK] - Jammu and Kashmir" },
+  { code: "LA", name: "Ladakh", value: "[LA] - Ladakh" },
+  { code: "LD", name: "Lakshadweep", value: "[LD] - Lakshadweep" },
+  { code: "PY", name: "Puducherry", value: "[PY] - Puducherry" },
+];
+
+const normalizeSupplyState = (input) => {
+  if (!input) return "";
+  const trimmed = input.toString().trim();
+  const exact = SUPPLY_STATE_OPTIONS.find(
+    (s) =>
+      s.value.toLowerCase() === trimmed.toLowerCase() ||
+      s.name.toLowerCase() === trimmed.toLowerCase() ||
+      s.code.toLowerCase() === trimmed.toLowerCase()
+  );
+  if (exact) return exact.value;
+  const partial = SUPPLY_STATE_OPTIONS.find(
+    (s) =>
+      trimmed.toLowerCase().includes(s.name.toLowerCase()) ||
+      s.name.toLowerCase().includes(trimmed.toLowerCase())
+  );
+  if (partial) return partial.value;
+  return trimmed;
+};
+
 const NewBillForm = ({ billId, isEditMode = false }) => {
   const isSidebarOpen = useSidebar();
   const navigate = useNavigate();
@@ -3052,8 +3111,18 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                 onChange={(vendor) => {
                   setSelectedVendor(vendor);
                   setVendorName(vendor ? (vendor.displayName || vendor.companyName || "") : "");
-                  if (vendor && vendor.sourceOfSupply) {
-                    setSourceOfSupply(vendor.sourceOfSupply);
+                  if (vendor) {
+                    const rawSource =
+                      vendor.sourceOfSupply ||
+                      vendor.placeOfSupply ||
+                      vendor.state ||
+                      vendor.billingAddress?.state ||
+                      vendor.shippingAddress?.state ||
+                      vendor.address?.state ||
+                      "";
+                    if (rawSource) {
+                      setSourceOfSupply(normalizeSupplyState(rawSource));
+                    }
                   }
                 }}
                 onNewVendor={() => navigate("/purchase/vendors/new")}
@@ -3155,7 +3224,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
             {/* Order Number */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                Order Number <span className="text-red-500">*</span>
+                Order Number
               </label>
               <div className="relative">
                 <input
@@ -3223,7 +3292,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
             {/* Source of Supply */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                Source of Supply <span className="text-red-500">*</span>
+                Source of Supply
               </label>
               <div className="relative">
                 <select
@@ -3232,17 +3301,11 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                   className="w-full h-9 rounded-none border border-gray-200 bg-white px-3 py-2 text-xs text-gray-900 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600 appearance-none cursor-pointer pr-9"
                 >
                   <option value="">Select source of supply</option>
-                  <option value="[DL] - Delhi">[DL] - Delhi</option>
-                  <option value="[KL] - Kerala">[KL] - Kerala</option>
-                  <option value="[MH] - Maharashtra">[MH] - Maharashtra</option>
-                  <option value="[TN] - Tamil Nadu">[TN] - Tamil Nadu</option>
-                  <option value="[KA] - Karnataka">[KA] - Karnataka</option>
-                  <option value="[GJ] - Gujarat">[GJ] - Gujarat</option>
-                  <option value="[RJ] - Rajasthan">[RJ] - Rajasthan</option>
-                  <option value="[UP] - Uttar Pradesh">[UP] - Uttar Pradesh</option>
-                  <option value="[WB] - West Bengal">[WB] - West Bengal</option>
-                  <option value="[AP] - Andhra Pradesh">[AP] - Andhra Pradesh</option>
-                  <option value="[TS] - Telangana">[TS] - Telangana</option>
+                  {SUPPLY_STATE_OPTIONS.map((state) => (
+                    <option key={state.code} value={state.value}>
+                      {state.value}
+                    </option>
+                  ))}
                 </select>
                 <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>
@@ -3251,19 +3314,19 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
             {/* Destination of Supply */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                Destination of Supply <span className="text-red-500">*</span>
+                Destination of Supply
               </label>
               <div className="relative">
                 <select
-                  value={destinationOfSupply}
+                  value={destinationOfSupply || "[KL] - Kerala"}
                   onChange={(e) => setDestinationOfSupply(e.target.value)}
                   className="w-full h-9 rounded-none border border-gray-200 bg-white px-3 py-2 text-xs text-gray-900 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600 appearance-none cursor-pointer pr-9"
                 >
-                  <option value="[KL] - Kerala">[KL] - Kerala</option>
-                  <option value="[TN] - Tamil Nadu">[TN] - Tamil Nadu</option>
-                  <option value="[KA] - Karnataka">[KA] - Karnataka</option>
-                  <option value="[MH] - Maharashtra">[MH] - Maharashtra</option>
-                  <option value="[DL] - Delhi">[DL] - Delhi</option>
+                  {SUPPLY_STATE_OPTIONS.map((state) => (
+                    <option key={state.code} value={state.value}>
+                      {state.value}
+                    </option>
+                  ))}
                 </select>
                 <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>
