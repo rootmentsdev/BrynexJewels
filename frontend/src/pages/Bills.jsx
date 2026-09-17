@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import JsBarcode from "jsbarcode";
+import QRCode from "qrcode";
 import { useEnterToSave } from "../hooks/useEnterToSave";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
@@ -984,6 +986,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       item: "",
       itemData: null,
       itemDescription: "",
+      category: "Jewels",
       sku: "",
       hsnCode: "",
       size: "",
@@ -1254,14 +1257,14 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
             // This prevents double GST calculation for inclusive prices
           }
 
-          // Dynamic calculation: Selling Price = Cost Price * (Percentage / 100)
+          // Dynamic calculation: Selling Price = Cost Price + (Cost Price * Percentage / 100)
           if (field === "percentage") {
             const costPrice = parseFloat(updated.rate) || 0;
             const pctVal = parseFloat(String(value).replace("%", "").trim());
             if (!isNaN(pctVal) && costPrice > 0) {
-              const calculatedSellingPrice = parseFloat(((costPrice * pctVal) / 100).toFixed(2));
+              const calculatedSellingPrice = parseFloat((costPrice + (costPrice * pctVal) / 100).toFixed(2));
               updated.sellingPrice = isNaN(calculatedSellingPrice) ? "0.00" : calculatedSellingPrice.toFixed(2);
-              if (!updated.mrp || updated.mrp === "0.00" || updated.mrp === "0") {
+              if (!updated.mrp || updated.mrp === "0.00" || updated.mrp === "0" || updated.mrp === "") {
                 updated.mrp = updated.sellingPrice;
               }
             }
@@ -1272,9 +1275,9 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               const pctVal = parseFloat(String(updated.percentage).replace("%", "").trim());
               const costPrice = parseFloat(value) || 0;
               if (!isNaN(pctVal) && costPrice > 0) {
-                const calculatedSellingPrice = parseFloat(((costPrice * pctVal) / 100).toFixed(2));
+                const calculatedSellingPrice = parseFloat((costPrice + (costPrice * pctVal) / 100).toFixed(2));
                 updated.sellingPrice = isNaN(calculatedSellingPrice) ? "0.00" : calculatedSellingPrice.toFixed(2);
-                if (!updated.mrp || updated.mrp === "0.00" || updated.mrp === "0") {
+                if (!updated.mrp || updated.mrp === "0.00" || updated.mrp === "0" || updated.mrp === "") {
                   updated.mrp = updated.sellingPrice;
                 }
               }
@@ -1603,6 +1606,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
         item: scanned.item.itemName,
         itemData: scanned.item,
         itemDescription: "",
+        category: "Jewels",
         sku: scanned.item.sku || "",
         hsnCode: scanned.item.hsnCode || "",
         size: "",
@@ -2011,64 +2015,54 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     setShowGroupItemModal(false);
   };
 
-  // Helper function to generate high-resolution Code 128 barcode SVG
-  const generateCode128Svg = (text) => {
+  // Helper function to generate high-resolution Code 128 barcode Data URL using JsBarcode
+  const generateBarcodeDataUrl = (text) => {
     if (!text) return "";
-    const patterns = [
-      "212222", "222122", "222221", "121223", "121322", "131222", "122213", "122312", "132212", "221213",
-      "221312", "231212", "112232", "122132", "122231", "113222", "123122", "123221", "223211", "221132",
-      "221231", "213212", "223112", "312131", "311222", "321122", "321221", "312212", "322112", "322211",
-      "212123", "212321", "232121", "111323", "131123", "131321", "112313", "132113", "132311", "211313",
-      "231113", "231311", "112133", "112331", "132131", "113123", "113321", "133121", "313121", "211331",
-      "231131", "213113", "213311", "213131", "311123", "311321", "331121", "312113", "312311", "332111",
-      "314111", "221411", "431111", "111224", "111422", "121124", "121421", "141122", "141221", "112214",
-      "112412", "122114", "122411", "142112", "142211", "241211", "221114", "413111", "241112", "134111",
-      "111242", "121142", "121241", "114212", "124112", "124211", "411212", "421112", "421211", "212141",
-      "214121", "412121", "111143", "111341", "131141", "114113", "114311", "411113", "411311", "113141",
-      "114131", "311141", "411131", "211412", "211214", "211232", "2331112"
-    ];
-
-    const cleanStr = String(text).replace(/[^\x20-\x7E]/g, "");
-    if (!cleanStr) return "";
-
-    let checksum = 104; // Start Code B
-    const codes = [104];
-
-    for (let i = 0; i < cleanStr.length; i++) {
-      const charCode = cleanStr.charCodeAt(i) - 32;
-      codes.push(charCode);
-      checksum += charCode * (i + 1);
+    try {
+      const canvas = document.createElement("canvas");
+      JsBarcode(canvas, String(text).trim(), {
+        format: "CODE128",
+        width: 2,          // 2px wide bars for laser/CCD barcode scanner readability
+        height: 42,        // Barcode height
+        displayValue: false,
+        margin: 2,         // Minimal side margins so barcode spans width
+        background: "#FFFFFF",
+        lineColor: "#000000"
+      });
+      return canvas.toDataURL("image/png");
+    } catch (err) {
+      console.error("Barcode generation error:", err);
+      return "";
     }
-
-    codes.push(checksum % 103);
-    codes.push(106); // Stop Code
-
-    let patternStr = "";
-    for (const code of codes) {
-      patternStr += patterns[code] || "";
-    }
-
-    let totalWidth = 0;
-    for (let i = 0; i < patternStr.length; i++) {
-      totalWidth += parseInt(patternStr[i], 10);
-    }
-
-    let rects = "";
-    let currentX = 0;
-    for (let i = 0; i < patternStr.length; i++) {
-      const width = parseInt(patternStr[i], 10);
-      const isBar = i % 2 === 0;
-      if (isBar) {
-        rects += `<rect x="${currentX}" y="0" width="${width}" height="35" fill="#000000" />`;
-      }
-      currentX += width;
-    }
-
-    return `<svg class="barcode-svg" viewBox="0 0 ${totalWidth} 35" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%; display: block;">${rects}</svg>`;
   };
 
-  // Handler to print Jewelry Barcode Labels for each quantity unit
-  const handlePrintRowSku = (row) => {
+  // Helper function to generate high-resolution 2D QR Code Data URL
+  const generateQrDataUrl = async (text) => {
+    if (!text) return "";
+    try {
+      return await QRCode.toDataURL(String(text).trim(), {
+        margin: 1,
+        width: 360,
+        errorCorrectionLevel: "M",
+        color: {
+          dark: "#000000",
+          light: "#ffffff"
+        }
+      });
+    } catch (err) {
+      console.error("QR Code generation error:", err);
+      return "";
+    }
+  };
+
+  // Handler to print Jewelry Barcode / QR Code Labels for each quantity unit
+  const handlePrintRowSku = async (row) => {
+    const mrpNum = parseFloat(row.mrp);
+    if (row.mrp === undefined || row.mrp === null || String(row.mrp).trim() === "" || isNaN(mrpNum) || mrpNum <= 0) {
+      alert("Please enter a valid MRP before printing the barcode label.");
+      return;
+    }
+
     const itemName = (row.item || row.itemData?.itemName || "Jewelry Item").trim();
     let sku = (row.sku || row.itemData?.sku || "").trim();
 
@@ -2081,11 +2075,10 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       handleUpdateRow(row.id, "sku", sku);
     }
 
-    const priceNum = parseFloat(row.mrp || row.sellingPrice || row.rate || 0);
-    const displayPrice = isNaN(priceNum) ? "0.00" : priceNum.toFixed(2);
+    const displayPrice = mrpNum.toFixed(2);
     
-    // Store name
-    const storeName = "Brynex Jewels";
+    // Store name / Company Name
+    const storeName = "Brynex Jewels & Co.";
 
     // Number of tags to print equals Quantity
     const qty = Math.max(1, Math.round(parseFloat(row.quantity) || 1));
@@ -2096,32 +2089,61 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       baseSerialSeed = parseInt(sku, 10);
     }
 
+    const isQr = String(row.category || "").toLowerCase() === "others";
+
     let tagsHtml = "";
     for (let i = 0; i < qty; i++) {
       const unitSerial = (baseSerialSeed + i).toString();
-      const barcodeSvg = generateCode128Svg(unitSerial);
 
-      tagsHtml += `
-        <div class="tag-page">
-          <div class="tag-card">
-            <!-- Left Block: Store Name, Barcode, Serial Number -->
-            <div class="tag-left">
-              <div class="store-name">${storeName}</div>
-              <div class="barcode-container">
-                ${barcodeSvg}
+      if (isQr) {
+        // QR Code tag for "Others" category
+        const qrDataUrl = await generateQrDataUrl(unitSerial);
+        tagsHtml += `
+          <div class="tag-page qr-page">
+            <div class="tag-card">
+              <!-- Left Block: Large High-Resolution QR Code & Serial Number -->
+              <div class="tag-left-qr">
+                <div class="qr-container">
+                  <img class="qr-img" src="${qrDataUrl}" alt="${unitSerial}" />
+                </div>
+                <div class="serial-text">${unitSerial}</div>
               </div>
-              <div class="serial-text">${unitSerial}</div>
-            </div>
 
-            <!-- Right Block: Item Code, Item Name, Price -->
-            <div class="tag-right">
-              <div class="sku-code">${sku}</div>
-              <div class="item-title">${itemName}</div>
-              <div class="price-val">Rs ${displayPrice}</div>
+              <!-- Right Block: Store Name, Item Code, Item Name, Price -->
+              <div class="tag-right">
+                <div class="store-name">${storeName}</div>
+                <div class="sku-code">${sku}</div>
+                <div class="item-title">${itemName}</div>
+                <div class="price-val">Rs ${displayPrice}</div>
+              </div>
             </div>
           </div>
-        </div>
-      `;
+        `;
+      } else {
+        // 1D Barcode tag for "Jewels" category
+        const barcodeDataUrl = generateBarcodeDataUrl(unitSerial);
+        tagsHtml += `
+          <div class="tag-page barcode-page">
+            <div class="tag-card">
+              <!-- Left Block: Store Name, 1D Barcode, Serial Number -->
+              <div class="tag-left">
+                <div class="store-name">${storeName}</div>
+                <div class="barcode-container">
+                  <img class="barcode-img" src="${barcodeDataUrl}" alt="${unitSerial}" />
+                </div>
+                <div class="serial-text">${unitSerial}</div>
+              </div>
+
+              <!-- Right Block: SKU Code, Item Title, Price / MRP -->
+              <div class="tag-right">
+                <div class="sku-code">${sku}</div>
+                <div class="item-title">${itemName}</div>
+                <div class="price-val">Rs ${displayPrice}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
     }
 
     // Create hidden print iframe
@@ -2146,22 +2168,47 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       <html>
         <head>
           <meta charset="utf-8" />
-          <title>Jewelry Tags - ${sku} (${qty} pcs)</title>
+          <title></title>
           <style>
             @page {
-              size: 70mm 15mm;
-              margin: 0;
+              size: 70mm ${isQr ? "22mm" : "15mm"};
+              margin: 0mm !important;
+            }
+            @page :left { margin: 0mm !important; }
+            @page :right { margin: 0mm !important; }
+            @page :first { margin: 0mm !important; }
+            @media print {
+              html, body {
+                width: 70mm !important;
+                height: auto !important;
+                margin: 0mm !important;
+                padding: 0mm !important;
+                overflow: visible !important;
+              }
+              .tag-page {
+                width: 70mm !important;
+                height: ${isQr ? "22mm" : "15mm"} !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+              }
+              .tag-page:last-child {
+                page-break-after: auto !important;
+                break-after: auto !important;
+              }
             }
             * {
               box-sizing: border-box;
               margin: 0;
               padding: 0;
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+              font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
             }
             html, body {
-              width: 100%;
+              width: 70mm;
+              height: auto;
               margin: 0;
               padding: 0;
               background: #fff;
@@ -2169,17 +2216,20 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
             }
             .tag-page {
               width: 70mm;
-              height: 15mm;
-              padding: 1.2mm 2.5mm;
+              height: ${isQr ? "22mm" : "15mm"};
+              padding: 0.5mm 1.5mm;
               display: flex;
               align-items: center;
               justify-content: center;
               page-break-after: always;
+              break-after: page;
               page-break-inside: avoid;
+              break-inside: avoid;
               overflow: hidden;
             }
             .tag-page:last-child {
-              page-break-after: avoid;
+              page-break-after: auto;
+              break-after: auto;
             }
             .tag-card {
               width: 100%;
@@ -2190,55 +2240,86 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               justify-content: space-between;
             }
             .tag-left {
-              width: 48%;
+              width: 49%;
+              display: flex;
+              flex-direction: column;
+              align-items: flex-start;
+              justify-content: space-between;
+              padding-right: 1mm;
+            }
+            .tag-left-qr {
+              width: 42%;
+              height: 100%;
               display: flex;
               flex-direction: column;
               align-items: center;
-              justify-content: space-between;
+              justify-content: center;
               text-align: center;
-              padding-right: 2mm;
+            }
+            .qr-container {
+              width: 16mm;
+              height: 16mm;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .qr-img {
+              width: 100%;
+              height: 100%;
+              object-fit: contain;
+              image-rendering: -webkit-optimize-contrast;
+              image-rendering: pixelated;
+              display: block;
             }
             .store-name {
               font-size: 6.8pt;
-              font-weight: 800;
+              font-weight: 700;
               line-height: 1;
               white-space: nowrap;
               overflow: hidden;
               text-overflow: ellipsis;
               max-width: 100%;
-              letter-spacing: 0.2px;
               color: #000;
+              padding-left: 1mm;
             }
             .barcode-container {
               width: 100%;
-              height: 6mm;
-              margin: 0.2mm 0;
+              height: 7.2mm;
               display: flex;
               align-items: center;
               justify-content: center;
+              margin: 0.1mm 0;
+            }
+            .barcode-img {
+              width: 100%;
+              height: 100%;
+              object-fit: contain;
+              image-rendering: -webkit-optimize-contrast;
+              image-rendering: pixelated;
+              display: block;
             }
             .serial-text {
-              font-size: 7pt;
-              font-weight: 800;
+              font-size: 7.2pt;
+              font-weight: 700;
               letter-spacing: 0.8px;
               line-height: 1;
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+              width: 100%;
+              text-align: center;
+              font-family: Arial, "Helvetica Neue", sans-serif;
               color: #000;
             }
             .tag-right {
-              width: 50%;
+              width: 49%;
               display: flex;
               flex-direction: column;
               align-items: flex-start;
               justify-content: space-between;
               text-align: left;
-              padding-left: 2mm;
+              padding-left: 1mm;
             }
             .sku-code {
-              font-size: 7.5pt;
-              font-weight: 900;
-              text-transform: uppercase;
-              letter-spacing: 0.3px;
+              font-size: 7.8pt;
+              font-weight: 700;
               line-height: 1;
               white-space: nowrap;
               overflow: hidden;
@@ -2248,10 +2329,10 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
             }
             .item-title {
               font-size: 6.8pt;
-              font-weight: 700;
-              line-height: 1.15;
-              color: #111;
-              max-height: 2.3em;
+              font-weight: 500;
+              line-height: 1.1;
+              color: #000;
+              max-height: 2.2em;
               overflow: hidden;
               text-overflow: ellipsis;
               display: -webkit-box;
@@ -2259,10 +2340,9 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               -webkit-box-orient: vertical;
             }
             .price-val {
-              font-size: 8.5pt;
-              font-weight: 900;
+              font-size: 9pt;
+              font-weight: 800;
               line-height: 1;
-              letter-spacing: 0.2px;
               color: #000;
             }
           </style>
@@ -2682,6 +2762,17 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
 
       // 1. Gather valid rows
       const validRows = tableRows.filter((r) => (r.item || r.itemData?.itemName || "").trim());
+
+      // Validate mandatory MRP on all valid item rows
+      const rowsWithoutMrp = validRows.filter((r) => {
+        const mrpNum = parseFloat(r.mrp);
+        return r.mrp === undefined || r.mrp === null || String(r.mrp).trim() === "" || isNaN(mrpNum) || mrpNum <= 0;
+      });
+      if (rowsWithoutMrp.length > 0) {
+        alert("MRP is mandatory for all items. Please enter a valid MRP for each item.");
+        setSaving(false);
+        return;
+      }
 
       // 2. Identify new groups to create (deduplicated by name)
       const newGroupsMap = {}; // groupName -> createdGroupId
@@ -3344,6 +3435,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                     <input type="checkbox" className="rounded-none border-gray-600 bg-transparent text-purple-600 focus:ring-purple-500" />
                   </th>
                   <th className="px-3 py-3 font-bold uppercase min-w-[200px]">ITEM NAME</th>
+                  <th className="px-3 py-3 font-bold uppercase w-28">CATEGORY</th>
                   <th className="px-3 py-3 font-bold uppercase w-28">ITEM CODE</th>
                   <th className="px-3 py-3 font-bold uppercase w-28">HSN CODE</th>
                   <th className="px-3 py-3 font-bold uppercase w-28 text-center">QUANTITY</th>
@@ -3351,254 +3443,298 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                   <th className="px-3 py-3 font-bold uppercase w-28">COST PRICE</th>
                   <th className="px-3 py-3 font-bold uppercase w-24 text-center">PERCENTAGE</th>
                   <th className="px-3 py-3 font-bold uppercase w-28">SELLING PRICE</th>
-                  <th className="px-3 py-3 font-bold uppercase w-28">MRP</th>
+                  <th className="px-3 py-3 font-bold uppercase w-28">
+                    MRP <span className="text-red-500">*</span>
+                  </th>
                   <th className="px-3 py-3 font-bold uppercase w-28 text-center">ACTIONS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
-                {tableRows.map((row) => (
-                  <tr key={row.id} className="hover:bg-gray-50/60 transition-colors">
-                    {/* Checkbox */}
-                    <td className="px-3 py-3 text-center align-middle">
-                      <input type="checkbox" className="rounded-none border-gray-300 text-purple-600 focus:ring-purple-500" />
-                    </td>
+                {tableRows.map((row) => {
+                  const mrpNum = parseFloat(row.mrp);
+                  const hasValidMrp =
+                    row.mrp !== undefined &&
+                    row.mrp !== null &&
+                    String(row.mrp).trim() !== "" &&
+                    !isNaN(mrpNum) &&
+                    mrpNum > 0;
 
-                    {/* Item Name */}
-                    <td className="px-3 py-3 align-middle">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-none bg-gray-200/90 flex items-center justify-center text-gray-400 shrink-0">
-                          <ImageIcon size={16} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <ItemDropdown
-                            rowId={row.id}
-                            value={row.itemData || row.item}
-                            description={row.itemDescription || ""}
-                            onDescriptionChange={(desc) => handleUpdateRow(row.id, "itemDescription", desc)}
-                            onChange={(value) => handleUpdateRow(row.id, "item", value)}
-                            onNewItem={() => navigate("/shoe-sales/items/new")}
-                            onOpenGroupModal={() => handleOpenGroupItemModal(row)}
-                            warehouse={warehouse}
-                          />
-                          {(row.pendingGroup || row.groupName || row.itemData?.groupName) && (
-                            <div className="text-[10px] text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 mt-1 flex items-center justify-between gap-1">
-                              <span className="flex items-center gap-1 font-medium">
-                                <Layers size={10} />
-                                <span>
-                                  {row.pendingGroup?.option === "new"
-                                    ? `New Group: ${row.pendingGroup?.name}`
-                                    : `Group: ${row.groupName || row.pendingGroup?.groupName || row.itemData?.groupName}`}
+                  return (
+                    <tr key={row.id} className="hover:bg-gray-50/60 transition-colors">
+                      {/* Checkbox */}
+                      <td className="px-3 py-3 text-center align-middle">
+                        <input type="checkbox" className="rounded-none border-gray-300 text-purple-600 focus:ring-purple-500" />
+                      </td>
+
+                      {/* Item Name */}
+                      <td className="px-3 py-3 align-middle">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-none bg-gray-200/90 flex items-center justify-center text-gray-400 shrink-0">
+                            <ImageIcon size={16} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <ItemDropdown
+                              rowId={row.id}
+                              value={row.itemData || row.item}
+                              description={row.itemDescription || ""}
+                              onDescriptionChange={(desc) => handleUpdateRow(row.id, "itemDescription", desc)}
+                              onChange={(value) => handleUpdateRow(row.id, "item", value)}
+                              onNewItem={() => navigate("/shoe-sales/items/new")}
+                              onOpenGroupModal={() => handleOpenGroupItemModal(row)}
+                              warehouse={warehouse}
+                            />
+                            {(row.pendingGroup || row.groupName || row.itemData?.groupName) && (
+                              <div className="text-[10px] text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 mt-1 flex items-center justify-between gap-1">
+                                <span className="flex items-center gap-1 font-medium">
+                                  <Layers size={10} />
+                                  <span>
+                                    {row.pendingGroup?.option === "new"
+                                      ? `New Group: ${row.pendingGroup?.name}`
+                                      : `Group: ${row.groupName || row.pendingGroup?.groupName || row.itemData?.groupName}`}
+                                  </span>
                                 </span>
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  handleUpdateRow(row.id, "pendingGroup", null);
-                                  handleUpdateRow(row.id, "groupName", "");
-                                  handleUpdateRow(row.id, "itemGroupId", null);
-                                }}
-                                className="text-gray-400 hover:text-red-500 font-bold ml-1 cursor-pointer leading-none"
-                                title="Remove group link"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleUpdateRow(row.id, "pendingGroup", null);
+                                    handleUpdateRow(row.id, "groupName", "");
+                                    handleUpdateRow(row.id, "itemGroupId", null);
+                                  }}
+                                  className="text-gray-400 hover:text-red-500 font-bold ml-1 cursor-pointer leading-none"
+                                  title="Remove group link"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Item Code */}
-                    <td className="px-3 py-3 align-middle">
-                      <input
-                        type="text"
-                        placeholder="Item Code"
-                        value={row.itemData?.sku || row.sku || ""}
-                        onChange={(e) => handleUpdateRow(row.id, "sku", e.target.value)}
-                        className="w-full h-8 rounded-none border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600"
-                      />
-                    </td>
+                      {/* Category */}
+                      <td className="px-3 py-3 align-middle w-28">
+                        <div className="relative w-full">
+                          <select
+                            value={row.category || "Jewels"}
+                            onChange={(e) => handleUpdateRow(row.id, "category", e.target.value)}
+                            className="w-full h-8 rounded-none border border-gray-200 bg-white px-2.5 py-1 text-xs font-semibold text-gray-900 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600 appearance-none cursor-pointer pr-6"
+                          >
+                            <option value="Jewels">Jewels</option>
+                            <option value="Others">Others</option>
+                          </select>
+                          <ChevronDown
+                            size={13}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                          />
+                        </div>
+                      </td>
 
-                    {/* HSN Code */}
-                    <td className="px-3 py-3 align-middle">
-                      <input
-                        type="text"
-                        placeholder="HSN Code"
-                        value={row.itemData?.hsnCode || row.hsnCode || ""}
-                        onChange={(e) => handleUpdateRow(row.id, "hsnCode", e.target.value)}
-                        className="w-full h-8 rounded-none border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600"
-                      />
-                    </td>
-
-                    {/* Quantity with Stepper */}
-                    <td className="px-3 py-3 align-middle">
-                      <div className="flex items-center justify-center border border-gray-200 rounded-none h-8 bg-white px-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const current = parseFloat(row.quantity) || 0;
-                            if (current > 1) {
-                              handleUpdateRow(row.id, "quantity", (current - 1).toString());
-                            }
-                          }}
-                          className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-gray-900 text-xs font-semibold cursor-pointer"
-                        >
-                          −
-                        </button>
+                      {/* Item Code */}
+                      <td className="px-3 py-3 align-middle">
                         <input
                           type="text"
-                          value={row.quantity}
-                          onChange={(e) => handleUpdateRow(row.id, "quantity", e.target.value)}
-                          className="w-8 text-center text-xs font-medium text-gray-900 border-none outline-none focus:ring-0 p-0"
+                          placeholder="Item Code"
+                          value={row.itemData?.sku || row.sku || ""}
+                          onChange={(e) => handleUpdateRow(row.id, "sku", e.target.value)}
+                          className="w-full h-8 rounded-none border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600"
                         />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const current = parseFloat(row.quantity) || 0;
-                            handleUpdateRow(row.id, "quantity", (current + 1).toString());
-                          }}
-                          className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-gray-900 text-xs font-semibold cursor-pointer"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Tax */}
-                    <td className="px-3 py-3 align-middle min-w-[140px]">
-                      <div className="relative w-full">
-                        <select
-                          value={row.tax || ""}
-                          onChange={(e) => handleUpdateRow(row.id, "tax", e.target.value)}
-                          className={`w-full h-8 rounded-none border border-gray-200 bg-white px-2.5 py-1 text-xs focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600 appearance-none cursor-pointer pr-7 ${
-                            row.tax ? "text-gray-900 font-medium" : "text-gray-400"
-                          }`}
-                        >
-                          <option value="" className="text-gray-400">Select Tax</option>
-                          <optgroup label="TAX GROUP">
-                            {taxOptions.map((tax) => (
-                              <option key={tax.id} value={tax.id} className="text-gray-900">
-                                {tax.display || tax.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                          {nonTaxableOptions && nonTaxableOptions.length > 0 && (
-                            <optgroup label="NON-TAXABLE">
-                              {nonTaxableOptions.map((opt) => (
-                                <option key={opt.id} value={opt.id} className="text-gray-900">
-                                  {opt.name}
+                      {/* HSN Code */}
+                      <td className="px-3 py-3 align-middle">
+                        <input
+                          type="text"
+                          placeholder="HSN Code"
+                          value={row.itemData?.hsnCode || row.hsnCode || ""}
+                          onChange={(e) => handleUpdateRow(row.id, "hsnCode", e.target.value)}
+                          className="w-full h-8 rounded-none border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600"
+                        />
+                      </td>
+
+                      {/* Quantity with Stepper */}
+                      <td className="px-3 py-3 align-middle">
+                        <div className="flex items-center justify-center border border-gray-200 rounded-none h-8 bg-white px-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const current = parseFloat(row.quantity) || 0;
+                              if (current > 1) {
+                                handleUpdateRow(row.id, "quantity", (current - 1).toString());
+                              }
+                            }}
+                            className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-gray-900 text-xs font-semibold cursor-pointer"
+                          >
+                            −
+                          </button>
+                          <input
+                            type="text"
+                            value={row.quantity}
+                            onChange={(e) => handleUpdateRow(row.id, "quantity", e.target.value)}
+                            className="w-8 text-center text-xs font-medium text-gray-900 border-none outline-none focus:ring-0 p-0"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const current = parseFloat(row.quantity) || 0;
+                              handleUpdateRow(row.id, "quantity", (current + 1).toString());
+                            }}
+                            className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-gray-900 text-xs font-semibold cursor-pointer"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </td>
+
+                      {/* Tax */}
+                      <td className="px-3 py-3 align-middle min-w-[140px]">
+                        <div className="relative w-full">
+                          <select
+                            value={row.tax || ""}
+                            onChange={(e) => handleUpdateRow(row.id, "tax", e.target.value)}
+                            className={`w-full h-8 rounded-none border border-gray-200 bg-white px-2.5 py-1 text-xs focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600 appearance-none cursor-pointer pr-7 ${
+                              row.tax ? "text-gray-900 font-medium" : "text-gray-400"
+                            }`}
+                          >
+                            <option value="" className="text-gray-400">Select Tax</option>
+                            <optgroup label="TAX GROUP">
+                              {taxOptions.map((tax) => (
+                                <option key={tax.id} value={tax.id} className="text-gray-900">
+                                  {tax.display || tax.name}
                                 </option>
                               ))}
                             </optgroup>
-                          )}
-                        </select>
-                        <ChevronDown
-                          size={13}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                            {nonTaxableOptions && nonTaxableOptions.length > 0 && (
+                              <optgroup label="NON-TAXABLE">
+                                {nonTaxableOptions.map((opt) => (
+                                  <option key={opt.id} value={opt.id} className="text-gray-900">
+                                    {opt.name}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                          </select>
+                          <ChevronDown
+                            size={13}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                          />
+                        </div>
+                      </td>
+
+                      {/* Cost Price */}
+                      <td className="px-3 py-3 align-middle">
+                        <input
+                          type="text"
+                          placeholder="0.00"
+                          value={row.rate}
+                          onChange={(e) => handleUpdateRow(row.id, "rate", e.target.value)}
+                          className="w-full h-8 rounded-none border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600"
                         />
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Cost Price */}
-                    <td className="px-3 py-3 align-middle">
-                      <input
-                        type="text"
-                        placeholder="0.00"
-                        value={row.rate}
-                        onChange={(e) => handleUpdateRow(row.id, "rate", e.target.value)}
-                        className="w-full h-8 rounded-none border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600"
-                      />
-                    </td>
-
-                    {/* Percentage */}
-                    <td className="px-3 py-3 align-middle w-24">
-                      <input
-                        type="text"
-                        placeholder="%"
-                        value={row.percentage !== undefined && row.percentage !== null ? row.percentage : ""}
-                        onChange={(e) => handleUpdateRow(row.id, "percentage", e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handlePrintRowSku(row);
-                          }
-                        }}
-                        className="w-full h-8 rounded-none border border-gray-200 bg-white px-2.5 text-xs text-gray-900 text-center focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600"
-                      />
-                    </td>
-
-                    {/* Selling Price */}
-                    <td className="px-3 py-3 align-middle">
-                      <input
-                        type="text"
-                        placeholder="0.00"
-                        value={row.sellingPrice !== undefined ? row.sellingPrice : ""}
-                        onChange={(e) => handleUpdateRow(row.id, "sellingPrice", e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handlePrintRowSku(row);
-                          }
-                        }}
-                        className="w-full h-8 rounded-none border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600"
-                      />
-                    </td>
-
-                    {/* MRP */}
-                    <td className="px-3 py-3 align-middle">
-                      <input
-                        type="text"
-                        placeholder="0.00"
-                        value={row.mrp !== undefined && row.mrp !== null ? row.mrp : ""}
-                        onChange={(e) => handleUpdateRow(row.id, "mrp", e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handlePrintRowSku(row);
-                            const isLastRow = tableRows[tableRows.length - 1]?.id === row.id;
-                            if (isLastRow) {
-                              handleAddNewRow();
+                      {/* Percentage */}
+                      <td className="px-3 py-3 align-middle w-24">
+                        <input
+                          type="text"
+                          placeholder="%"
+                          value={row.percentage !== undefined && row.percentage !== null ? row.percentage : ""}
+                          onChange={(e) => handleUpdateRow(row.id, "percentage", e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              e.stopPropagation();
                             }
-                          }
-                        }}
-                        className="w-full h-8 rounded-none border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600"
-                      />
-                    </td>
+                          }}
+                          className="w-full h-8 rounded-none border border-gray-200 bg-white px-2.5 text-xs text-gray-900 text-center focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600"
+                        />
+                      </td>
 
-                    {/* Actions */}
-                    <td className="px-3 py-3 align-middle">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenAddToGroup(row)}
-                          className="w-7 h-7 rounded-none bg-purple-50 text-purple-600 hover:bg-purple-100 flex items-center justify-center transition-colors shadow-2xs"
-                          title="Add to Item Group"
-                        >
-                          <Plus size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handlePrintRowSku(row)}
-                          className="w-7 h-7 rounded-none bg-gray-100 text-gray-700 hover:bg-purple-50 hover:text-purple-600 flex items-center justify-center transition-colors shadow-2xs cursor-pointer"
-                          title="Print SKU & Barcode Label"
-                        >
-                          <Printer size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteRow(row.id)}
-                          className="w-7 h-7 rounded-none bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center transition-colors shadow-2xs"
-                          title="Delete Row"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      {/* Selling Price */}
+                      <td className="px-3 py-3 align-middle">
+                        <input
+                          type="text"
+                          placeholder="0.00"
+                          value={row.sellingPrice !== undefined ? row.sellingPrice : ""}
+                          onChange={(e) => handleUpdateRow(row.id, "sellingPrice", e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }
+                          }}
+                          className="w-full h-8 rounded-none border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600"
+                        />
+                      </td>
+
+                      {/* MRP */}
+                      <td className="px-3 py-3 align-middle">
+                        <input
+                          type="text"
+                          placeholder="0.00 *"
+                          value={row.mrp !== undefined && row.mrp !== null ? row.mrp : ""}
+                          onChange={(e) => handleUpdateRow(row.id, "mrp", e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const currentMrp = parseFloat(row.mrp);
+                              if (row.mrp === undefined || row.mrp === null || String(row.mrp).trim() === "" || isNaN(currentMrp) || currentMrp <= 0) {
+                                alert("Please enter a valid MRP before printing");
+                                return;
+                              }
+                              handlePrintRowSku(row);
+                              const isLastRow = tableRows[tableRows.length - 1]?.id === row.id;
+                              if (isLastRow) {
+                                handleAddNewRow();
+                              }
+                            }
+                          }}
+                          className="w-full h-8 rounded-none border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600"
+                        />
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-3 py-3 align-middle">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAddToGroup(row)}
+                            className="w-7 h-7 rounded-none bg-purple-50 text-purple-600 hover:bg-purple-100 flex items-center justify-center transition-colors shadow-2xs"
+                            title="Add to Item Group"
+                          >
+                            <Plus size={14} />
+                          </button>
+                          {hasValidMrp ? (
+                            <button
+                              type="button"
+                              onClick={() => handlePrintRowSku(row)}
+                              className="w-7 h-7 rounded-none bg-gray-100 text-gray-700 hover:bg-purple-50 hover:text-purple-600 flex items-center justify-center transition-colors shadow-2xs cursor-pointer"
+                              title="Print SKU & Barcode Label"
+                            >
+                              <Printer size={14} />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled
+                              className="w-7 h-7 rounded-none bg-gray-50 text-gray-300 flex items-center justify-center transition-colors shadow-2xs cursor-not-allowed opacity-50"
+                              title="Please enter MRP to print label"
+                            >
+                              <Printer size={14} />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRow(row.id)}
+                            className="w-7 h-7 rounded-none bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center transition-colors shadow-2xs"
+                            title="Delete Row"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -3611,14 +3747,6 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               className="h-8 px-3.5 inline-flex items-center justify-center rounded-none bg-[#f4f4f5] hover:bg-gray-200 text-gray-700 text-xs font-medium transition-colors cursor-pointer"
             >
               Add Row
-            </button>
-            <button
-              type="button"
-              onClick={() => handleOpenGroupItemModal()}
-              className="h-8 px-3.5 inline-flex items-center justify-center gap-1.5 rounded-none bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-semibold border border-purple-200 transition-colors cursor-pointer"
-            >
-              <Layers size={13} className="text-purple-600" />
-              <span>Group Item</span>
             </button>
             <button
               type="button"

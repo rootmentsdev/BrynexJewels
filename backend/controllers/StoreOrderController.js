@@ -74,6 +74,10 @@ const WAREHOUSE_NAME_MAPPING = {
   "GMG Road": "SuitorGuy MG Road",
   "GMg Road": "SuitorGuy MG Road",
   "MG Road": "SuitorGuy MG Road",
+  "Mg Road": "SuitorGuy MG Road",
+  "MG Road Branch": "SuitorGuy MG Road",
+  "Mg Road Branch": "SuitorGuy MG Road",
+  "G Road Branch": "SuitorGuy MG Road",
   "SuitorGuy MG Road": "SuitorGuy MG Road",
   "HEAD OFFICE01": "Head Office",
   "Head Office": "Head Office",
@@ -142,14 +146,25 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
   }
   
   // Try item groups
-  if (itemGroupId && itemName) {
-    const group = await ItemGroup.findById(itemGroupId);
+  if (itemGroupId || itemSku || itemName) {
+    let group = null;
+    if (itemGroupId) {
+      group = await ItemGroup.findById(itemGroupId);
+    }
+    if (!group && itemSku) {
+      group = await ItemGroup.findOne({ "items.sku": new RegExp(`^${itemSku.trim()}$`, "i") }) || await ItemGroup.findOne({ sku: new RegExp(`^${itemSku.trim()}$`, "i") });
+    }
+    if (!group && itemName) {
+      group = await ItemGroup.findOne({ name: new RegExp(`^${itemName.trim()}$`, "i") }) || await ItemGroup.findOne({ "items.name": new RegExp(`^${itemName.trim()}$`, "i") });
+    }
+    
     if (group) {
+      // Check if a specific variant matches
       const item = group.items.find(i => {
-        if (itemSku && i.sku) {
-          return i.sku.toLowerCase() === itemSku.toLowerCase();
+        if (itemSku && i.sku && i.sku.toLowerCase() === itemSku.toLowerCase()) {
+          return true;
         }
-        return i.name.toLowerCase() === itemName.toLowerCase();
+        return i.name && itemName && i.name.toLowerCase() === itemName.toLowerCase();
       });
       
       if (item) {
@@ -164,6 +179,23 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
           }
         }
         return { currentQuantity: 0, availableForSale: 0, type: 'group' };
+      } else {
+        // Return total group stock in target warehouse
+        let totalGroupStock = 0;
+        let totalAvailableForSale = 0;
+        (group.items || []).forEach(grpItem => {
+          (grpItem.warehouseStocks || []).forEach(ws => {
+            if (matchesWarehouse(ws.warehouse, normalizedTarget)) {
+              totalGroupStock += (parseFloat(ws.stockOnHand) || 0);
+              totalAvailableForSale += (parseFloat(ws.availableForSale) || 0);
+            }
+          });
+        });
+        return {
+          currentQuantity: totalGroupStock,
+          availableForSale: totalAvailableForSale,
+          type: 'group'
+        };
       }
     }
   }

@@ -156,9 +156,9 @@ const ShoeSalesItemGroups = () => {
       const formattedRows = groups.map((g) => ({
         id: g._id || g.id,
         name: g.groupName || g.name || "Untitled Group",
-        items: g.totalItems || g.itemCount || (Array.isArray(g.items) ? g.items.length : 0),
+        items: typeof g.items === "number" ? g.items : (Array.isArray(g.items) ? g.items.length : (g.totalItems || g.itemCount || 0)),
         sku: g.sku || g.groupSku || "-",
-        stock: g.totalStockOnHand !== undefined ? g.totalStockOnHand : (g.stockOnHand !== undefined ? g.stockOnHand : (g.stock !== undefined ? g.stock : 24)),
+        stock: g.totalStockOnHand !== undefined ? g.totalStockOnHand : (g.stockOnHand !== undefined ? g.stockOnHand : (g.stock !== undefined ? g.stock : 0)),
         reorder: g.reorderPoint || g.reorder || "-",
         image: g.image || g.groupImage || null,
       }));

@@ -93,6 +93,10 @@ const WAREHOUSE_NAME_MAPPING = {
   "GMG Road": "SuitorGuy MG Road",
   "GMg Road": "SuitorGuy MG Road",
   "MG Road": "SuitorGuy MG Road",
+  "Mg Road": "SuitorGuy MG Road",
+  "MG Road Branch": "SuitorGuy MG Road",
+  "Mg Road Branch": "SuitorGuy MG Road",
+  "G Road Branch": "SuitorGuy MG Road",
   "SuitorGuy MG Road": "SuitorGuy MG Road",
   
   // Head Office variations

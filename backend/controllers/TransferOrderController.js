@@ -95,6 +95,10 @@ const WAREHOUSE_NAME_MAPPING = {
   "GMG Road": "SuitorGuy MG Road",
   "GMg Road": "SuitorGuy MG Road",
   "MG Road": "SuitorGuy MG Road",
+  "Mg Road": "SuitorGuy MG Road",
+  "MG Road Branch": "SuitorGuy MG Road",
+  "Mg Road Branch": "SuitorGuy MG Road",
+  "G Road Branch": "SuitorGuy MG Road",
   "SuitorGuy MG Road": "SuitorGuy MG Road",
   
   // Head Office variations
@@ -333,14 +337,23 @@ const transferItemStock = async (itemIdValue, quantity, sourceWarehouse, destina
   }
   
   // Try item groups
-  if (itemGroupId && itemName) {
-    const group = await ItemGroup.findById(itemGroupId);
+  if (itemGroupId || itemSku || itemName) {
+    let group = null;
+    if (itemGroupId) {
+      group = await ItemGroup.findById(itemGroupId);
+    }
+    if (!group && itemSku) {
+      group = await ItemGroup.findOne({ "items.sku": new RegExp(`^${itemSku.trim()}$`, "i") });
+    }
+    if (!group && itemName) {
+      group = await ItemGroup.findOne({ "items.name": new RegExp(`^${itemName.trim()}$`, "i") });
+    }
     if (group) {
       const itemIndex = group.items.findIndex(item => {
         if (itemSku && item.sku) {
           return item.sku.toLowerCase() === itemSku.toLowerCase();
         }
-        return item.name.toLowerCase() === itemName.toLowerCase();
+        return item.name && itemName && item.name.toLowerCase() === itemName.toLowerCase();
       });
       
       if (itemIndex !== -1) {
@@ -597,12 +610,21 @@ const deductSourceStock = async (itemIdValue, quantity, sourceWarehouse, itemNam
     }
   }
 
-  if (itemGroupId && itemName) {
-    const group = await ItemGroup.findById(itemGroupId);
+  if (itemGroupId || itemSku || itemName) {
+    let group = null;
+    if (itemGroupId) {
+      group = await ItemGroup.findById(itemGroupId);
+    }
+    if (!group && itemSku) {
+      group = await ItemGroup.findOne({ "items.sku": new RegExp(`^${itemSku.trim()}$`, "i") });
+    }
+    if (!group && itemName) {
+      group = await ItemGroup.findOne({ "items.name": new RegExp(`^${itemName.trim()}$`, "i") });
+    }
     if (group) {
       const itemIndex = group.items.findIndex(item => {
         if (itemSku && item.sku) return item.sku.toLowerCase() === itemSku.toLowerCase();
-        return item.name.toLowerCase() === itemName.toLowerCase();
+        return item.name && itemName && item.name.toLowerCase() === itemName.toLowerCase();
       });
       if (itemIndex !== -1) {
         const groupPlain = group.toObject();
@@ -648,12 +670,21 @@ const addDestinationStock = async (itemIdValue, quantity, destinationWarehouse, 
     }
   }
 
-  if (itemGroupId && itemName) {
-    const group = await ItemGroup.findById(itemGroupId);
+  if (itemGroupId || itemSku || itemName) {
+    let group = null;
+    if (itemGroupId) {
+      group = await ItemGroup.findById(itemGroupId);
+    }
+    if (!group && itemSku) {
+      group = await ItemGroup.findOne({ "items.sku": new RegExp(`^${itemSku.trim()}$`, "i") });
+    }
+    if (!group && itemName) {
+      group = await ItemGroup.findOne({ "items.name": new RegExp(`^${itemName.trim()}$`, "i") });
+    }
     if (group) {
       const itemIndex = group.items.findIndex(item => {
         if (itemSku && item.sku) return item.sku.toLowerCase() === itemSku.toLowerCase();
-        return item.name.toLowerCase() === itemName.toLowerCase();
+        return item.name && itemName && item.name.toLowerCase() === itemName.toLowerCase();
       });
       if (itemIndex !== -1) {
         const groupPlain = group.toObject();

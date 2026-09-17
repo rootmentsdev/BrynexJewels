@@ -4,6 +4,7 @@ import { ArrowLeft, Edit, X, Building2, ChevronDown, Package } from "lucide-reac
 import Header from "../components/Header";
 import ImageUpload from "../components/ImageUpload";
 import AttachmentDisplay from "../components/AttachmentDisplay";
+import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 import baseUrl from "../api/api";
 import useSidebar from "../hooks/useSidebar";
 
@@ -80,21 +81,9 @@ const ShoeSalesItemGroupDetail = () => {
   const getUserWarehouse = () => {
     if (!user?.locCode) return "Warehouse";
     const location = fallbackLocations.find(loc => loc.locCode === user.locCode || loc.locCode === String(user.locCode));
-    if (!location) return "Warehouse";
-    
-    // Map locName to warehouse name
-    const locName = location.locName;
+    const locName = location?.locName || user?.username || user?.locName || "";
     if (!locName) return "Warehouse";
-    
-    // Remove prefixes like "G.", "Z.", "SG-" (single/double letter followed by dot or dash)
-    // Use more specific regex to avoid removing first letter of actual warehouse names
-    let warehouse = locName.replace(/^[A-Z]{1,2}[.\-]\s*/i, "").trim();
-    
-    // Add "Branch" if not already present and not "Warehouse"
-    if (warehouse && warehouse.toLowerCase() !== "warehouse" && !warehouse.toLowerCase().includes("branch")) {
-      warehouse = `${warehouse} Branch`;
-    }
-    return warehouse || "Warehouse";
+    return mapWarehouse(locName) || "Warehouse";
   };
   
   const userWarehouse = getUserWarehouse();
@@ -583,7 +572,7 @@ const ShoeSalesItemGroupDetail = () => {
                 {itemGroup.name}
               </h1>
               <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded-none bg-[#F3F4F6] text-[#4B5563] border border-[#E5E7EB] uppercase tracking-wider">
-                {Array.isArray(itemGroup.items) ? itemGroup.items.length : 0} Items
+                {Array.isArray(items) ? items.length : 0} Items
               </span>
               {itemGroup.isActive === false && (
                 <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded-none bg-red-50 text-red-700 border border-red-200 uppercase tracking-wider">

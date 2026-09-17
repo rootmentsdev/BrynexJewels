@@ -231,7 +231,7 @@ const ItemDropdown = ({ rowId, value, onChange, storeWarehouse, onStockFetched, 
     });
   };
 
-  // Fetch items
+  // Fetch items and item groups
   useEffect(() => {
     const fetchItems = async () => {
       if (!storeWarehouse) {
@@ -241,41 +241,60 @@ const ItemDropdown = ({ rowId, value, onChange, storeWarehouse, onStockFetched, 
       
       setLoading(true);
       try {
-        const itemsResponse = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=10000`);
-        let itemsList = [];
-        if (itemsResponse.ok) {
-          const itemsData = await itemsResponse.json();
-          itemsList = Array.isArray(itemsData) ? itemsData : (itemsData.items || itemsData.data || []);
-        }
-        
-        // Fetch item groups
-        const groupsResponse = await fetch(`${API_URL}/api/shoe-sales/item-groups?page=1&limit=10000`);
+        // 1. Fetch item groups for the specific store warehouse
+        const groupsResponse = await fetch(
+          `${API_URL}/api/shoe-sales/item-groups?page=1&limit=10000&warehouse=${encodeURIComponent(storeWarehouse)}&isAdmin=false`
+        );
         let groupsList = [];
         if (groupsResponse.ok) {
           const groupsData = await groupsResponse.json();
           groupsList = Array.isArray(groupsData) ? groupsData : (groupsData.groups || groupsData.data || []);
         }
-        
-        // Flatten items from groups
-        const groupItems = groupsList.flatMap(group => {
-          if (!group.items || !Array.isArray(group.items)) return [];
-          return group.items.map(item => ({
-            ...item,
-            isFromGroup: true,
-            itemGroupId: group._id || group.id,
-            groupName: group.name,
-          }));
-        });
-        
-        // Combine standalone items and group items
-        const allItems = [...itemsList.filter(i => i?.isActive !== false), ...groupItems];
-        
-        // Filter active items and by warehouse (only items with stock in selected store)
-        const activeItems = allItems.filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false");
-        const filteredItems = filterItemsByWarehouse(activeItems, storeWarehouse);
-        
-        console.log(`🏪 Filtered items for "${storeWarehouse}": ${filteredItems.length} items with available stock`);
-        setItems(filteredItems);
+
+        const formattedGroups = groupsList
+          .filter(group => group?.isActive !== false && String(group?.isActive).toLowerCase() !== "false")
+          .map(group => {
+            // Use pre-computed warehouseStocks if available
+            let combinedWarehouseStocks = Array.isArray(group.warehouseStocks) ? [...group.warehouseStocks] : [];
+            
+            // Otherwise compute from items array if available
+            const grpItems = Array.isArray(group.itemsList) ? group.itemsList : (Array.isArray(group.items) ? group.items : []);
+            if (combinedWarehouseStocks.length === 0 && grpItems.length > 0) {
+              grpItems.forEach(grpItem => {
+                (grpItem.warehouseStocks || []).forEach(ws => {
+                  const existingWs = combinedWarehouseStocks.find(cws => cws.warehouse === ws.warehouse);
+                  if (existingWs) {
+                    existingWs.stockOnHand = (parseFloat(existingWs.stockOnHand) || 0) + (parseFloat(ws.stockOnHand) || 0);
+                    existingWs.availableForSale = (parseFloat(existingWs.availableForSale) || 0) + (parseFloat(ws.availableForSale) || 0);
+                  } else {
+                    combinedWarehouseStocks.push({
+                      warehouse: ws.warehouse,
+                      stockOnHand: parseFloat(ws.stockOnHand) || 0,
+                      availableForSale: parseFloat(ws.availableForSale) || 0,
+                    });
+                  }
+                });
+              });
+            }
+
+            return {
+              _id: group._id || group.id,
+              id: group._id || group.id,
+              itemName: group.name,
+              sku: group.sku || "",
+              isFromGroup: true,
+              isGroup: true,
+              itemGroupId: group._id || group.id,
+              groupName: group.name,
+              itemCount: typeof group.items === 'number' ? group.items : (Array.isArray(group.items) ? group.items.length : (grpItems.length || 0)),
+              warehouseStocks: combinedWarehouseStocks,
+              stock: group.stock,
+              isActive: true,
+            };
+          });
+
+        console.log(`🏪 Store Order items: ${formattedGroups.length} Item Groups for warehouse "${storeWarehouse}"`);
+        setItems(formattedGroups);
       } catch (error) {
         console.error("Error fetching items:", error);
         setItems([]);
@@ -440,32 +459,43 @@ const ItemDropdown = ({ rowId, value, onChange, storeWarehouse, onStockFetched, 
   }, [searchTerm]);
 
   const getStockOnHand = (item, warehouse) => {
-    if (!item.warehouseStocks || !Array.isArray(item.warehouseStocks) || !warehouse) return 0;
+    if (!item) return 0;
     
     // Normalize warehouse using mapping utility
     const normalizedWarehouse = mapWarehouse(warehouse);
-    const warehouseLower = (normalizedWarehouse || warehouse).toLowerCase().trim();
-    const warehouseBase = warehouseLower.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
+    const warehouseLower = (normalizedWarehouse || warehouse || "").toLowerCase().trim();
+    const warehouseBase = warehouseLower.replace(/\s*(branch|warehouse|sg|g|z|suitorguy)\s*$/i, "").trim();
     
-    const warehouseStock = item.warehouseStocks.find(ws => {
-      if (!ws.warehouse) return false;
-      const wsWarehouseRaw = ws.warehouse.toString().trim();
-      const normalizedWs = mapWarehouse(wsWarehouseRaw);
-      const wsWarehouse = (normalizedWs || wsWarehouseRaw).toLowerCase().trim();
-      const wsBase = wsWarehouse.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
+    if (item.warehouseStocks && Array.isArray(item.warehouseStocks) && item.warehouseStocks.length > 0) {
+      const warehouseStock = item.warehouseStocks.find(ws => {
+        if (!ws.warehouse) return false;
+        const wsWarehouseRaw = ws.warehouse.toString().trim();
+        const normalizedWs = mapWarehouse(wsWarehouseRaw);
+        const wsWarehouse = (normalizedWs || wsWarehouseRaw).toLowerCase().trim();
+        const wsBase = wsWarehouse.replace(/\s*(branch|warehouse|sg|g|z|suitorguy)\s*$/i, "").trim();
+        
+        // Exact match after normalization
+        if (wsWarehouse === warehouseLower) return true;
+        
+        // Base name match
+        if (wsBase && warehouseBase && wsBase === warehouseBase) return true;
+        
+        // Partial match
+        if (wsWarehouse.includes(warehouseLower) || warehouseLower.includes(wsWarehouse)) return true;
+        if (wsWarehouse.includes(warehouseBase) || warehouseBase.includes(wsWarehouse)) return true;
+        return false;
+      });
       
-      // Exact match after normalization
-      if (wsWarehouse === warehouseLower) return true;
-      
-      // Base name match
-      if (wsBase && warehouseBase && wsBase === warehouseBase) return true;
-      
-      // Partial match
-      if (wsWarehouse.includes(warehouseLower) || warehouseLower.includes(wsWarehouse)) return true;
-      return false;
-    });
+      if (warehouseStock && warehouseStock.stockOnHand !== undefined) {
+        return parseFloat(warehouseStock.stockOnHand) || 0;
+      }
+    }
     
-    return warehouseStock?.stockOnHand || 0;
+    if (item.stock !== undefined && item.stock !== null) {
+      return parseFloat(item.stock) || 0;
+    }
+    
+    return 0;
   };
 
   const dropdownPortal = isOpen ? (
@@ -522,8 +552,16 @@ const ItemDropdown = ({ rowId, value, onChange, storeWarehouse, onStockFetched, 
                           {item.itemName || "Unnamed Item"}
                         </div>
                         <div className={`text-xs mt-1 ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>
-                          {item.isFromGroup && `Group: ${item.groupName || "N/A"} • `}
-                          SKU: {item.sku || "N/A"}
+                          {item.isGroup ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${isSelected ? "bg-white/20 text-white" : "bg-purple-100 text-purple-700"}`}>
+                                ITEM GROUP
+                              </span>
+                              {item.sku ? `• SKU: ${item.sku}` : ''}
+                            </span>
+                          ) : (
+                            `SKU: ${item.sku || "N/A"}`
+                          )}
                         </div>
                       </div>
                       <div className="flex flex-col items-end shrink-0">
@@ -531,7 +569,7 @@ const ItemDropdown = ({ rowId, value, onChange, storeWarehouse, onStockFetched, 
                           Current Stock
                         </div>
                         <div className={`text-sm font-medium mt-0.5 ${isSelected ? "text-white" : Number(stockOnHand) > 0 ? "text-[#10b981]" : "text-[#ef4444]"}`}>
-                          {Number(stockOnHand) > 0 ? `${Number(stockOnHand).toFixed(2)} pcs` : "Out of Stock"}
+                          {Number(stockOnHand) > 0 ? `${Number(stockOnHand).toFixed(2)} pcs` : "0.00 pcs"}
                         </div>
                       </div>
                     </div>
@@ -641,7 +679,7 @@ const StoreOrderCreate = () => {
   const [orderNumberLoading, setOrderNumberLoading] = useState(false);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [reason, setReason] = useState("");
-  const [storeWarehouse, setStoreWarehouse] = useState("");
+  const [storeWarehouse, setStoreWarehouse] = useState("SuitorGuy MG Road");
   const [tableRows, setTableRows] = useState([{ 
     id: 1, 
     item: null, 
@@ -655,23 +693,7 @@ const StoreOrderCreate = () => {
   
   // Warehouse options for admin (stores/branches only, exclude Warehouse)
   const storeWarehouseOptions = [
-    "Calicut",
-    "Chavakkad Branch",
-    "Edapally Branch",
-    "Edappal Branch",
-    "Grooms Trivandrum",
-    "Head Office",
-    "Kalpetta Branch",
-    "Kannur Branch",
-    "Kottakkal Branch",
-    "Kottayam Branch",
-    "Manjery Branch",
-    "Palakkad Branch",
-    "Perinthalmanna Branch",
-    "Perumbavoor Branch",
     "SuitorGuy MG Road",
-    "Thrissur Branch",
-    "Vadakara Branch",
   ];
   
   // For store users, only show their own warehouse as option

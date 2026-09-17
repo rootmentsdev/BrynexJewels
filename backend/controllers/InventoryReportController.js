@@ -103,9 +103,11 @@ const WAREHOUSE_NAME_MAPPING = {
   "GMG Road": "MG Road Branch",
   "GMg Road": "MG Road Branch",
   "MG Road": "MG Road Branch",
+  "Mg Road": "MG Road Branch",
   "SuitorGuy MG Road": "MG Road Branch", // Normalize the old name to the correct one
-  // Also include "SuitorGuy MG Road" as a valid variation since items might be stored with this name
   "MG Road Branch": "MG Road Branch",
+  "Mg Road Branch": "MG Road Branch",
+  "G Road Branch": "MG Road Branch",
   "HEAD OFFICE01": "Head Office",
   "Head Office": "Head Office",
   "Z-Edapally1": "Warehouse",
