@@ -343,13 +343,19 @@ const transferItemStock = async (itemIdValue, quantity, sourceWarehouse, destina
       group = await ItemGroup.findById(itemGroupId);
     }
     if (!group && itemSku) {
+      group = await ItemGroup.findOne({ sku: new RegExp(`^${itemSku.trim()}$`, "i") });
+    }
+    if (!group && itemName) {
+      group = await ItemGroup.findOne({ name: new RegExp(`^${itemName.trim()}$`, "i") });
+    }
+    if (!group && itemSku) {
       group = await ItemGroup.findOne({ "items.sku": new RegExp(`^${itemSku.trim()}$`, "i") });
     }
     if (!group && itemName) {
       group = await ItemGroup.findOne({ "items.name": new RegExp(`^${itemName.trim()}$`, "i") });
     }
     if (group) {
-      const itemIndex = group.items.findIndex(item => {
+      const itemIndex = (group.items || []).findIndex(item => {
         if (itemSku && item.sku) {
           return item.sku.toLowerCase() === itemSku.toLowerCase();
         }
@@ -409,7 +415,7 @@ const transferItemStock = async (itemIdValue, quantity, sourceWarehouse, destina
         
         // Update using $set
         await ItemGroup.findByIdAndUpdate(
-          itemGroupId,
+          group._id,
           {
             $set: {
               [`items.${itemIndex}`]: itemPlain
@@ -421,12 +427,65 @@ const transferItemStock = async (itemIdValue, quantity, sourceWarehouse, destina
         try {
           const itemId = itemPlain._id?.toString() || itemPlain.id?.toString();
           if (itemId) {
-            await updateMonthlyStockForTransfer(itemGroupId, itemId, sourceWarehouseName, destWarehouseName, quantity, itemName);
+            await updateMonthlyStockForTransfer(group._id, itemId, sourceWarehouseName, destWarehouseName, quantity, itemName);
           }
         } catch (monthlyError) {
           console.error(`   ⚠️ Error updating monthly stock (non-critical):`, monthlyError);
         }
         
+        return { success: true, type: 'group' };
+      } else if (group.items && group.items.length > 0) {
+        // Entire Item Group: transfer quantity across variants
+        const groupPlain = group.toObject();
+        let remaining = quantity;
+        for (let i = 0; i < groupPlain.items.length && remaining > 0; i++) {
+          const varItem = groupPlain.items[i];
+          if (!varItem.warehouseStocks) varItem.warehouseStocks = [];
+          const sourceWs = varItem.warehouseStocks.find(w => matchesWarehouse(w.warehouse, sourceWarehouseName));
+          if (sourceWs && (parseFloat(sourceWs.stockOnHand) || 0) > 0) {
+            const deduct = Math.min(remaining, parseFloat(sourceWs.stockOnHand) || 0);
+            sourceWs.stockOnHand = Math.max(0, (parseFloat(sourceWs.stockOnHand) || 0) - deduct);
+            sourceWs.availableForSale = Math.max(0, (parseFloat(sourceWs.availableForSale) || 0) - deduct);
+            sourceWs.physicalStockOnHand = Math.max(0, (parseFloat(sourceWs.physicalStockOnHand) || 0) - deduct);
+            sourceWs.physicalAvailableForSale = Math.max(0, (parseFloat(sourceWs.physicalAvailableForSale) || 0) - deduct);
+            
+            let destWs = varItem.warehouseStocks.find(w => matchesWarehouse(w.warehouse, destWarehouseName));
+            if (!destWs) {
+              destWs = { warehouse: destWarehouseName, openingStock: 0, openingStockValue: 0, stockOnHand: 0, committedStock: 0, availableForSale: 0, physicalOpeningStock: 0, physicalStockOnHand: 0, physicalCommittedStock: 0, physicalAvailableForSale: 0 };
+              varItem.warehouseStocks.push(destWs);
+            }
+            destWs.stockOnHand = (parseFloat(destWs.stockOnHand) || 0) + deduct;
+            destWs.availableForSale = (parseFloat(destWs.availableForSale) || 0) + deduct;
+            destWs.physicalStockOnHand = (parseFloat(destWs.physicalStockOnHand) || 0) + deduct;
+            destWs.physicalAvailableForSale = (parseFloat(destWs.physicalAvailableForSale) || 0) + deduct;
+            
+            remaining -= deduct;
+          }
+        }
+        if (remaining > 0 && groupPlain.items.length > 0) {
+          const firstItem = groupPlain.items[0];
+          if (!firstItem.warehouseStocks) firstItem.warehouseStocks = [];
+          let sourceWs = firstItem.warehouseStocks.find(w => matchesWarehouse(w.warehouse, sourceWarehouseName));
+          if (!sourceWs) {
+            sourceWs = { warehouse: sourceWarehouseName, openingStock: 0, openingStockValue: 0, stockOnHand: 0, committedStock: 0, availableForSale: 0, physicalOpeningStock: 0, physicalStockOnHand: 0, physicalCommittedStock: 0, physicalAvailableForSale: 0 };
+            firstItem.warehouseStocks.push(sourceWs);
+          }
+          sourceWs.stockOnHand = Math.max(0, (parseFloat(sourceWs.stockOnHand) || 0) - remaining);
+          sourceWs.availableForSale = Math.max(0, (parseFloat(sourceWs.availableForSale) || 0) - remaining);
+          sourceWs.physicalStockOnHand = Math.max(0, (parseFloat(sourceWs.physicalStockOnHand) || 0) - remaining);
+          sourceWs.physicalAvailableForSale = Math.max(0, (parseFloat(sourceWs.physicalAvailableForSale) || 0) - remaining);
+          
+          let destWs = firstItem.warehouseStocks.find(w => matchesWarehouse(w.warehouse, destWarehouseName));
+          if (!destWs) {
+            destWs = { warehouse: destWarehouseName, openingStock: 0, openingStockValue: 0, stockOnHand: 0, committedStock: 0, availableForSale: 0, physicalOpeningStock: 0, physicalStockOnHand: 0, physicalCommittedStock: 0, physicalAvailableForSale: 0 };
+            firstItem.warehouseStocks.push(destWs);
+          }
+          destWs.stockOnHand = (parseFloat(destWs.stockOnHand) || 0) + remaining;
+          destWs.availableForSale = (parseFloat(destWs.availableForSale) || 0) + remaining;
+          destWs.physicalStockOnHand = (parseFloat(destWs.physicalStockOnHand) || 0) + remaining;
+          destWs.physicalAvailableForSale = (parseFloat(destWs.physicalAvailableForSale) || 0) + remaining;
+        }
+        await ItemGroup.findByIdAndUpdate(group._id, { $set: { items: groupPlain.items } });
         return { success: true, type: 'group' };
       }
     }
@@ -509,14 +568,27 @@ const reverseTransferStock = async (itemIdValue, quantity, sourceWarehouse, dest
   }
   
   // Try item groups
-  if (itemGroupId && itemName) {
-    const group = await ItemGroup.findById(itemGroupId);
+  if (itemGroupId || itemSku || itemName) {
+    let group = null;
+    if (itemGroupId) {
+      group = await ItemGroup.findById(itemGroupId);
+    }
+    if (!group && itemSku) {
+      group = await ItemGroup.findOne({ sku: new RegExp(`^${itemSku.trim()}$`, "i") });
+    }
+    if (!group && itemName) {
+      group = await ItemGroup.findOne({ name: new RegExp(`^${itemName.trim()}$`, "i") });
+    }
+    if (!group && itemSku) {
+      group = await ItemGroup.findOne({ "items.sku": new RegExp(`^${itemSku.trim()}$`, "i") });
+    }
+    if (!group && itemName) {
+      group = await ItemGroup.findOne({ "items.name": new RegExp(`^${itemName.trim()}$`, "i") });
+    }
     if (group) {
-      const itemIndex = group.items.findIndex(item => {
-        if (itemSku && item.sku) {
-          return item.sku.toLowerCase() === itemSku.toLowerCase();
-        }
-        return item.name.toLowerCase() === itemName.toLowerCase();
+      const itemIndex = (group.items || []).findIndex(item => {
+        if (itemSku && item.sku) return item.sku.toLowerCase() === itemSku.toLowerCase();
+        return item.name && itemName && item.name.toLowerCase() === itemName.toLowerCase();
       });
       
       if (itemIndex !== -1) {
@@ -572,7 +644,7 @@ const reverseTransferStock = async (itemIdValue, quantity, sourceWarehouse, dest
         
         // Update using $set
         await ItemGroup.findByIdAndUpdate(
-          itemGroupId,
+          group._id,
           {
             $set: {
               [`items.${itemIndex}`]: itemPlain
@@ -580,6 +652,30 @@ const reverseTransferStock = async (itemIdValue, quantity, sourceWarehouse, dest
           }
         );
         
+        return { success: true, type: 'group' };
+      } else if (group.items && group.items.length > 0) {
+        const groupPlain = group.toObject();
+        const firstItem = groupPlain.items[0];
+        if (!firstItem.warehouseStocks) firstItem.warehouseStocks = [];
+        
+        let sourceWs = firstItem.warehouseStocks.find(w => matchesWarehouse(w.warehouse, sourceWarehouseName));
+        if (!sourceWs) {
+          sourceWs = { warehouse: sourceWarehouseName, openingStock: 0, openingStockValue: 0, stockOnHand: 0, committedStock: 0, availableForSale: 0, physicalOpeningStock: 0, physicalStockOnHand: 0, physicalCommittedStock: 0, physicalAvailableForSale: 0 };
+          firstItem.warehouseStocks.push(sourceWs);
+        }
+        sourceWs.stockOnHand = (parseFloat(sourceWs.stockOnHand) || 0) + quantity;
+        sourceWs.availableForSale = (parseFloat(sourceWs.availableForSale) || 0) + quantity;
+        sourceWs.physicalStockOnHand = (parseFloat(sourceWs.physicalStockOnHand) || 0) + quantity;
+        sourceWs.physicalAvailableForSale = (parseFloat(sourceWs.physicalAvailableForSale) || 0) + quantity;
+        
+        let destWs = firstItem.warehouseStocks.find(w => matchesWarehouse(w.warehouse, destWarehouseName));
+        if (destWs) {
+          destWs.stockOnHand = Math.max(0, (parseFloat(destWs.stockOnHand) || 0) - quantity);
+          destWs.availableForSale = Math.max(0, (parseFloat(destWs.availableForSale) || 0) - quantity);
+          destWs.physicalStockOnHand = Math.max(0, (parseFloat(destWs.physicalStockOnHand) || 0) - quantity);
+          destWs.physicalAvailableForSale = Math.max(0, (parseFloat(destWs.physicalAvailableForSale) || 0) - quantity);
+        }
+        await ItemGroup.findByIdAndUpdate(group._id, { $set: { items: groupPlain.items } });
         return { success: true, type: 'group' };
       }
     }
@@ -616,13 +712,19 @@ const deductSourceStock = async (itemIdValue, quantity, sourceWarehouse, itemNam
       group = await ItemGroup.findById(itemGroupId);
     }
     if (!group && itemSku) {
+      group = await ItemGroup.findOne({ sku: new RegExp(`^${itemSku.trim()}$`, "i") });
+    }
+    if (!group && itemName) {
+      group = await ItemGroup.findOne({ name: new RegExp(`^${itemName.trim()}$`, "i") });
+    }
+    if (!group && itemSku) {
       group = await ItemGroup.findOne({ "items.sku": new RegExp(`^${itemSku.trim()}$`, "i") });
     }
     if (!group && itemName) {
       group = await ItemGroup.findOne({ "items.name": new RegExp(`^${itemName.trim()}$`, "i") });
     }
     if (group) {
-      const itemIndex = group.items.findIndex(item => {
+      const itemIndex = (group.items || []).findIndex(item => {
         if (itemSku && item.sku) return item.sku.toLowerCase() === itemSku.toLowerCase();
         return item.name && itemName && item.name.toLowerCase() === itemName.toLowerCase();
       });
@@ -636,7 +738,39 @@ const deductSourceStock = async (itemIdValue, quantity, sourceWarehouse, itemNam
         sourceWs.availableForSale = Math.max(0, (parseFloat(sourceWs.availableForSale) || 0) - quantity);
         sourceWs.physicalStockOnHand = Math.max(0, (parseFloat(sourceWs.physicalStockOnHand) || 0) - quantity);
         sourceWs.physicalAvailableForSale = Math.max(0, (parseFloat(sourceWs.physicalAvailableForSale) || 0) - quantity);
-        await ItemGroup.findByIdAndUpdate(itemGroupId, { $set: { [`items.${itemIndex}`]: itemPlain } });
+        await ItemGroup.findByIdAndUpdate(group._id, { $set: { [`items.${itemIndex}`]: itemPlain } });
+        return { success: true, type: 'group' };
+      } else if (group.items && group.items.length > 0) {
+        // Entire Item Group: Deduct quantity across group variants
+        const groupPlain = group.toObject();
+        let remaining = quantity;
+        for (let i = 0; i < groupPlain.items.length && remaining > 0; i++) {
+          const varItem = groupPlain.items[i];
+          if (!varItem.warehouseStocks) varItem.warehouseStocks = [];
+          const ws = varItem.warehouseStocks.find(w => matchesWarehouse(w.warehouse, sourceWarehouseName));
+          if (ws && (parseFloat(ws.stockOnHand) || 0) > 0) {
+            const deduct = Math.min(remaining, parseFloat(ws.stockOnHand) || 0);
+            ws.stockOnHand = Math.max(0, (parseFloat(ws.stockOnHand) || 0) - deduct);
+            ws.availableForSale = Math.max(0, (parseFloat(ws.availableForSale) || 0) - deduct);
+            ws.physicalStockOnHand = Math.max(0, (parseFloat(ws.physicalStockOnHand) || 0) - deduct);
+            ws.physicalAvailableForSale = Math.max(0, (parseFloat(ws.physicalAvailableForSale) || 0) - deduct);
+            remaining -= deduct;
+          }
+        }
+        if (remaining > 0 && groupPlain.items.length > 0) {
+          const firstItem = groupPlain.items[0];
+          if (!firstItem.warehouseStocks) firstItem.warehouseStocks = [];
+          let ws = firstItem.warehouseStocks.find(w => matchesWarehouse(w.warehouse, sourceWarehouseName));
+          if (!ws) {
+            ws = { warehouse: sourceWarehouseName, openingStock: 0, openingStockValue: 0, stockOnHand: 0, committedStock: 0, availableForSale: 0, physicalOpeningStock: 0, physicalStockOnHand: 0, physicalCommittedStock: 0, physicalAvailableForSale: 0 };
+            firstItem.warehouseStocks.push(ws);
+          }
+          ws.stockOnHand = Math.max(0, (parseFloat(ws.stockOnHand) || 0) - remaining);
+          ws.availableForSale = Math.max(0, (parseFloat(ws.availableForSale) || 0) - remaining);
+          ws.physicalStockOnHand = Math.max(0, (parseFloat(ws.physicalStockOnHand) || 0) - remaining);
+          ws.physicalAvailableForSale = Math.max(0, (parseFloat(ws.physicalAvailableForSale) || 0) - remaining);
+        }
+        await ItemGroup.findByIdAndUpdate(group._id, { $set: { items: groupPlain.items } });
         return { success: true, type: 'group' };
       }
     }
@@ -676,13 +810,19 @@ const addDestinationStock = async (itemIdValue, quantity, destinationWarehouse, 
       group = await ItemGroup.findById(itemGroupId);
     }
     if (!group && itemSku) {
+      group = await ItemGroup.findOne({ sku: new RegExp(`^${itemSku.trim()}$`, "i") });
+    }
+    if (!group && itemName) {
+      group = await ItemGroup.findOne({ name: new RegExp(`^${itemName.trim()}$`, "i") });
+    }
+    if (!group && itemSku) {
       group = await ItemGroup.findOne({ "items.sku": new RegExp(`^${itemSku.trim()}$`, "i") });
     }
     if (!group && itemName) {
       group = await ItemGroup.findOne({ "items.name": new RegExp(`^${itemName.trim()}$`, "i") });
     }
     if (group) {
-      const itemIndex = group.items.findIndex(item => {
+      const itemIndex = (group.items || []).findIndex(item => {
         if (itemSku && item.sku) return item.sku.toLowerCase() === itemSku.toLowerCase();
         return item.name && itemName && item.name.toLowerCase() === itemName.toLowerCase();
       });
@@ -699,7 +839,22 @@ const addDestinationStock = async (itemIdValue, quantity, destinationWarehouse, 
         destWs.availableForSale = (parseFloat(destWs.availableForSale) || 0) + quantity;
         destWs.physicalStockOnHand = (parseFloat(destWs.physicalStockOnHand) || 0) + quantity;
         destWs.physicalAvailableForSale = (parseFloat(destWs.physicalAvailableForSale) || 0) + quantity;
-        await ItemGroup.findByIdAndUpdate(itemGroupId, { $set: { [`items.${itemIndex}`]: itemPlain } });
+        await ItemGroup.findByIdAndUpdate(group._id, { $set: { [`items.${itemIndex}`]: itemPlain } });
+        return { success: true, type: 'group' };
+      } else if (group.items && group.items.length > 0) {
+        const groupPlain = group.toObject();
+        const firstItem = groupPlain.items[0];
+        if (!firstItem.warehouseStocks) firstItem.warehouseStocks = [];
+        let destWs = firstItem.warehouseStocks.find(ws => matchesWarehouse(ws.warehouse, destWarehouseName));
+        if (!destWs) {
+          destWs = { warehouse: destWarehouseName, openingStock: 0, openingStockValue: 0, stockOnHand: 0, committedStock: 0, availableForSale: 0, physicalOpeningStock: 0, physicalStockOnHand: 0, physicalCommittedStock: 0, physicalAvailableForSale: 0 };
+          firstItem.warehouseStocks.push(destWs);
+        }
+        destWs.stockOnHand = (parseFloat(destWs.stockOnHand) || 0) + quantity;
+        destWs.availableForSale = (parseFloat(destWs.availableForSale) || 0) + quantity;
+        destWs.physicalStockOnHand = (parseFloat(destWs.physicalStockOnHand) || 0) + quantity;
+        destWs.physicalAvailableForSale = (parseFloat(destWs.physicalAvailableForSale) || 0) + quantity;
+        await ItemGroup.findByIdAndUpdate(group._id, { $set: { items: groupPlain.items } });
         return { success: true, type: 'group' };
       }
     }
@@ -731,12 +886,27 @@ const restoreSourceStock = async (itemIdValue, quantity, sourceWarehouse, itemNa
     }
   }
 
-  if (itemGroupId && itemName) {
-    const group = await ItemGroup.findById(itemGroupId);
+  if (itemGroupId || itemSku || itemName) {
+    let group = null;
+    if (itemGroupId) {
+      group = await ItemGroup.findById(itemGroupId);
+    }
+    if (!group && itemSku) {
+      group = await ItemGroup.findOne({ sku: new RegExp(`^${itemSku.trim()}$`, "i") });
+    }
+    if (!group && itemName) {
+      group = await ItemGroup.findOne({ name: new RegExp(`^${itemName.trim()}$`, "i") });
+    }
+    if (!group && itemSku) {
+      group = await ItemGroup.findOne({ "items.sku": new RegExp(`^${itemSku.trim()}$`, "i") });
+    }
+    if (!group && itemName) {
+      group = await ItemGroup.findOne({ "items.name": new RegExp(`^${itemName.trim()}$`, "i") });
+    }
     if (group) {
-      const itemIndex = group.items.findIndex(item => {
+      const itemIndex = (group.items || []).findIndex(item => {
         if (itemSku && item.sku) return item.sku.toLowerCase() === itemSku.toLowerCase();
-        return item.name.toLowerCase() === itemName.toLowerCase();
+        return item.name && itemName && item.name.toLowerCase() === itemName.toLowerCase();
       });
       if (itemIndex !== -1) {
         const groupPlain = group.toObject();
@@ -751,7 +921,22 @@ const restoreSourceStock = async (itemIdValue, quantity, sourceWarehouse, itemNa
         sourceWs.availableForSale = (parseFloat(sourceWs.availableForSale) || 0) + quantity;
         sourceWs.physicalStockOnHand = (parseFloat(sourceWs.physicalStockOnHand) || 0) + quantity;
         sourceWs.physicalAvailableForSale = (parseFloat(sourceWs.physicalAvailableForSale) || 0) + quantity;
-        await ItemGroup.findByIdAndUpdate(itemGroupId, { $set: { [`items.${itemIndex}`]: itemPlain } });
+        await ItemGroup.findByIdAndUpdate(group._id, { $set: { [`items.${itemIndex}`]: itemPlain } });
+        return { success: true, type: 'group' };
+      } else if (group.items && group.items.length > 0) {
+        const groupPlain = group.toObject();
+        const firstItem = groupPlain.items[0];
+        if (!firstItem.warehouseStocks) firstItem.warehouseStocks = [];
+        let sourceWs = firstItem.warehouseStocks.find(ws => matchesWarehouse(ws.warehouse, sourceWarehouseName));
+        if (!sourceWs) {
+          sourceWs = { warehouse: sourceWarehouseName, openingStock: 0, openingStockValue: 0, stockOnHand: 0, committedStock: 0, availableForSale: 0, physicalOpeningStock: 0, physicalStockOnHand: 0, physicalCommittedStock: 0, physicalAvailableForSale: 0 };
+          firstItem.warehouseStocks.push(sourceWs);
+        }
+        sourceWs.stockOnHand = (parseFloat(sourceWs.stockOnHand) || 0) + quantity;
+        sourceWs.availableForSale = (parseFloat(sourceWs.availableForSale) || 0) + quantity;
+        sourceWs.physicalStockOnHand = (parseFloat(sourceWs.physicalStockOnHand) || 0) + quantity;
+        sourceWs.physicalAvailableForSale = (parseFloat(sourceWs.physicalAvailableForSale) || 0) + quantity;
+        await ItemGroup.findByIdAndUpdate(group._id, { $set: { items: groupPlain.items } });
         return { success: true, type: 'group' };
       }
     }
@@ -847,12 +1032,12 @@ const getDraftQuantity = async (itemIdValue, sourceWarehouse, itemName = null, i
   }
 };
 
-const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, itemGroupId = null, itemSku = null, excludeOrderId = null) => {
+const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, itemGroupId = null, itemSku = null, excludeOrderId = null, isGroup = false) => {
   const targetWarehouse = warehouseName?.trim() || "Warehouse";
   const normalizedTarget = normalizeWarehouseName(targetWarehouse);
   
   console.log(`\n🔍 Getting stock for warehouse: "${targetWarehouse}" (normalized: "${normalizedTarget}")`);
-  console.log(`   ItemId: ${itemIdValue}, ItemName: ${itemName}, ItemGroupId: ${itemGroupId}, ItemSku: ${itemSku}`);
+  console.log(`   ItemId: ${itemIdValue}, ItemName: ${itemName}, ItemGroupId: ${itemGroupId}, ItemSku: ${itemSku}, IsGroup: ${isGroup}`);
   
   // Try standalone item first
   if (itemIdValue && itemIdValue !== null && itemIdValue !== "null") {
@@ -907,15 +1092,32 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
   }
   
   // Try item groups
-  if (itemGroupId && itemName) {
-    const group = await ItemGroup.findById(itemGroupId);
+  if (itemGroupId || itemName) {
+    let group = null;
+    if (itemGroupId) {
+      group = await ItemGroup.findById(itemGroupId);
+    }
+    if (!group && itemName) {
+      group = await ItemGroup.findOne({ name: new RegExp(`^${itemName.trim()}$`, "i") });
+    }
+    if (!group && itemSku) {
+      group = await ItemGroup.findOne({ sku: new RegExp(`^${itemSku.trim()}$`, "i") });
+    }
+    if (!group && itemSku) {
+      group = await ItemGroup.findOne({ "items.sku": new RegExp(`^${itemSku.trim()}$`, "i") });
+    }
+    if (!group && itemName) {
+      group = await ItemGroup.findOne({ "items.name": new RegExp(`^${itemName.trim()}$`, "i") });
+    }
+
     if (group) {
-      const item = group.items.find(item => {
+      const isGroupRequested = isGroup === true || isGroup === 'true' || isGroup === '1';
+      const item = !isGroupRequested ? group.items?.find(item => {
         if (itemSku && item.sku) {
           return item.sku.toLowerCase() === itemSku.toLowerCase();
         }
-        return item.name.toLowerCase() === itemName.toLowerCase();
-      });
+        return item.name && itemName && item.name.toLowerCase() === itemName.toLowerCase();
+      }) : null;
       
       if (item) {
         console.log(`   Found item in group: "${item.name}"`);
@@ -941,13 +1143,7 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
         
         if (warehouseStock) {
           console.log(`   ✅ Found stock in "${warehouseStock.warehouse}": ${warehouseStock.stockOnHand}`);
-          
           const totalStock = parseFloat(warehouseStock.stockOnHand) || 0;
-          
-          // Stock is already physically deducted when draft/in_transit orders are created,
-          // so stockOnHand IS the available stock - no need to subtract draft/transit quantities.
-          console.log(`   📊 Stock: ${totalStock}`);
-          
           return {
             success: true,
             stockOnHand: totalStock,
@@ -955,14 +1151,48 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
             draft: 0,
             availableStock: totalStock,
             currentQuantity: totalStock,
-            currentValue: totalStock * (item.costPrice || 0),
+            currentValue: totalStock * (item.costPrice || group.costPrice || 0),
           };
         } else {
-          console.log(`   ❌ No stock found in "${targetWarehouse}"`);
-          console.log(`   💡 Tip: Check if warehouse name matches exactly (case-insensitive) or try base name matching`);
+          console.log(`   ❌ No stock found in "${targetWarehouse}" for variant "${item.name}"`);
+          return {
+            success: true,
+            stockOnHand: 0,
+            inTransit: 0,
+            draft: 0,
+            availableStock: 0,
+            currentQuantity: 0,
+            currentValue: 0,
+          };
         }
       } else {
-        console.log(`   ❌ Item "${itemName}" not found in group ${itemGroupId}`);
+        // Entire Item Group selected (aggregate variants for this target warehouse)
+        console.log(`   Item Group itself selected: "${group.name}" (aggregating variants for "${targetWarehouse}")`);
+        let totalStock = 0;
+        let totalCost = 0;
+        
+        if (group.items && Array.isArray(group.items) && group.items.length > 0) {
+          for (const grpItem of group.items) {
+            for (const ws of (grpItem.warehouseStocks || [])) {
+              if (matchesWarehouse(ws.warehouse, targetWarehouse)) {
+                const qty = parseFloat(ws.stockOnHand) || 0;
+                totalStock += qty;
+                totalCost += qty * (grpItem.costPrice || group.costPrice || 0);
+              }
+            }
+          }
+        }
+        
+        console.log(`   📊 Item Group "${group.name}" stock in "${targetWarehouse}": ${totalStock}`);
+        return {
+          success: true,
+          stockOnHand: totalStock,
+          inTransit: 0,
+          draft: 0,
+          availableStock: totalStock,
+          currentQuantity: totalStock,
+          currentValue: totalCost,
+        };
       }
     }
   }
@@ -2211,13 +2441,13 @@ export const deleteTransferOrder = async (req, res) => {
 // Get current stock for an item in a warehouse (helper endpoint)
 export const getItemStock = async (req, res) => {
   try {
-    const { itemId, itemGroupId, itemName, itemSku, warehouse, excludeOrderId } = req.query;
+    const { itemId, itemGroupId, itemName, itemSku, warehouse, excludeOrderId, isGroup } = req.query;
     
     if (!warehouse) {
       return res.status(400).json({ message: "Warehouse is required" });
     }
     
-    const stockInfo = await getCurrentStock(itemId, warehouse, itemName, itemGroupId, itemSku, excludeOrderId);
+    const stockInfo = await getCurrentStock(itemId, warehouse, itemName, itemGroupId, itemSku, excludeOrderId, isGroup);
     
     res.status(200).json(stockInfo);
   } catch (error) {

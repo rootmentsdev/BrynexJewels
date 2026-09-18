@@ -72,7 +72,7 @@ const TransferOrders = () => {
   const [transferOrders, setTransferOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("transferred");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [selectedOrders, setSelectedOrders] = useState(new Set());
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteStep, setDeleteStep] = useState(1);
@@ -130,7 +130,6 @@ const TransferOrders = () => {
       try {
         const params = new URLSearchParams();
         if (userId) params.append("userId", userId);
-        if (statusFilter !== "all") params.append("status", statusFilter);
 
         if (
           shouldFilterByWarehouse &&
@@ -197,7 +196,7 @@ const TransferOrders = () => {
       }
     };
     fetchTransferOrders();
-  }, [API_URL, userId, statusFilter, isWarehouseUser, isAdmin, isWarehouseSelection, userWarehouse, refreshTrigger, transferPeriod]);
+  }, [API_URL, userId, isWarehouseUser, isAdmin, isWarehouseSelection, userWarehouse, refreshTrigger, transferPeriod]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -216,6 +215,7 @@ const TransferOrders = () => {
 
   // Filtered + paginated
   const filteredOrders = transferOrders.filter((order) => {
+    if (statusFilter !== "all" && order.status !== statusFilter) return false;
     if (!searchTerm) return true;
     const s = searchTerm.toLowerCase();
     return (
@@ -229,7 +229,7 @@ const TransferOrders = () => {
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE));
   const pagedOrders = filteredOrders.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  // Status counts (from ALL transferOrders, not filtered)
+  // Status counts (from ALL transferOrders)
   const transferredCount = transferOrders.filter((o) => o.status === "transferred").length;
   const inTransitCount = transferOrders.filter((o) => o.status === "in_transit").length;
   const draftCount = transferOrders.filter((o) => o.status === "draft").length;
@@ -270,7 +270,6 @@ const TransferOrders = () => {
   const refreshList = async () => {
     const params = new URLSearchParams();
     if (userId) params.append("userId", userId);
-    if (statusFilter !== "all") params.append("status", statusFilter);
     if (shouldFilterByWarehouse && userWarehouse && userWarehouse !== "undefined" && userWarehouse !== "null") {
       params.append("destinationWarehouse", userWarehouse);
       params.append("sourceWarehouse", userWarehouse);
@@ -488,8 +487,9 @@ const TransferOrders = () => {
           {/* Status tab pills */}
           <div className="flex items-center bg-[#f0f0f3] rounded-full p-0.5">
             {[
-              { key: "transferred", label: "Transfered", count: transferredCount },
+              { key: "all",         label: "All",         count: transferOrders.length },
               { key: "in_transit",  label: "In Transit",  count: inTransitCount },
+              { key: "transferred", label: "Transfered", count: transferredCount },
               { key: "draft",       label: "Draft",        count: draftCount },
             ].map(({ key, label, count }) => (
               <button
