@@ -18,7 +18,7 @@ const storeOrderSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected", "transferred"],
+      enum: ["draft", "pending", "approved", "rejected", "transferred"],
       default: "pending",
     },
     

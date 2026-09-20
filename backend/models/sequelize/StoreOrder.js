@@ -25,7 +25,7 @@ const StoreOrder = sequelize.define('StoreOrder', {
     allowNull: true,
   },
   status: {
-    type: DataTypes.ENUM('pending', 'approved', 'rejected', 'transferred'),
+    type: DataTypes.ENUM('draft', 'pending', 'approved', 'rejected', 'transferred'),
     defaultValue: 'pending',
   },
   

@@ -71,6 +71,7 @@ import SalesReport from "./pages/SalesReport.jsx";
 import SalesByInvoiceReport from "./pages/SalesByInvoiceReport.jsx";
 import SalesByGroupReport from "./pages/SalesByGroupReport.jsx";
 import InventoryReport from "./pages/InventoryReport.jsx";
+import InventoryAgingReport from "./pages/InventoryAgingReport.jsx";
 import ReorderAlerts from "./pages/ReorderAlerts.jsx";
 import Income from "./pages/Income.jsx";
 import Expenses from "./pages/Expenses.jsx";
@@ -263,6 +264,7 @@ const App = () => {
           <Route path="/reports/sales-by-group" element={currentuser ? <SalesByGroupReport /> : <Navigate to="/login" />} />
           <Route path="/reports/sales" element={currentuser ? <SalesReport /> : <Navigate to="/login" />} />
           <Route path="/reports/inventory" element={currentuser ? <InventoryReport /> : <Navigate to="/login" />} />
+          <Route path="/reports/aging" element={currentuser ? <InventoryAgingReport /> : <Navigate to="/login" />} />
           <Route path="/reports/income-expense" element={currentuser ? <IncomeExpenseReport /> : <Navigate to="/login" />} />
           
           {/* Reorder Alerts */}

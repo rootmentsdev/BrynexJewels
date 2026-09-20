@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useEnterToSave } from "../hooks/useEnterToSave";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Search, X, Plus, Trash2, ArrowLeftRight } from "lucide-react";
+import { Search, X, Plus, Trash2, ArrowLeftRight, Package } from "lucide-react";
 import Head from "../components/Head";
 import Header from "../components/Header";
 import baseUrl from "../api/api";
@@ -44,8 +44,13 @@ const WarehouseDropdown = ({ value, onChange, options, placeholder = "Select war
   const updatePos = () => {
     if (!buttonRef.current) return;
     const rect = buttonRef.current.getBoundingClientRect();
+    const dropdownHeight = 250;
+    const spaceBelow = window.innerHeight - rect.bottom - 8;
+    const spaceAbove = rect.top - 8;
+    const openUpward = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
+    
     setDropdownPos({
-      top: rect.bottom + 4,
+      top: openUpward ? Math.max(8, rect.top - dropdownHeight - 4) : rect.bottom + 4,
       left: rect.left,
       width: rect.width,
     });
@@ -259,13 +264,27 @@ const getStockOnHand = (item, warehouse) => {
 };
 
 // ItemDropdown Component - filters items by warehouse (same logic as SalesInvoiceCreate)
-const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWarehouse, onSourceStockFetched, onDestStockFetched, isStoreUser = false, userWarehouse = "", onFocusChange, isEditMode = false, orderId = null }) => {
+const ItemDropdown = ({ 
+  rowId, 
+  value, 
+  onChange, 
+  sourceWarehouse, 
+  destinationWarehouse, 
+  onSourceStockFetched, 
+  onDestStockFetched, 
+  isStoreUser = false, 
+  userWarehouse = "", 
+  onFocusChange, 
+  isEditMode = false, 
+  orderId = null,
+  requestedHint = "",
+  requestedGroupId = null
+}) => {
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
   const buttonRef = useRef(null);
   const dropdownRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState("all"); // "all" | "items" | "groups"
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -321,27 +340,6 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
         });
         if (hasMatch) return true;
       }
-
-      // Also check variants for Item Groups
-      const variants = Array.isArray(item.itemsList) ? item.itemsList : (Array.isArray(item.items) ? item.items : []);
-      if (variants.length > 0) {
-        return variants.some(variant => {
-          if (!variant.warehouseStocks || !Array.isArray(variant.warehouseStocks)) return false;
-          return variant.warehouseStocks.some(ws => {
-            if (!ws.warehouse) return false;
-            const stockWarehouseRaw = (ws.warehouse || "").toString().trim();
-            const stockWarehouse = stockWarehouseRaw.toLowerCase().trim();
-            if (isStoreUser && (stockWarehouse === "warehouse" || stockWarehouse.includes("warehouse"))) return false;
-            if (stockWarehouse === targetWarehouseLower) return true;
-            const stockBase = stockWarehouse.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
-            const targetBase = targetWarehouseLower.replace(/\s*(branch|warehouse|sg|g|z)\s*$/i, "").trim();
-            if (stockBase && targetBase && stockBase === targetBase) return true;
-            if (stockWarehouse.includes(targetWarehouseLower) || targetWarehouseLower.includes(stockWarehouse)) return true;
-            return false;
-          });
-        });
-      }
-      
       return false;
     });
     
@@ -349,118 +347,51 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     return filtered;
   };
 
-  // Fetch items and item groups (fetch all and filter client-side)
+  // Fetch items only (fetch all active items and filter client-side)
   useEffect(() => {
     const fetchItems = async () => {
       setLoading(true);
       try {
-        // 1. Fetch standalone items
-        const itemsPromise = fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=10000`);
-        // 2. Fetch item groups
-        const groupsPromise = fetch(`${API_URL}/api/shoe-sales/item-groups?page=1&limit=10000`);
-
-        const [itemsResponse, groupsResponse] = await Promise.all([itemsPromise, groupsPromise]);
-
-        let standaloneItems = [];
-        if (itemsResponse.ok) {
-          const itemsData = await itemsResponse.json();
-          const rawItems = Array.isArray(itemsData) ? itemsData : (itemsData.items || itemsData.data || []);
-          standaloneItems = rawItems
-            .filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false")
-            .map((item) => ({
-              _id: item._id || item.id,
-              id: item._id || item.id,
-              itemName: item.itemName,
-              sku: item.sku || "",
-              itemGroupId: null,
-              groupName: null,
-              isFromGroup: false,
-              isGroup: false,
-              warehouseStocks: item.warehouseStocks || [],
-              costPrice: item.costPrice || 0,
-              isActive: true,
-            }));
+        const response = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=10000`);
+        if (!response.ok) throw new Error("Failed to fetch items");
+        const data = await response.json();
+        
+        let itemsList = [];
+        if (Array.isArray(data)) {
+          itemsList = data;
+        } else if (data.items && Array.isArray(data.items)) {
+          itemsList = data.items;
+        } else if (data.data && Array.isArray(data.data)) {
+          itemsList = data.data;
         }
 
-        let groupItems = [];
-        if (groupsResponse.ok) {
-          const groupsData = await groupsResponse.json();
-          const rawGroups = Array.isArray(groupsData) ? groupsData : (groupsData.groups || groupsData.data || []);
-          rawGroups
-            .filter((group) => group?.isActive !== false && String(group?.isActive).toLowerCase() !== "false")
-            .forEach((group) => {
-              const variantList = Array.isArray(group.itemsList) ? group.itemsList : (Array.isArray(group.items) ? group.items : []);
-              
-              // Compute aggregated warehouseStocks across variants if not already present
-              let combinedWarehouseStocks = Array.isArray(group.warehouseStocks) && group.warehouseStocks.length > 0
-                ? [...group.warehouseStocks]
-                : [];
-              if (combinedWarehouseStocks.length === 0 && variantList.length > 0) {
-                variantList.forEach((grpItem) => {
-                  (grpItem.warehouseStocks || []).forEach((ws) => {
-                    const existingWs = combinedWarehouseStocks.find((cws) => cws.warehouse === ws.warehouse);
-                    if (existingWs) {
-                      existingWs.stockOnHand = (parseFloat(existingWs.stockOnHand) || 0) + (parseFloat(ws.stockOnHand) || 0);
-                      existingWs.availableForSale = (parseFloat(existingWs.availableForSale) || 0) + (parseFloat(ws.availableForSale) || 0);
-                    } else {
-                      combinedWarehouseStocks.push({
-                        warehouse: ws.warehouse,
-                        stockOnHand: parseFloat(ws.stockOnHand) || 0,
-                        availableForSale: parseFloat(ws.availableForSale) || 0,
-                      });
-                    }
-                  });
-                });
-              }
+        const activeItems = itemsList
+          .filter((i) => i?.isActive !== false && String(i?.isActive).toLowerCase() !== "false")
+          .map((item) => ({
+            _id: item._id || item.id,
+            id: item._id || item.id,
+            itemName: item.itemName || item.name || "",
+            sku: item.sku || "",
+            size: item.size || "",
+            costPrice: item.costPrice || 0,
+            sellingPrice: item.sellingPrice || 0,
+            warehouseStocks: item.warehouseStocks || [],
+            itemGroupId: item.itemGroupId || null,
+            groupName: item.itemGroupName || item.groupName || null,
+            isFromGroup: !!item.isFromGroup,
+            isGroup: false,
+            isActive: true,
+          }));
 
-              // Add the Item Group itself
-              groupItems.push({
-                _id: group._id || group.id,
-                id: group._id || group.id,
-                itemName: group.name,
-                sku: group.sku || "",
-                itemGroupId: group._id || group.id,
-                groupName: group.name,
-                isFromGroup: true,
-                isGroup: true,
-                items: variantList,
-                itemsList: variantList,
-                warehouseStocks: combinedWarehouseStocks,
-                costPrice: group.costPrice || 0,
-                isActive: true,
-              });
-
-              // Add individual variants if present
-              variantList.forEach((grpItem) => {
-                if (grpItem.isActive !== false && String(grpItem.isActive).toLowerCase() !== "false") {
-                  groupItems.push({
-                    _id: grpItem._id || grpItem.id || `${group._id}-${grpItem.name || grpItem.sku}`,
-                    id: grpItem._id || grpItem.id || `${group._id}-${grpItem.name || grpItem.sku}`,
-                    itemName: grpItem.name || grpItem.itemName,
-                    sku: grpItem.sku || "",
-                    itemGroupId: group._id || group.id,
-                    groupName: group.name,
-                    isFromGroup: true,
-                    isGroup: false,
-                    warehouseStocks: grpItem.warehouseStocks || [],
-                    costPrice: grpItem.costPrice || group.costPrice || 0,
-                    isActive: true,
-                  });
-                }
-              });
-            });
-        }
-
-        const combinedItems = [...standaloneItems, ...groupItems];
-        console.log(`📦 Fetched ${standaloneItems.length} standalone items and ${groupItems.length} group items (Total: ${combinedItems.length})`);
+        console.log(`📦 Fetched ${activeItems.length} active items`);
 
         // Filter by warehouse if source warehouse is selected
-        const filteredItems = sourceWarehouse ? filterItemsByWarehouse(combinedItems, sourceWarehouse) : [];
+        const filteredItems = sourceWarehouse ? filterItemsByWarehouse(activeItems, sourceWarehouse) : [];
         console.log(`🏢 Items after warehouse filter (${sourceWarehouse || 'none'}): ${filteredItems.length}`);
 
         setItems(filteredItems);
       } catch (error) {
-        console.error("Error fetching items and groups:", error);
+        console.error("Error fetching items:", error);
         setItems([]);
       } finally {
         setLoading(false);
@@ -612,38 +543,29 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     if (!buttonRef.current) return;
     const rect = buttonRef.current.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
-    const dropdownMaxHeight = 400; // Fixed max height
-    const spaceBelow = viewportHeight - rect.bottom;
-    const spaceAbove = rect.top;
+    const dropdownMaxHeight = 380;
+    const spaceBelow = viewportHeight - rect.bottom - 16;
+    const spaceAbove = rect.top - 16;
     
-    console.log('📍 Dropdown position calculation:', {
-      inputTop: rect.top,
-      inputBottom: rect.bottom,
-      inputLeft: rect.left,
-      inputWidth: rect.width,
-      viewportHeight,
-      spaceBelow,
-      spaceAbove
-    });
+    const dropdownWidth = Math.max(rect.width, 420);
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - dropdownWidth - 16));
     
-    // Always position below the input (Zoho Books style)
-    let top = rect.bottom + 4;
+    // Open upward if space below is too small and there is more space above
+    const openUpward = spaceBelow < 320 && spaceAbove > spaceBelow;
+    const availableHeight = openUpward ? spaceAbove : spaceBelow;
+    const computedMaxHeight = Math.max(160, Math.min(dropdownMaxHeight, availableHeight));
     
-    // Only position above if there's really not enough space below
-    if (spaceBelow < 200 && spaceAbove > spaceBelow) {
-      top = rect.top - Math.min(dropdownMaxHeight, spaceAbove - 10);
-      console.log('⬆️ Positioning above input');
-    } else {
-      console.log('⬇️ Positioning below input');
-    }
+    const top = openUpward 
+      ? Math.max(8, rect.top - computedMaxHeight - 4) 
+      : rect.bottom + 4;
     
     setDropdownPos({
       top: top,
-      left: rect.left,
-      width: rect.width, // Match input field width exactly
+      left: left,
+      width: dropdownWidth,
+      maxHeight: computedMaxHeight,
+      openUpward: openUpward,
     });
-    
-    console.log('✅ Final dropdown position:', { top, left: rect.left, width: rect.width });
   };
 
   const toggleDropdown = (e) => {
@@ -686,42 +608,50 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     };
   }, [isOpen]);
 
-  const counts = useMemo(() => {
-    const standalone = items.filter(i => !i.isFromGroup).length;
-    const groups = items.filter(i => i.isFromGroup).length;
-    return {
-      all: items.length,
-      items: standalone,
-      groups: groups
-    };
-  }, [items]);
+  const isMatchRequested = (item) => {
+    if (!requestedHint && !requestedGroupId) return false;
+    if (requestedGroupId && item.itemGroupId && String(item.itemGroupId) === String(requestedGroupId)) return true;
+    if (requestedHint) {
+      const hintLower = requestedHint.toLowerCase().trim();
+      const groupName = (item.groupName || "").toLowerCase().trim();
+      const itemName = (item.itemName || "").toLowerCase().trim();
+      if (groupName && (groupName === hintLower || groupName.includes(hintLower) || hintLower.includes(groupName))) return true;
+      if (itemName && (itemName.includes(hintLower) || hintLower.includes(itemName))) return true;
+    }
+    return false;
+  };
 
   const filteredItems = useMemo(() => {
     let result = items;
-    if (filterType === "items") {
-      result = result.filter(item => !item.isFromGroup);
-    } else if (filterType === "groups") {
-      result = result.filter(item => item.isFromGroup);
-    }
-
-    // If no search term, return filtered by type
-    if (!searchTerm || searchTerm.trim() === "") {
-      return result;
+    if (searchTerm && searchTerm.trim() !== "") {
+      const searchLower = searchTerm.toLowerCase().trim();
+      result = items.filter((item) => {
+        const itemName = (item?.itemName || "").toLowerCase();
+        const sku = (item?.sku || "").toLowerCase();
+        const groupName = (item?.groupName || "").toLowerCase();
+        
+        return itemName.includes(searchLower) || 
+               sku.includes(searchLower) || 
+               groupName.includes(searchLower);
+      });
     }
     
-    const searchLower = searchTerm.toLowerCase().trim();
-    const filtered = result.filter((item) => {
-      const itemName = (item?.itemName || "").toLowerCase();
-      const sku = (item?.sku || "").toLowerCase();
-      const groupName = (item?.groupName || "").toLowerCase();
-      
-      return itemName.includes(searchLower) || 
-             sku.includes(searchLower) || 
-             groupName.includes(searchLower);
-    });
-    console.log(`🔎 Search filter (${filterType}): "${searchTerm}" → ${filtered.length} items (from ${result.length})`);
-    return filtered;
-  }, [items, searchTerm, filterType]);
+    // If requestedHint/groupId is present, sort matching items to the very top
+    if (requestedHint || requestedGroupId) {
+      const matching = [];
+      const others = [];
+      result.forEach(item => {
+        if (isMatchRequested(item)) {
+          matching.push(item);
+        } else {
+          others.push(item);
+        }
+      });
+      return [...matching, ...others];
+    }
+    
+    return result;
+  }, [items, searchTerm, requestedHint, requestedGroupId]);
 
   const handleSelectItem = (item) => {
     console.log(`🎯 handleSelectItem called with:`, item);
@@ -755,11 +685,10 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     }
   }, [isOpen, searchTerm, filteredItems, isProcessingBarcode]);
 
-  // Reset pagination when search term or filterType changes
+  // Reset pagination when search term changes
   useEffect(() => {
     setDisplayedCount(ITEMS_PER_PAGE);
-    console.log(`🔍 Search term or filterType changed: "${searchTerm}", resetting displayedCount to ${ITEMS_PER_PAGE}`);
-  }, [searchTerm, filterType]);
+  }, [searchTerm]);
 
   // Debug: Log when filteredItems or displayedCount changes
   useEffect(() => {
@@ -771,13 +700,17 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
       ref={dropdownRef}
       style={{
         position: "fixed",
-        top: dropdownPos.top,
-        left: dropdownPos.left,
-        width: Math.max(dropdownPos.width, 380),
+        top: `${dropdownPos.top}px`,
+        left: `${dropdownPos.left}px`,
+        width: `${dropdownPos.width}px`,
+        maxHeight: `${dropdownPos.maxHeight || 380}px`,
         zIndex: 999999,
       }}
     >
-      <div className="rounded-lg shadow-2xl bg-white border border-[#e5e7eb] flex flex-col overflow-hidden" style={{ maxWidth: '100%', maxHeight: '420px' }}>
+      <div 
+        className="rounded-lg shadow-2xl bg-white border border-[#e5e7eb] flex flex-col overflow-hidden" 
+        style={{ width: '100%', maxHeight: `${dropdownPos.maxHeight || 380}px` }}
+      >
         {/* Search input */}
         <div className="flex items-center gap-2 border-b border-[#e5e7eb] px-3 py-2 bg-white">
           <Search size={16} className="text-[#9ca3af]" />
@@ -785,7 +718,7 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search items or item groups..."
+            placeholder={requestedHint ? `Search in "${requestedHint}" or all items...` : "Search items..."}
             className="h-8 w-full border-none bg-transparent text-sm text-[#111827] outline-none placeholder:text-[#9ca3af]"
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
@@ -793,66 +726,13 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
           />
         </div>
 
-        {/* Small UI Switcher Tabs: All / Items / Item Groups */}
-        <div className="flex items-center gap-1.5 px-3 py-2 bg-[#f8fafc] border-b border-[#e5e7eb]">
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setFilterType("all");
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              setFilterType("all");
-            }}
-            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-              filterType === "all"
-                ? "bg-[#9B48D7] text-white shadow-sm"
-                : "text-[#64748b] bg-white border border-[#e2e8f0] hover:bg-[#f1f5f9] hover:text-[#1e293b]"
-            }`}
-          >
-            All ({counts.all})
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setFilterType("items");
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              setFilterType("items");
-            }}
-            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-              filterType === "items"
-                ? "bg-[#9B48D7] text-white shadow-sm"
-                : "text-[#64748b] bg-white border border-[#e2e8f0] hover:bg-[#f1f5f9] hover:text-[#1e293b]"
-            }`}
-          >
-            Items ({counts.items})
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setFilterType("groups");
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              setFilterType("groups");
-            }}
-            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-              filterType === "groups"
-                ? "bg-[#9B48D7] text-white shadow-sm"
-                : "text-[#64748b] bg-white border border-[#e2e8f0] hover:bg-[#f1f5f9] hover:text-[#1e293b]"
-            }`}
-          >
-            Item Groups ({counts.groups})
-          </button>
-        </div>
+        {/* Store Order Request Hint banner inside dropdown */}
+        {requestedHint && !searchTerm && (
+          <div className="px-3 py-1.5 bg-[#fbf5ff] border-b border-[#eedbf8] text-[11px] font-semibold text-[#862ea7] flex items-center justify-between">
+            <span>Requested Group: <strong>{requestedHint}</strong></span>
+            <span className="text-[10px] text-[#9333ea] bg-white px-1.5 py-0.5 rounded border border-[#eedbf8]">Items listed first</span>
+          </div>
+        )}
 
         {/* List of items */}
         <div 
@@ -863,16 +743,14 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
           }}
         >
           {loading ? (
-            <div className="px-3 py-6 text-center text-sm text-[#6b7280]">Loading items & groups...</div>
+            <div className="px-3 py-6 text-center text-sm text-[#6b7280]">Loading items...</div>
           ) : filteredItems.length === 0 ? (
             <div className="px-3 py-6 text-center text-sm text-[#6b7280]">
               {searchTerm 
                 ? "No matches found" 
-                : filterType === "groups" 
-                  ? "No item groups available" 
-                  : filterType === "items" 
-                    ? "No standalone items available" 
-                    : "No items available"}
+                : sourceWarehouse 
+                  ? `No items available in ${sourceWarehouse}` 
+                  : "No items available"}
             </div>
           ) : (
             <>
@@ -881,8 +759,9 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
                 try {
                   const isSelected = selectedItem && (
                     (selectedItem._id && selectedItem._id === item._id) ||
-                    (selectedItem.itemName && selectedItem.itemName === item.itemName && selectedItem.isFromGroup === item.isFromGroup)
+                    (selectedItem.itemName && selectedItem.itemName === item.itemName && selectedItem.sku === item.sku)
                   );
+                  const isMatchReq = isMatchRequested(item);
                   // For store users, show stock from their warehouse (or source warehouse if selected)
                   // For admin, show stock from source warehouse
                   const displayWarehouse = (isStoreUser && userWarehouse) ? userWarehouse : (sourceWarehouse || "");
@@ -890,7 +769,7 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
                   
                   return (
                     <div
-                      key={item._id || item.itemName || Math.random()}
+                      key={item._id || item.sku || item.itemName || Math.random()}
                       onMouseDown={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -904,7 +783,9 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
                       className={`px-3 py-2.5 cursor-pointer transition-colors border-b border-[#f3f4f6] last:border-b-0 ${
                         isSelected
                           ? "bg-[#eff6ff] text-[#1e40af]"
-                          : "hover:bg-[#f9fafb]"
+                          : isMatchReq
+                            ? "bg-[#faf5ff] hover:bg-[#f3e8ff]"
+                            : "hover:bg-[#f9fafb]"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -913,18 +794,15 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
                             {item.itemName || "Unnamed Item"}
                           </div>
                           <div className={`text-xs mt-1 flex items-center gap-1.5 flex-wrap ${isSelected ? "text-[#1e40af]" : "text-[#64748b]"}`}>
-                            {item.isFromGroup ? (
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${isSelected ? "bg-purple-200 text-purple-800" : "bg-purple-100 text-purple-700"}`}>
-                                ITEM GROUP
-                              </span>
-                            ) : (
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${isSelected ? "bg-blue-200 text-blue-800" : "bg-blue-100 text-blue-700"}`}>
-                                ITEM
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${isSelected ? "bg-blue-200 text-blue-800" : "bg-blue-100 text-blue-700"}`}>
+                              ITEM
+                            </span>
+                            {item.groupName && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider bg-purple-100 text-purple-700">
+                                {item.groupName}
                               </span>
                             )}
-                            {item.isFromGroup && item.groupName && (
-                              <span>Group: {item.groupName}</span>
-                            )}
+                            {item.size ? <span>• Size: {item.size}</span> : null}
                             {item.sku ? <span>• SKU: {item.sku}</span> : null}
                           </div>
                         </div>
@@ -1138,28 +1016,30 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
     console.log(`🔍 Processing scanned SKU in row ${rowId}: "${scannedSku}"`);
     
     try {
-      // Search in standalone items first
-      const itemsResponse = await fetch(`${API_URL}/api/shoe-sales/items`);
+      const itemsResponse = await fetch(`${API_URL}/api/shoe-sales/items?page=1&limit=10000`);
       if (itemsResponse.ok) {
-        const items = await itemsResponse.json();
-        const foundItem = items.find(item => 
-          item.sku === scannedSku || 
-          item.sku?.toLowerCase() === scannedSku.toLowerCase() ||
-          item.itemName?.toLowerCase().includes(scannedSku.toLowerCase())
+        const data = await itemsResponse.json();
+        const itemsList = Array.isArray(data) ? data : (data.items || data.data || []);
+        const foundItem = itemsList.find(item => 
+          (item.sku && item.sku.toLowerCase() === scannedSku.toLowerCase()) || 
+          (item.itemName && item.itemName.toLowerCase().includes(scannedSku.toLowerCase())) ||
+          (item.name && item.name.toLowerCase().includes(scannedSku.toLowerCase()))
         );
         if (foundItem) {
-          // Create item object matching the expected structure
           const itemObj = {
             _id: foundItem._id || foundItem.id,
             id: foundItem._id || foundItem.id,
-            itemName: foundItem.itemName,
+            itemName: foundItem.itemName || foundItem.name,
             sku: foundItem.sku || "",
-            itemGroupId: null,
-            isFromGroup: false,
+            size: foundItem.size || "",
+            itemGroupId: foundItem.itemGroupId || null,
+            groupName: foundItem.itemGroupName || foundItem.groupName || null,
+            isFromGroup: !!foundItem.isFromGroup,
+            isGroup: false,
             warehouseStocks: foundItem.warehouseStocks || [],
           };
           
-          console.log(`✅ Found standalone item, calling onChange with:`, itemObj);
+          console.log(`✅ Found item, calling onChange with:`, itemObj);
           
           // Call onChange to populate the row - this triggers handleItemSelect
           onChange(itemObj);
@@ -1171,46 +1051,6 @@ const ItemDropdown = ({ rowId, value, onChange, sourceWarehouse, destinationWare
           setSelectedItem(itemObj);
           
           return;
-        }
-      }
-      
-      // Search in item groups
-      const groupsResponse = await fetch(`${API_URL}/api/shoe-sales/item-groups`);
-      if (groupsResponse.ok) {
-        const groups = await groupsResponse.json();
-        for (const group of groups) {
-          if (group.items && Array.isArray(group.items)) {
-            const foundItem = group.items.find(item => 
-              item.sku === scannedSku || 
-              item.sku?.toLowerCase() === scannedSku.toLowerCase() ||
-              item.name?.toLowerCase().includes(scannedSku.toLowerCase())
-            );
-            if (foundItem) {
-              // Create item object matching the expected structure
-              const itemObj = {
-                _id: foundItem._id || foundItem.id || `${group._id}-${foundItem.name}`,
-                id: foundItem._id || foundItem.id || `${group._id}-${foundItem.name}`,
-                itemName: foundItem.name,
-                sku: foundItem.sku || "",
-                itemGroupId: group._id || group.id,
-                isFromGroup: true,
-                warehouseStocks: foundItem.warehouseStocks || [],
-              };
-              
-              console.log(`✅ Found group item, calling onChange with:`, itemObj);
-              
-              // Call onChange to populate the row - this triggers handleItemSelect
-              onChange(itemObj);
-              
-              // Close dropdown and clear input
-              setIsOpen(false);
-              setInputValue("");
-              setSearchTerm("");
-              setSelectedItem(itemObj);
-              
-              return;
-            }
-          }
         }
       }
       
@@ -1361,8 +1201,11 @@ const TransferOrderCreate = () => {
     sourceDraft: 0,
     sourceTotal: 0,
     destQuantity: 0, 
-    quantity: "" 
+    quantity: "",
+    requestedGroupName: "",
+    requestedQuantity: "" 
   }]);
+  const [storeOrderPrefillInfo, setStoreOrderPrefillInfo] = useState(null);
   const [isItemInputFocused, setIsItemInputFocused] = useState(false);
   
   // Bulk Add Items states
@@ -1421,44 +1264,53 @@ const TransferOrderCreate = () => {
           setSourceWarehouse(srcWarehouse);
           setDestinationWarehouse(destWarehouse);
           setReason(data.reason || "");
+
+          const requestedList = (data.requestedItems && data.requestedItems.length > 0) 
+            ? data.requestedItems 
+            : (data.items && data.items.length > 0 ? data.items : []);
           
-          // Set items after warehouses are set (use setTimeout to ensure warehouses are set first)
-          if (data.items && Array.isArray(data.items) && data.items.length > 0) {
-            setTimeout(() => {
-              const rows = data.items.map((item, index) => {
-                // Create a complete item object that matches what ItemDropdown expects
-                const itemObj = {
-                  _id: item.itemId || item.itemGroupId,
-                  id: item.itemId || item.itemGroupId,
-                  itemName: item.itemName,
-                  sku: item.itemSku || "",
-                  itemGroupId: item.itemGroupId || null,
-                  groupName: item.itemGroupId ? item.itemName : null,
-                  isFromGroup: !!item.itemGroupId,
-                  isGroup: !item.itemId || item.itemId === item.itemGroupId,
-                };
-                
-                const srcStock = srcWarehouse ? getStockOnHand(itemObj, srcWarehouse) : 0;
-                const dstStock = destWarehouse ? getStockOnHand(itemObj, destWarehouse) : 0;
-                
-                return {
-                  id: index + 1,
-                  item: itemObj, // Complete item object
-                  itemId: item.itemId || item.itemGroupId,
-                  itemGroupId: item.itemGroupId || null,
-                  itemName: item.itemName,
-                  itemSku: item.itemSku || "",
-                  sourceQuantity: srcStock,
-                  destQuantity: dstStock,
-                  sourceTotal: srcStock,
-                  quantity: item.quantity?.toString() || "", // Pre-filled from store order, admin can change
-                };
-              });
-              
-              console.log('📦 Setting pre-filled rows with warehouses:', { srcWarehouse, destWarehouse, rows });
-              setTableRows(rows);
-            }, 100); // Small delay to ensure warehouses are set
+          if (data.storeOrderNumber || requestedList.length > 0) {
+            setStoreOrderPrefillInfo({
+              orderNumber: data.storeOrderNumber || "",
+              storeOrderId: data.storeOrderId || "",
+              requestedItems: requestedList,
+            });
           }
+          
+          // Populate rows with requested items/group hints so user can manually select the specific item
+          setTimeout(() => {
+            if (requestedList.length > 0) {
+              setTableRows(requestedList.map((req, idx) => ({
+                id: idx + 1,
+                item: null,
+                itemId: null,
+                itemGroupId: req.itemGroupId || null,
+                itemName: "",
+                itemSku: "",
+                requestedGroupName: req.itemName || "",
+                requestedQuantity: req.quantity || "",
+                sourceQuantity: 0,
+                destQuantity: 0,
+                sourceTotal: 0,
+                quantity: req.quantity ? req.quantity.toString() : "",
+              })));
+            } else {
+              setTableRows([{
+                id: 1,
+                item: null,
+                itemId: null,
+                itemGroupId: null,
+                itemName: "",
+                itemSku: "",
+                requestedGroupName: "",
+                requestedQuantity: "",
+                sourceQuantity: 0,
+                destQuantity: 0,
+                sourceTotal: 0,
+                quantity: "",
+              }]);
+            }
+          }, 100);
           
           // Clear the session storage after using it
           sessionStorage.removeItem('transferOrderPrefill');
@@ -1574,8 +1426,8 @@ const TransferOrderCreate = () => {
           return {
             ...row,
             item: item,
-            itemId: item.isFromGroup ? null : (item._id || item.id),
-            itemGroupId: item.itemGroupId || (item.isFromGroup ? (item._id || item.id) : null),
+            itemId: item._id || item.id,
+            itemGroupId: item.itemGroupId || null,
             itemName: item.itemName || "",
             itemSku: item.sku || "",
             sourceQuantity: srcStock,
@@ -2139,6 +1991,33 @@ const TransferOrderCreate = () => {
           </div>
         </div>
 
+        {/* ── Store Order Request Banner ── */}
+        {storeOrderPrefillInfo && (
+          <div className="mb-4 rounded-xl border border-[#e9d5ff] bg-[#fbf7ff] p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-[#9B48D7] text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Package size={18} />
+              </div>
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wider text-[#9B48D7]">
+                  Store Order {storeOrderPrefillInfo.orderNumber ? `#${storeOrderPrefillInfo.orderNumber}` : ''} Requested Groups
+                </div>
+                <div className="text-xs text-[#4b5563] mt-0.5">
+                  Select the specific item/variant from each requested group below:
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {(storeOrderPrefillInfo.requestedItems || []).map((req, idx) => (
+                <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-white text-[#7e22ce] border border-[#d8b4fe] shadow-xs">
+                  <span className="font-semibold">{req.itemName || "Item Group"}</span>
+                  <span className="text-[#9333ea] bg-[#f3e8ff] px-1.5 py-0.5 rounded font-bold">Qty: {req.quantity || 1}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── Item table card ── */}
         <div className="bg-white border border-[#e5e7eb] rounded-md overflow-hidden">
           {/* Table header */}
@@ -2180,7 +2059,15 @@ const TransferOrderCreate = () => {
                     onFocusChange={setIsItemInputFocused}
                     isEditMode={isEditMode}
                     orderId={id}
+                    requestedHint={row.requestedGroupName}
+                    requestedGroupId={row.itemGroupId}
                   />
+                  {row.requestedGroupName && !row.item && (
+                    <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#7c3aed] font-medium bg-[#f5f3ff] px-2 py-0.5 rounded border border-[#ddd6fe] inline-flex">
+                      <span>Requested: <strong>{row.requestedGroupName}</strong></span>
+                      {row.requestedQuantity && <span className="text-[#9333ea] font-bold">({row.requestedQuantity} pcs)</span>}
+                    </div>
+                  )}
                 </div>
 
                 {/* Stock availability */}

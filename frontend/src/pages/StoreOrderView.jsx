@@ -112,13 +112,11 @@ const StoreOrderView = () => {
     };
   }, [id, storeOrder, API_URL]);
   
-  // Handle Accept - Navigate to Transfer Order creation with pre-filled data
-  const handleAccept = async () => {
+  // Handle Manual Status Change
+  const handleManualStatusChange = async (newStatus) => {
     if (!storeOrder) return;
-    
     setProcessing(true);
     try {
-      // First, update the store order status to "approved"
       const response = await fetch(`${API_URL}/api/inventory/store-orders/${id}`, {
         method: 'PUT',
         headers: {
@@ -126,131 +124,70 @@ const StoreOrderView = () => {
         },
         body: JSON.stringify({
           ...storeOrder,
-          status: 'approved',
+          status: newStatus,
         }),
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
-        
-        // If there are stock issues, format them nicely
-        if (errorData.stockIssues && Array.isArray(errorData.stockIssues)) {
-          let errorMessage = errorData.message || "Cannot approve store order: Insufficient stock in Warehouse.\n\n";
-          errorMessage += "Details:\n\n";
-          errorData.stockIssues.forEach((issue, index) => {
-            errorMessage += `${index + 1}. ${issue.itemName}${issue.itemSku && issue.itemSku !== "N/A" ? ` (SKU: ${issue.itemSku})` : ''}\n`;
-            errorMessage += `   • Requested: ${issue.requested.toFixed(2)} units\n`;
-            errorMessage += `   • Available in Warehouse: ${issue.available.toFixed(2)} units\n`;
-            errorMessage += `   • Shortfall: ${issue.shortfall.toFixed(2)} units`;
-            if (issue.error) {
-              errorMessage += `\n   • Error: ${issue.error}`;
-            }
-            errorMessage += `\n\n`;
-          });
-          errorMessage += "Please ensure sufficient stock is available in Warehouse before approving this order.";
-          alert(errorMessage);
-          setProcessing(false);
-          return;
-        } else {
-          throw new Error(errorData.message || 'Failed to approve store order');
-        }
+        throw new Error(errorData.message || 'Failed to update store order status');
       }
-      
+
+      setStoreOrder(prev => ({ ...prev, status: newStatus }));
+
       // Dispatch event to notify other pages
-      console.log("📦 Dispatching storeOrderStatusChanged event", {
-        orderId: id,
-        newStatus: "approved"
-      });
-      
       window.dispatchEvent(new CustomEvent("storeOrderStatusChanged", {
         detail: {
           orderId: id,
-          status: "approved",
-          source: "store-order-view-accept"
+          status: newStatus,
+          source: "store-order-view"
         }
       }));
-      
-      // Map the store warehouse name to ensure consistency
-      const mappedDestinationWarehouse = mapLocNameToWarehouse(storeOrder.storeWarehouse) || storeOrder.storeWarehouse;
-      
-      console.log(`📦 Accept Store Order: Original warehouse="${storeOrder.storeWarehouse}", Mapped="${mappedDestinationWarehouse}"`);
-      
-      // Store the store order data in sessionStorage to pre-fill transfer order
-      const transferOrderData = {
-        sourceWarehouse: "Warehouse", // Always from main warehouse
-        destinationWarehouse: mappedDestinationWarehouse, // Use mapped warehouse name
-        reason: `Store Order: ${storeOrder.orderNumber}${storeOrder.reason ? ` - ${storeOrder.reason}` : ''}`,
-        items: storeOrder.items.map(item => ({
-          itemId: item.itemId,
-          itemGroupId: item.itemGroupId,
-          itemName: item.itemName,
-          itemSku: item.itemSku,
-          quantity: item.quantity, // Admin can change this in transfer order page
-        })),
-        storeOrderId: storeOrder._id || storeOrder.id,
-        storeOrderNumber: storeOrder.orderNumber,
-      };
-      
-      sessionStorage.setItem('transferOrderPrefill', JSON.stringify(transferOrderData));
-      
-      // Navigate to transfer order creation
-      navigate('/inventory/transfer-orders/new');
     } catch (err) {
-      console.error('Error approving store order:', err);
-      alert('Failed to approve store order. Please try again.');
+      console.error('Error updating status:', err);
+      alert(err.message || 'Failed to update status. Please try again.');
+    } finally {
       setProcessing(false);
     }
   };
-  
+
+  // Handle Create Transfer Order
+  const handleCreateTransferOrder = () => {
+    if (!storeOrder) return;
+    
+    const mappedDestinationWarehouse = mapLocNameToWarehouse(storeOrder.storeWarehouse) || storeOrder.storeWarehouse;
+    
+    // Store the store order data in sessionStorage to pre-fill transfer order without auto-selecting item groups
+    const transferOrderData = {
+      sourceWarehouse: "Warehouse", // Always from main warehouse
+      destinationWarehouse: mappedDestinationWarehouse,
+      reason: `Store Order: ${storeOrder.orderNumber}${storeOrder.reason ? ` - ${storeOrder.reason}` : ''}`,
+      storeOrderId: storeOrder._id || storeOrder.id,
+      storeOrderNumber: storeOrder.orderNumber,
+      requestedItems: (storeOrder.items || []).map(item => ({
+        itemId: item.itemId,
+        itemGroupId: item.itemGroupId,
+        itemName: item.itemName,
+        itemSku: item.itemSku,
+        quantity: item.quantity,
+      })),
+    };
+    
+    sessionStorage.setItem('transferOrderPrefill', JSON.stringify(transferOrderData));
+    navigate('/inventory/transfer-orders/new');
+  };
+
   // Handle Reject
   const handleReject = async () => {
     if (!storeOrder) return;
     
     const confirmReject = window.confirm(
-      `Are you sure you want to reject Store Order ${storeOrder.orderNumber}?\n\nThis action cannot be undone.`
+      `Are you sure you want to reject Store Order ${storeOrder.orderNumber}?`
     );
     
     if (!confirmReject) return;
     
-    setProcessing(true);
-    try {
-      const response = await fetch(`${API_URL}/api/inventory/store-orders/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...storeOrder,
-          status: 'rejected',
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to reject store order');
-      }
-      
-      // Dispatch event to notify other pages
-      console.log("📦 Dispatching storeOrderStatusChanged event", {
-        orderId: id,
-        newStatus: "rejected"
-      });
-      
-      window.dispatchEvent(new CustomEvent("storeOrderStatusChanged", {
-        detail: {
-          orderId: id,
-          status: "rejected",
-          source: "store-order-view"
-        }
-      }));
-      
-      alert('Store order rejected successfully');
-      navigate('/inventory/store-orders');
-    } catch (err) {
-      console.error('Error rejecting store order:', err);
-      alert('Failed to reject store order. Please try again.');
-    } finally {
-      setProcessing(false);
-    }
+    await handleManualStatusChange('rejected');
   };
   
   if (loading) {
@@ -273,14 +210,22 @@ const StoreOrderView = () => {
     <div className="min-h-screen bg-[#f7f9ff]">
       <Head
         title="Store Order Details"
-        description="View store order details and approve/reject."
+        description="View store order details and manage status."
         actions={
-          <Link
-            to="/inventory/store-orders"
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-[#cbd5f5] px-4 text-sm font-medium text-[#1f2937] transition hover:bg-white"
-          >
-            Back to Store Orders
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              to="/inventory/store-orders"
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-[#cbd5f5] px-4 text-sm font-medium text-[#1f2937] transition hover:bg-white"
+            >
+              Back to Store Orders
+            </Link>
+            <button
+              onClick={handleCreateTransferOrder}
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-[#9B48D7] px-4 text-sm font-semibold text-white transition hover:bg-[#8637c3]"
+            >
+              Create Transfer Order
+            </button>
+          </div>
         }
       />
       
@@ -294,6 +239,27 @@ const StoreOrderView = () => {
               <p className="text-sm text-[#6c728a]">
                 View and manage store order details
               </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-[#64748b] uppercase tracking-wider">Status:</span>
+              <select
+                value={storeOrder.status || 'pending'}
+                onChange={(e) => handleManualStatusChange(e.target.value)}
+                disabled={processing}
+                className={`text-xs font-semibold rounded-lg px-3 py-1.5 border transition cursor-pointer outline-none ${
+                  storeOrder.status === 'draft' ? 'bg-gray-100 text-gray-800 border-gray-300' :
+                  storeOrder.status === 'pending' ? 'bg-yellow-50 text-yellow-800 border-yellow-300' :
+                  storeOrder.status === 'approved' ? 'bg-green-50 text-green-800 border-green-300' :
+                  storeOrder.status === 'rejected' ? 'bg-red-50 text-red-800 border-red-300' :
+                  'bg-blue-50 text-blue-800 border-blue-300'
+                }`}
+              >
+                <option value="draft">DRAFT</option>
+                <option value="pending">PENDING</option>
+                <option value="approved">APPROVED</option>
+                <option value="rejected">REJECTED</option>
+                <option value="transferred">TRANSFERRED</option>
+              </select>
             </div>
           </div>
           
@@ -314,14 +280,24 @@ const StoreOrderView = () => {
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b] mb-2">Status</p>
-                  <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${
-                    storeOrder.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    storeOrder.status === 'approved' ? 'bg-green-100 text-green-800' :
-                    storeOrder.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                    'bg-blue-100 text-blue-800'
-                  }`}>
-                    {storeOrder.status?.toUpperCase() || 'N/A'}
-                  </span>
+                  <select
+                    value={storeOrder.status || 'pending'}
+                    onChange={(e) => handleManualStatusChange(e.target.value)}
+                    disabled={processing}
+                    className={`text-xs font-semibold rounded-lg px-3 py-1.5 border transition cursor-pointer outline-none ${
+                      storeOrder.status === 'draft' ? 'bg-gray-100 text-gray-800 border-gray-300' :
+                      storeOrder.status === 'pending' ? 'bg-yellow-50 text-yellow-800 border-yellow-300' :
+                      storeOrder.status === 'approved' ? 'bg-green-50 text-green-800 border-green-300' :
+                      storeOrder.status === 'rejected' ? 'bg-red-50 text-red-800 border-red-300' :
+                      'bg-blue-50 text-blue-800 border-blue-300'
+                    }`}
+                  >
+                    <option value="draft">DRAFT</option>
+                    <option value="pending">PENDING</option>
+                    <option value="approved">APPROVED</option>
+                    <option value="rejected">REJECTED</option>
+                    <option value="transferred">TRANSFERRED</option>
+                  </select>
                 </div>
               </div>
               
@@ -374,25 +350,25 @@ const StoreOrderView = () => {
             </div>
           </div>
           
-          {/* Action Buttons - Only show for pending orders and admin/warehouse users */}
-          {storeOrder.status === 'pending' && (isAdmin || isWarehouseUser) && (
-            <div className="flex items-center justify-end gap-3 border-t border-[#edf1ff] bg-[#fbfcff] px-10 py-6">
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 border-t border-[#edf1ff] bg-[#fbfcff] px-10 py-6">
+            {storeOrder.status !== 'rejected' && (
               <button
                 onClick={handleReject}
                 disabled={processing}
                 className="rounded-lg border border-[#ef4444] bg-white px-6 py-2.5 text-sm font-semibold text-[#ef4444] transition hover:bg-[#fef2f2] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {processing ? 'Processing...' : 'Reject'}
+                Reject
               </button>
-              <button
-                onClick={handleAccept}
-                disabled={processing}
-                className="rounded-lg bg-[#10b981] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#059669] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {processing ? 'Processing...' : 'Accept & Create Transfer Order'}
-              </button>
-            </div>
-          )}
+            )}
+            <button
+              onClick={handleCreateTransferOrder}
+              disabled={processing}
+              className="rounded-lg bg-[#9B48D7] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#8637c3] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Create Transfer Order
+            </button>
+          </div>
         </div>
       </div>
     </div>

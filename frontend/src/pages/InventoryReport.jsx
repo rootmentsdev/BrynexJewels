@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Headers from "../components/Header.jsx";
 import Select from "react-select";
 import baseUrl from "../api/api.js";
@@ -80,6 +81,7 @@ const reportTypeOptions = [
   { value: "stock-summary", label: "Stock Summary" },
   { value: "opening-stock", label: "Opening Stock Report" },
   { value: "stock-on-hand", label: "Stock On Hand Report" },
+  { value: "aging", label: "Inventory Aging Report" },
 ];
 
 const categoryOptions = [
@@ -90,6 +92,7 @@ const categoryOptions = [
 
 const InventoryReport = () => {
   const isSidebarOpen = useSidebar();
+  const navigate = useNavigate();
   const [selectedStore, setSelectedStore] = useState("All Stores");
   const [reportType, setReportType] = useState("summary");
   const [loading, setLoading] = useState(false);
@@ -129,6 +132,10 @@ const InventoryReport = () => {
   }, []);
 
   useEffect(() => {
+    if (reportType === "aging") {
+      navigate("/reports/aging");
+      return;
+    }
     setCurrentPage(1);
     setReportData(null);
     setCsvData([]);
@@ -136,7 +143,7 @@ const InventoryReport = () => {
     if (reportType !== "stock-summary") {
       setSelectedCategory("all");
     }
-  }, [reportType]);
+  }, [reportType, navigate]);
 
   const fetchReport = async () => {
     setLoading(true);

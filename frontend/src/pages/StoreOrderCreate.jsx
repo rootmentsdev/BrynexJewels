@@ -863,8 +863,8 @@ const StoreOrderCreate = () => {
     }
   };
   
-  // Handle save - always saves as "pending"
-  const handleSave = async () => {
+  // Handle save (supports status: "draft" or "pending")
+  const handleSave = async (statusToSave = "pending") => {
     if (!date || !storeWarehouse) {
       alert("Please fill in all required fields");
       return;
@@ -893,6 +893,7 @@ const StoreOrderCreate = () => {
         reason,
         storeWarehouse,
         items,
+        status: statusToSave,
         userId,
         locCode: userLocCode || "",
       };
@@ -916,7 +917,8 @@ const StoreOrderCreate = () => {
       }
       
       const savedOrder = await response.json();
-      alert(`Store order ${isEditMode ? "updated" : "created"} successfully`);
+      const statusLabel = statusToSave === "draft" ? "Draft" : "Pending";
+      alert(`Store order ${isEditMode ? "updated" : "created"} successfully as ${statusLabel}`);
       navigate("/inventory/store-orders");
     } catch (error) {
       console.error("Error saving store order:", error);
@@ -927,7 +929,7 @@ const StoreOrderCreate = () => {
   };
   
   // Enter key to save store order
-  useEnterToSave(() => handleSave(), saving);
+  useEnterToSave(() => handleSave("pending"), saving);
   
   if (loading) {
     return (
@@ -959,13 +961,23 @@ const StoreOrderCreate = () => {
             >
               Back to Store Orders
             </button>
+            {!isEditMode && (
+              <button
+                type="button"
+                onClick={() => handleSave("draft")}
+                disabled={saving || !date || !storeWarehouse}
+                className="px-4 py-2 border border-purple-300 text-purple-700 hover:bg-purple-50 rounded-lg text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer bg-white"
+              >
+                <span>+ Save as Draft</span>
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleSave}
+              onClick={() => handleSave(isEditMode ? "pending" : "pending")}
               disabled={saving || !date || !storeWarehouse}
               className="px-5 py-2 bg-[#9333ea] hover:bg-[#7e22ce] active:bg-[#6b21a8] text-white rounded-lg text-xs font-semibold shadow-sm hover:shadow transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
-              <span>{saving ? "Saving..." : isEditMode ? "Update Order" : "Submit Order"}</span>
+              <span>{saving ? "Saving..." : isEditMode ? "Update Order" : "Submit Order (Pending)"}</span>
             </button>
           </div>
         </div>
@@ -1162,13 +1174,23 @@ const StoreOrderCreate = () => {
           >
             Cancel
           </button>
+          {!isEditMode && (
+            <button
+              type="button"
+              onClick={() => handleSave("draft")}
+              disabled={saving || !date || !storeWarehouse}
+              className="px-5 py-2.5 border border-purple-300 text-purple-700 hover:bg-purple-50 rounded-lg text-sm font-semibold shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer bg-white"
+            >
+              <span>+ Save as Draft</span>
+            </button>
+          )}
           <button
             type="button"
-            onClick={handleSave}
+            onClick={() => handleSave(isEditMode ? "pending" : "pending")}
             disabled={saving || !date || !storeWarehouse}
             className="px-6 py-2.5 bg-[#9333ea] hover:bg-[#7e22ce] active:bg-[#6b21a8] text-white rounded-lg text-sm font-semibold shadow-sm hover:shadow transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
-            {saving ? "Saving..." : isEditMode ? "Update Order" : "Submit Order"}
+            {saving ? "Saving..." : isEditMode ? "Update Order" : "Submit Order (Pending)"}
           </button>
         </div>
       </div>

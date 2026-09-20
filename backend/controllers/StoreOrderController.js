@@ -337,7 +337,7 @@ export const createStoreOrder = async (req, res) => {
       totalQuantityRequested,
       userId,
       createdBy,
-      status: "pending",
+      status: orderData.status || "pending",
       locCode: orderData.locCode || "",
     };
     
@@ -427,7 +427,7 @@ export const getStoreOrderById = async (req, res) => {
   }
 };
 
-// Update store order (approve/reject)
+// Update store order (approve/reject/draft/pending/transferred)
 export const updateStoreOrder = async (req, res) => {
   try {
     const { id } = req.params;
@@ -477,128 +477,45 @@ export const updateStoreOrder = async (req, res) => {
       return res.status(404).json({ message: "Store order not found" });
     }
     
-    // Only allow status changes for pending orders
-    if (storeOrder.status !== 'pending' && updateData.status) {
-      return res.status(400).json({ 
-        message: `Cannot change status of ${storeOrder.status} order` 
-      });
-    }
-    
     // Update status
-    if (updateData.status === 'approved') {
-      // Check stock availability in Warehouse before approving
-      const sourceWarehouse = "Warehouse"; // Warehouse is the source for all store orders
-      const stockIssues = [];
+    if (updateData.status) {
+      const targetStatus = updateData.status.toLowerCase().trim();
       
-      console.log(`\n📦 Checking stock availability in Warehouse for store order ${storeOrder.orderNumber}`);
-      console.log(`   Store Warehouse: ${storeOrder.storeWarehouse}`);
-      console.log(`   Number of items: ${storeOrder.items?.length || 0}`);
-      
-      if (!storeOrder.items || !Array.isArray(storeOrder.items) || storeOrder.items.length === 0) {
-        return res.status(400).json({ 
-          message: "Cannot approve store order: No items found in the order" 
-        });
+      if (targetStatus === 'approved') {
+        storeOrder.status = 'approved';
+        storeOrder.approvedBy = userId;
+        storeOrder.approvedAt = new Date();
+      } else if (targetStatus === 'rejected') {
+        storeOrder.status = 'rejected';
+        storeOrder.rejectedBy = userId;
+        storeOrder.rejectedAt = new Date();
+        storeOrder.rejectionReason = updateData.rejectionReason || "";
+      } else if (targetStatus === 'draft') {
+        storeOrder.status = 'draft';
+      } else if (targetStatus === 'pending') {
+        storeOrder.status = 'pending';
+      } else if (targetStatus === 'transferred') {
+        storeOrder.status = 'transferred';
+      } else {
+        storeOrder.status = targetStatus;
       }
-      
-      // Check stock for each item
-      for (const item of storeOrder.items) {
-        const requestedQuantity = parseFloat(item.quantity) || 0;
-        if (requestedQuantity <= 0) {
-          console.log(`   ⚠️ Skipping item ${item.itemName || 'Unknown'}: invalid quantity (${item.quantity})`);
-          continue; // Skip items with zero quantity
-        }
-        
-        try {
-          console.log(`   🔍 Checking stock for: ${item.itemName || 'Unknown'} (SKU: ${item.itemSku || 'N/A'})`);
-          console.log(`      ItemId: ${item.itemId || 'N/A'}, ItemGroupId: ${item.itemGroupId || 'N/A'}`);
-          console.log(`      Requested: ${requestedQuantity} units`);
-          
-          const stockInfo = await getCurrentStock(
-            item.itemId,
-            sourceWarehouse,
-            item.itemName,
-            item.itemGroupId,
-            item.itemSku
-          );
-          
-          const availableStock = parseFloat(stockInfo?.currentQuantity) || 0;
-          const availableForSale = parseFloat(stockInfo?.availableForSale) || 0;
-          const itemType = stockInfo?.type || 'unknown';
-          
-          console.log(`      Available Stock (${sourceWarehouse}): ${availableStock} units (Type: ${itemType})`);
-          console.log(`      Available for Sale: ${availableForSale} units`);
-          
-          // Check if available stock is less than requested quantity
-          if (availableStock < requestedQuantity) {
-            const shortfall = requestedQuantity - availableStock;
-            console.log(`      ❌ INSUFFICIENT STOCK: Available ${availableStock} < Requested ${requestedQuantity} (Shortfall: ${shortfall})`);
-            
-            stockIssues.push({
-              itemName: item.itemName || "Unknown Item",
-              itemSku: item.itemSku || "N/A",
-              requested: requestedQuantity,
-              available: availableStock,
-              availableForSale: availableForSale,
-              shortfall: shortfall,
-              warehouse: sourceWarehouse,
-              itemType: itemType
-            });
-          } else {
-            console.log(`      ✅ Sufficient stock: Available ${availableStock} >= Requested ${requestedQuantity}`);
-          }
-        } catch (stockError) {
-          console.error(`   ❌ Error checking stock for item ${item.itemName}:`, stockError);
-          stockIssues.push({
-            itemName: item.itemName || "Unknown Item",
-            itemSku: item.itemSku || "N/A",
-            requested: requestedQuantity,
-            available: 0,
-            availableForSale: 0,
-            shortfall: requestedQuantity,
-            warehouse: sourceWarehouse,
-            error: stockError.message || "Unable to check stock"
-          });
-        }
-      }
-      
-      // If there are stock issues, reject the approval
-      if (stockIssues.length > 0) {
-        console.log(`\n❌ Store order approval rejected: ${stockIssues.length} item(s) have insufficient stock`);
-        
-        const itemsList = stockIssues.map((issue, index) => 
-          `${index + 1}. ${issue.itemName} (SKU: ${issue.itemSku || 'N/A'})\n   Requested: ${issue.requested.toFixed(2)} units\n   Available in Warehouse: ${issue.available.toFixed(2)} units\n   Shortfall: ${issue.shortfall.toFixed(2)} units${issue.error ? `\n   Error: ${issue.error}` : ''}`
-        ).join('\n\n');
-        
-        return res.status(400).json({
-          message: `Cannot approve store order: Insufficient stock in Warehouse.\n\nPlease check the stock availability for the following items:\n\n${itemsList}`,
-          stockIssues: stockIssues
-        });
-      }
-      
-      console.log(`\n✅ All items have sufficient stock in Warehouse. Proceeding with approval...`);
-      
-      // All items have sufficient stock, proceed with approval
-      storeOrder.status = 'approved';
-      storeOrder.approvedBy = userId;
-      storeOrder.approvedAt = new Date();
-      
-      // NOTE: Transfer order is NOT automatically created here anymore
-      // Admin will manually create it by clicking "Accept & Create Transfer Order"
-      // which navigates to the Transfer Order page with pre-filled data
-      // This prevents duplicate transfer orders from being created
-      
-      console.log(`✅ Store order approved. Admin can now create transfer order manually.`);
-      
-    } else if (updateData.status === 'rejected') {
-      storeOrder.status = 'rejected';
-      storeOrder.rejectedBy = userId;
-      storeOrder.rejectedAt = new Date();
-      storeOrder.rejectionReason = updateData.rejectionReason || "";
     }
     
     // Update other fields if provided
     if (updateData.reason !== undefined) {
       storeOrder.reason = updateData.reason;
+    }
+    if (updateData.date !== undefined) {
+      storeOrder.date = new Date(updateData.date);
+    }
+    if (updateData.storeWarehouse !== undefined) {
+      storeOrder.storeWarehouse = updateData.storeWarehouse;
+    }
+    if (updateData.items !== undefined && Array.isArray(updateData.items)) {
+      storeOrder.items = updateData.items;
+      storeOrder.totalQuantityRequested = updateData.items.reduce(
+        (sum, it) => sum + (parseFloat(it.quantity) || 0), 0
+      );
     }
     
     // Save to MongoDB

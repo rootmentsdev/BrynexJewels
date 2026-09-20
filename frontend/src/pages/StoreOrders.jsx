@@ -184,12 +184,13 @@ const StoreOrders = () => {
   
   const getStatusBadge = (status) => {
     const statusMap = {
+      draft: { label: "Draft", className: "bg-[#f3f4f6] text-[#4b5563]" },
       pending: { label: "Pending", className: "bg-[#fef3c7] text-[#92400e]" },
       approved: { label: "Approved", className: "bg-[#ecfdf5] text-[#047857]" },
       rejected: { label: "Rejected", className: "bg-[#fee2e2] text-[#991b1b]" },
       transferred: { label: "Transferred", className: "bg-[#dbeafe] text-[#1e40af]" },
     };
-    const statusInfo = statusMap[status] || { label: status, className: "bg-[#f3f4f6] text-[#6b7280]" };
+    const statusInfo = statusMap[status] || { label: status || "Draft", className: "bg-[#f3f4f6] text-[#6b7280]" };
     return (
       <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${statusInfo.className}`}>
         <span className="h-2 w-2 rounded-full bg-current" />
@@ -198,6 +199,7 @@ const StoreOrders = () => {
     );
   };
   
+  const draftCount = storeOrders.filter(o => o.status === "draft").length;
   const pendingCount = storeOrders.filter(o => o.status === "pending").length;
   const approvedCount = storeOrders.filter(o => o.status === "approved").length;
   const rejectedCount = storeOrders.filter(o => o.status === "rejected").length;
@@ -469,6 +471,16 @@ const StoreOrders = () => {
             <span className="text-xs font-semibold text-[#374151] mr-2">Order period: <span className="font-normal text-[#6b7280]">All orders</span></span>
             <div className="flex items-center gap-1 ml-2">
               <button
+                onClick={() => setStatusFilter("draft")}
+                className={`px-3 py-1 text-xs font-semibold transition-colors ${
+                  statusFilter === "draft"
+                    ? "bg-[#18181b] text-white"
+                    : "text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827]"
+                }`}
+              >
+                Draft <span className="ml-1 opacity-80">{draftCount}</span>
+              </button>
+              <button
                 onClick={() => setStatusFilter("pending")}
                 className={`px-3 py-1 text-xs font-semibold transition-colors ${
                   statusFilter === "pending"
@@ -638,8 +650,40 @@ const StoreOrders = () => {
                       <td className="px-4 py-3 text-sm text-[#475569] border-r border-[#f1f5f9] max-w-xs truncate">
                         {order.reason || "-"}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm border-r border-[#f1f5f9]">
-                        {getStatusBadge(order.status)}
+                      <td className="px-4 py-2.5 whitespace-nowrap text-sm border-r border-[#f1f5f9]" onClick={(e) => e.stopPropagation()}>
+                        <div className="relative inline-block">
+                          <select
+                            value={order.status || "pending"}
+                            disabled={updatingStatus.has(order._id || order.id)}
+                            onChange={(e) => {
+                              const newStatus = e.target.value;
+                              handleStatusChange(order._id || order.id, newStatus);
+                            }}
+                            className={`appearance-none cursor-pointer rounded-full px-3 py-1 pr-6 text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-[#9B48D7] transition-all ${
+                              order.status === "draft"
+                                ? "bg-[#f3f4f6] text-[#4b5563] border-gray-300"
+                                : order.status === "approved"
+                                ? "bg-[#ecfdf5] text-[#047857] border-emerald-300"
+                                : order.status === "rejected"
+                                ? "bg-[#fee2e2] text-[#991b1b] border-red-300"
+                                : order.status === "transferred"
+                                ? "bg-[#dbeafe] text-[#1e40af] border-blue-300"
+                                : "bg-[#fef3c7] text-[#92400e] border-amber-300"
+                            } ${updatingStatus.has(order._id || order.id) ? "opacity-50 cursor-wait" : ""}`}
+                            style={{
+                              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
+                              backgroundRepeat: "no-repeat",
+                              backgroundPosition: "right 6px center",
+                              backgroundSize: "12px 12px"
+                            }}
+                          >
+                            <option value="draft">Draft</option>
+                            <option value="pending">Pending</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                            <option value="transferred">Transferred</option>
+                          </select>
+                        </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-[#1f2937] border-r border-[#f1f5f9]">
                         {order.items && Array.isArray(order.items) ? order.items.length : 0}

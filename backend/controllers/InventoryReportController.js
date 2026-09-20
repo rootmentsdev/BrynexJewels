@@ -4,6 +4,7 @@ import SalesInvoice from "../model/SalesInvoice.js";
 import TransferOrder from "../model/TransferOrder.js";
 import PurchaseReceive from "../model/PurchaseReceive.js";
 import InventoryAdjustment from "../model/InventoryAdjustment.js";
+import Bill from "../model/Bill.js";
 
 // Helper function to get inventory adjustments from MongoDB
 const getInventoryAdjustments = async (conditions) => {
@@ -990,140 +991,7 @@ export const getInventoryValuation = async (req, res) => {
   }
 };
 
-// Get Inventory Aging Report
-export const getInventoryAging = async (req, res) => {
-  try {
-    const { locCode, warehouse } = req.query;
-    const userId = req.query.userId || req.body.userId;
 
-    // Check if user is admin
-    const adminEmails = ['officerootments@gmail.com'];
-    const isAdminEmail = userId && adminEmails.some(email => userId.toLowerCase() === email.toLowerCase());
-    const isAdmin = isAdminEmail || (locCode && (locCode === '858' || locCode === '103'));
-    const isMainAdmin = isAdmin;
-
-    // Normalize warehouse name
-    const normalizedWarehouse = warehouse ? normalizeWarehouseName(warehouse) : null;
-    
-    // Fetch standalone items
-    let standaloneItems = [];
-    if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
-      standaloneItems = await ShoeItem.find({
-        "warehouseStocks.warehouse": normalizedWarehouse
-      });
-    } else if (isAdmin && warehouse && warehouse !== "All Stores") {
-      standaloneItems = await ShoeItem.find({
-        "warehouseStocks.warehouse": normalizedWarehouse
-      });
-    } else {
-      standaloneItems = await ShoeItem.find({});
-    }
-    
-    // Fetch items from item groups
-    const itemGroups = await ItemGroup.find({ isActive: { $ne: false } });
-    let groupItems = [];
-    
-    itemGroups.forEach(group => {
-      if (group.items && Array.isArray(group.items)) {
-        group.items.forEach((item, index) => {
-          let shouldInclude = true;
-          
-          if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
-            const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
-              item.warehouseStocks.some(ws => ws.warehouse === normalizedWarehouse);
-            shouldInclude = hasStock;
-          } else if (isAdmin && warehouse && warehouse !== "All Stores") {
-            const hasStock = item.warehouseStocks && Array.isArray(item.warehouseStocks) &&
-              item.warehouseStocks.some(ws => ws.warehouse === normalizedWarehouse);
-            shouldInclude = hasStock;
-          }
-          
-          if (shouldInclude) {
-            const standaloneItem = {
-              _id: item._id || `${group._id}_${index}`,
-              itemName: item.name || "",
-              sku: item.sku || "",
-              costPrice: item.costPrice || 0,
-              category: group.category || "",
-              warehouseStocks: item.warehouseStocks || [],
-              itemGroupId: group._id,
-              itemGroupName: group.name,
-              isFromGroup: true,
-              createdAt: group.createdAt,
-            };
-            groupItems.push(standaloneItem);
-          }
-        });
-      }
-    });
-    
-    const items = [...standaloneItems.map(item => ({ ...item.toObject ? item.toObject() : item, isFromGroup: false })), ...groupItems];
-    
-    const now = new Date();
-
-    const agingBuckets = {
-      "0-30 days": { count: 0, value: 0, items: [] },
-      "31-60 days": { count: 0, value: 0, items: [] },
-      "61-90 days": { count: 0, value: 0, items: [] },
-      "90+ days": { count: 0, value: 0, items: [] }
-    };
-
-    items.forEach(item => {
-      const createdDate = new Date(item.createdAt || item.createdDate);
-      const daysOld = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
-
-      let bucket;
-      if (daysOld <= 30) bucket = "0-30 days";
-      else if (daysOld <= 60) bucket = "31-60 days";
-      else if (daysOld <= 90) bucket = "61-90 days";
-      else bucket = "90+ days";
-
-      let itemValue = 0;
-      let itemQuantity = 0;
-
-      if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
-        item.warehouseStocks.forEach(ws => {
-          if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103' && ws.warehouse !== normalizedWarehouse) return;
-          const stock = parseFloat(ws.stockOnHand) || parseFloat(ws.stock) || 0;
-          const cost = parseFloat(item.costPrice) || 0;
-          itemValue += stock * cost;
-          itemQuantity += stock;
-        });
-      }
-
-      agingBuckets[bucket].count++;
-      agingBuckets[bucket].value += itemValue;
-      agingBuckets[bucket].items.push({
-        itemName: item.itemName,
-        sku: item.sku,
-        quantity: itemQuantity,
-        value: itemValue,
-        daysOld
-      });
-    });
-
-    const agingList = Object.entries(agingBuckets).map(([bucket, data]) => ({
-      bucket,
-      itemCount: data.count,
-      totalValue: data.value,
-      items: data.items
-    }));
-
-    res.status(200).json({
-      success: true,
-      data: {
-        summary: {
-          totalItems: items.length,
-          totalValue: Object.values(agingBuckets).reduce((sum, b) => sum + b.value, 0)
-        },
-        aging: agingList
-      }
-    });
-  } catch (error) {
-    console.error("Get inventory aging error:", error);
-    res.status(500).json({ message: "Server error", error: error.message });
-  }
-};
 
 // Get Opening Stock Report - Shows total opening stock added by month and store
 export const getOpeningStockReport = async (req, res) => {
@@ -1648,9 +1516,372 @@ export const getStockOnHandReport = async (req, res) => {
   } catch (error) {
     console.error("❌ Get stock on hand report error:", error);
     res.status(500).json({ 
-      success: false,
+      success: false, 
       message: "Server error", 
       error: error.message 
+    });
+  }
+};
+
+// Get Inventory Aging Report
+export const getInventoryAging = async (req, res) => {
+  try {
+    const { locCode, warehouse, category, asOfDate, allowedLocCodes, search, bracket } = req.query;
+    const userId = req.query.userId || req.body.userId;
+
+    // Check admin / permissions
+    const adminEmails = ['officerootments@gmail.com', 'brynex@gmail.com'];
+    const isAdminEmail = userId && adminEmails.some(email => userId.toLowerCase() === email.toLowerCase());
+    const isAdmin = isAdminEmail || (locCode && (locCode === '858' || locCode === '103')) || !locCode || locCode === 'admin';
+    const isMainAdmin = isAdmin;
+
+    const clusterStoreLabels = allowedLocCodes ? allowedLocCodes.split(',').map(s => s.trim()) : [];
+    const isClusterManager = !isMainAdmin && clusterStoreLabels.length > 0;
+    const clusterWarehouseVariations = clusterStoreLabels.flatMap(label => getWarehouseNameVariations(label));
+
+    // Target evaluation date (default today)
+    const targetDate = asOfDate ? new Date(asOfDate) : new Date();
+    const evaluationTime = targetDate.getTime();
+
+    // Normalizing warehouse filters
+    const normalizedWarehouse = warehouse && warehouse !== "All Stores" ? normalizeWarehouseName(warehouse) : null;
+    const warehouseVariations = warehouse && warehouse !== "All Stores" ? getWarehouseNameVariations(warehouse) : [];
+
+    // Helper to check if warehouse matches query
+    const warehouseMatches = (wsWarehouse) => {
+      if (!wsWarehouse) return false;
+      const wsWarehouseStr = wsWarehouse.toString().trim();
+      const normalizedWs = normalizeWarehouseName(wsWarehouseStr);
+
+      if (isClusterManager && warehouse === "All Stores") {
+        return clusterWarehouseVariations.includes(wsWarehouseStr) ||
+               clusterWarehouseVariations.includes(normalizedWs);
+      }
+
+      if (!isAdmin && locCode && locCode !== '858' && locCode !== '103') {
+        const userWarehouse = normalizeWarehouseName(locCode);
+        const userVariations = getWarehouseNameVariations(locCode);
+        return userVariations.includes(wsWarehouseStr) || normalizedWs === userWarehouse;
+      }
+
+      if (!normalizedWarehouse || warehouse === "All Stores") {
+        return true;
+      }
+
+      return warehouseVariations.includes(wsWarehouseStr) ||
+             warehouseVariations.includes(normalizedWs) ||
+             normalizedWs === normalizedWarehouse;
+    };
+
+    // 1. Fetch Inward Transactions to find stock addition dates (Bills, Receives, Transfers, Adjustments)
+    const [bills, receives, transferOrders, adjustments, standaloneItems, itemGroups] = await Promise.all([
+      Bill.find({}).select('billNumber billDate warehouse branch items createdAt').lean(),
+      PurchaseReceive.find({ status: { $ne: 'cancelled' } }).select('receiveNumber receivedDate toWarehouse items createdAt').lean(),
+      TransferOrder.find({ status: { $in: ['transferred', 'in_transit'] } }).select('transferOrderNumber date destinationWarehouse items createdAt').lean(),
+      InventoryAdjustment.find({}).select('adjustmentNumber date warehouse branch items createdAt').lean(),
+      ShoeItem.find({ isActive: { $ne: false } }).lean(),
+      ItemGroup.find({ isActive: { $ne: false } }).lean(),
+    ]);
+
+    // Build lookup maps for inward dates
+    // Key: `${itemId}_${normalizedWarehouse}` or `${itemId}` or `${sku}`
+    const inwardHistoryMap = new Map();
+
+    const recordInward = (key, date, source) => {
+      if (!key || !date) return;
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return;
+      
+      const existing = inwardHistoryMap.get(key);
+      // Keep the most recent inward date for that item/warehouse, or the one closest to asOfDate
+      if (!existing || d > existing.date) {
+        inwardHistoryMap.set(key, { date: d, source });
+      }
+    };
+
+    // Index Bills (Purchase Bills)
+    bills.forEach(bill => {
+      const bDate = bill.billDate || bill.createdAt;
+      const bWh = normalizeWarehouseName(bill.warehouse || bill.branch || "Warehouse");
+      (bill.items || []).forEach(item => {
+        const itemId = (item.itemId || item._id || "").toString();
+        const sku = (item.itemSku || item.sku || "").toString().toLowerCase().trim();
+        const sourceLabel = `Purchase Bill #${bill.billNumber || "N/A"}`;
+
+        if (itemId && bWh) {
+          recordInward(`${itemId}_${bWh}`, bDate, sourceLabel);
+        }
+        if (sku && bWh) {
+          recordInward(`${sku}_${bWh}`, bDate, sourceLabel);
+        }
+      });
+    });
+
+    // Index Purchase Receives
+    receives.forEach(rcv => {
+      const rDate = rcv.receivedDate || rcv.createdAt;
+      const rWh = normalizeWarehouseName(rcv.toWarehouse || "Warehouse");
+      (rcv.items || []).forEach(item => {
+        const itemId = (item.itemId || item._id || "").toString();
+        const sku = (item.itemSku || item.sku || "").toString().toLowerCase().trim();
+        const sourceLabel = `Purchase Receive #${rcv.receiveNumber || "N/A"}`;
+
+        if (itemId && rWh) {
+          recordInward(`${itemId}_${rWh}`, rDate, sourceLabel);
+        }
+        if (sku && rWh) {
+          recordInward(`${sku}_${rWh}`, rDate, sourceLabel);
+        }
+      });
+    });
+
+    // Index Transfer Orders (destination warehouse receives stock on transfer date)
+    transferOrders.forEach(to => {
+      const toDate = to.date || to.createdAt;
+      const toWh = normalizeWarehouseName(to.destinationWarehouse);
+      (to.items || []).forEach(item => {
+        const itemId = (item.itemId || item._id || "").toString();
+        const sku = (item.itemSku || item.sku || "").toString().toLowerCase().trim();
+        const sourceLabel = `Transfer Order #${to.transferOrderNumber || "N/A"}`;
+
+        if (itemId && toWh) {
+          recordInward(`${itemId}_${toWh}`, toDate, sourceLabel);
+        }
+        if (sku && toWh) {
+          recordInward(`${sku}_${toWh}`, toDate, sourceLabel);
+        }
+      });
+    });
+
+    // Index Inventory Adjustments (positive adjustments)
+    adjustments.forEach(adj => {
+      const adjDate = adj.date || adj.createdAt;
+      const adjWh = normalizeWarehouseName(adj.warehouse || adj.branch);
+      (adj.items || []).forEach(item => {
+        const itemId = (item.itemId || item._id || "").toString();
+        const sku = (item.itemSku || item.sku || "").toString().toLowerCase().trim();
+        const sourceLabel = `Adjustment #${adj.adjustmentNumber || "N/A"}`;
+        if (itemId && adjWh) {
+          recordInward(`${itemId}_${adjWh}`, adjDate, sourceLabel);
+        }
+        if (sku && adjWh) {
+          recordInward(`${sku}_${adjWh}`, adjDate, sourceLabel);
+        }
+      });
+    });
+
+    // 2. Process All Items and compute stock aging
+    const agingRecords = [];
+
+    // Target warehouses to consider
+    const targetWarehouses = (warehouse && warehouse !== "All Stores")
+      ? [warehouse]
+      : ["Warehouse", "MG Road"];
+
+    // Helper to process a single item/variant
+    const processItemStock = (item, isGroupVariant = false, parentGroup = null) => {
+      // Category filter check
+      if (category && category !== "all" && item.category && item.category.toLowerCase() !== category.toLowerCase()) {
+        return;
+      }
+
+      // Search filter check
+      if (search && search.trim() !== "") {
+        const s = search.toLowerCase().trim();
+        const name = (item.itemName || item.name || "").toLowerCase();
+        const sku = (item.sku || "").toLowerCase();
+        const gName = (parentGroup?.name || parentGroup?.groupName || item.groupName || "").toLowerCase();
+        if (!name.includes(s) && !sku.includes(s) && !gName.includes(s)) {
+          return;
+        }
+      }
+
+      const itemId = (item._id || item.id || "").toString();
+      const itemSku = (item.sku || "").toString().toLowerCase().trim();
+      const warehouseStocks = item.warehouseStocks || [];
+
+      // For each target warehouse, find stock or record
+      targetWarehouses.forEach(targetWh => {
+        const normalizedTarget = normalizeWarehouseName(targetWh) || targetWh;
+        const targetVariations = getWarehouseNameVariations(targetWh);
+
+        // Find matching warehouse stock entries and sum quantities
+        const matchingStocks = warehouseStocks.filter(ws => {
+          if (!ws.warehouse) return false;
+          const wsStr = ws.warehouse.toString().trim();
+          const wsNorm = normalizeWarehouseName(wsStr);
+          return targetVariations.includes(wsStr) || 
+                 targetVariations.includes(wsNorm) ||
+                 wsNorm === normalizedTarget ||
+                 wsStr.toLowerCase().includes(targetWh.toLowerCase()) ||
+                 targetWh.toLowerCase().includes(wsStr.toLowerCase());
+        });
+
+        const currentQty = matchingStocks.reduce((sum, ws) => {
+          return sum + (parseFloat(ws.stockOnHand ?? ws.availableForSale ?? 0) || 0);
+        }, 0);
+
+        // Find inward date for this warehouse
+        let inwardInfo = null;
+        for (const variation of [normalizedTarget, ...targetVariations]) {
+          inwardInfo = inwardHistoryMap.get(`${itemId}_${variation}`) ||
+                       inwardHistoryMap.get(`${itemSku}_${variation}`);
+          if (inwardInfo) break;
+        }
+
+        const fallbackDate = item.createdAt || parentGroup?.createdAt || targetDate;
+        let inwardDate = inwardInfo?.date || fallbackDate;
+        let inwardSource = inwardInfo?.source || "Initial / Opening Stock";
+
+        // Calculate age in days
+        const diffMs = evaluationTime - new Date(inwardDate).getTime();
+        const ageInDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+
+        // Determine bracket
+        let ageBracket = "0_30";
+        let bracketLabel = "0 - 30 Days";
+        let bracketColor = "emerald";
+
+        if (ageInDays <= 30) {
+          ageBracket = "0_30";
+          bracketLabel = "0 - 30 Days";
+          bracketColor = "emerald";
+        } else if (ageInDays <= 60) {
+          ageBracket = "31_60";
+          bracketLabel = "31 - 60 Days";
+          bracketColor = "blue";
+        } else if (ageInDays <= 90) {
+          ageBracket = "61_90";
+          bracketLabel = "61 - 90 Days";
+          bracketColor = "amber";
+        } else if (ageInDays <= 120) {
+          ageBracket = "91_120";
+          bracketLabel = "91 - 120 Days";
+          bracketColor = "orange";
+        } else {
+          ageBracket = "120_plus";
+          bracketLabel = "120+ Days";
+          bracketColor = "red";
+        }
+
+        // Bracket filter if specified
+        if (bracket && bracket !== "all" && ageBracket !== bracket) {
+          return;
+        }
+
+        const costPrice = parseFloat(item.costPrice || parentGroup?.costPrice || 0) || 0;
+        const sellingPrice = parseFloat(item.sellingPrice || parentGroup?.sellingPrice || 0) || 0;
+        const mrp = parseFloat(item.mrp || parentGroup?.mrp || 0) || 0;
+        const totalValue = currentQty * costPrice;
+
+        agingRecords.push({
+          itemId,
+          itemName: item.itemName || item.name || (parentGroup ? `${parentGroup.name || parentGroup.groupName} - ${item.size || item.sku}` : "Unnamed Item"),
+          sku: item.sku || "N/A",
+          size: item.size || "-",
+          category: item.category || parentGroup?.category || "other",
+          groupName: parentGroup?.name || parentGroup?.groupName || item.groupName || null,
+          isGroupVariant,
+          warehouse: targetWh,
+          stockOnHand: currentQty,
+          costPrice,
+          sellingPrice,
+          mrp,
+          stockValue: totalValue,
+          inwardDate: new Date(inwardDate).toISOString().split('T')[0],
+          inwardSource,
+          ageInDays,
+          ageBracket,
+          bracketLabel,
+          bracketColor
+        });
+      });
+    };
+
+    // Process Standalone Items
+    standaloneItems.forEach(item => processItemStock(item, false, null));
+
+    // Process Item Groups & Variants
+    itemGroups.forEach(group => {
+      const variants = Array.isArray(group.itemsList) && group.itemsList.length > 0 
+        ? group.itemsList 
+        : (Array.isArray(group.items) ? group.items : []);
+      if (variants.length > 0) {
+        variants.forEach(variant => processItemStock(variant, true, group));
+      } else if (group.warehouseStocks && group.warehouseStocks.length > 0) {
+        const gName = group.name || group.groupName;
+        if (gName) {
+          processItemStock({
+            _id: group._id,
+            itemName: gName,
+            sku: group.sku || "GROUP",
+            costPrice: group.costPrice,
+            sellingPrice: group.sellingPrice,
+            mrp: group.mrp,
+            category: group.category,
+            warehouseStocks: group.warehouseStocks || [],
+            createdAt: group.createdAt
+          }, true, group);
+        }
+      }
+    });
+
+    // Sort by age descending (oldest stock first)
+    agingRecords.sort((a, b) => b.ageInDays - a.ageInDays);
+
+    // 3. Compute Summary Metrics & Bracket Aggregations
+    let grandTotalStock = 0;
+    let grandTotalValue = 0;
+    let totalAgeDaysWeighted = 0;
+
+    const bracketsSummary = {
+      "0_30": { bracket: "0_30", label: "0 - 30 Days", count: 0, stock: 0, value: 0, color: "emerald", badgeBg: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+      "31_60": { bracket: "31_60", label: "31 - 60 Days", count: 0, stock: 0, value: 0, color: "blue", badgeBg: "bg-blue-50 text-blue-700 border-blue-200" },
+      "61_90": { bracket: "61_90", label: "61 - 90 Days", count: 0, stock: 0, value: 0, color: "amber", badgeBg: "bg-amber-50 text-amber-700 border-amber-200" },
+      "91_120": { bracket: "91_120", label: "91 - 120 Days", count: 0, stock: 0, value: 0, color: "orange", badgeBg: "bg-orange-50 text-orange-700 border-orange-200" },
+      "120_plus": { bracket: "120_plus", label: "120+ Days", count: 0, stock: 0, value: 0, color: "red", badgeBg: "bg-red-50 text-red-700 border-red-200" }
+    };
+
+    agingRecords.forEach(rec => {
+      grandTotalStock += rec.stockOnHand;
+      grandTotalValue += rec.stockValue;
+      totalAgeDaysWeighted += (rec.ageInDays * rec.stockOnHand);
+
+      if (bracketsSummary[rec.ageBracket]) {
+        bracketsSummary[rec.ageBracket].count += 1;
+        bracketsSummary[rec.ageBracket].stock += rec.stockOnHand;
+        bracketsSummary[rec.ageBracket].value += rec.stockValue;
+      }
+    });
+
+    const averageAgeDays = grandTotalStock > 0 ? Math.round(totalAgeDaysWeighted / grandTotalStock) : 0;
+    const criticalAgedValue = bracketsSummary["91_120"].value + bracketsSummary["120_plus"].value;
+    const criticalAgedStock = bracketsSummary["91_120"].stock + bracketsSummary["120_plus"].stock;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        summary: {
+          totalItems: agingRecords.length,
+          totalStock: grandTotalStock,
+          totalValue: grandTotalValue,
+          averageAgeDays,
+          criticalAgedValue,
+          criticalAgedStock,
+          asOfDate: targetDate.toISOString().split('T')[0],
+          warehouse: warehouse || "All Stores"
+        },
+        brackets: bracketsSummary,
+        items: agingRecords
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ Get inventory aging report error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error generating aging report",
+      error: error.message
     });
   }
 };

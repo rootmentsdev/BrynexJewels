@@ -2015,21 +2015,22 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     setShowGroupItemModal(false);
   };
 
-  // Helper function to generate high-resolution Code 128 barcode Data URL using JsBarcode
-  const generateBarcodeDataUrl = (text) => {
+  // Helper function to generate high-resolution Code 128 barcode SVG string using JsBarcode
+  const generateBarcodeSvg = (text) => {
     if (!text) return "";
     try {
-      const canvas = document.createElement("canvas");
-      JsBarcode(canvas, String(text).trim(), {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      JsBarcode(svg, String(text).trim(), {
         format: "CODE128",
-        width: 2,          // 2px wide bars for laser/CCD barcode scanner readability
-        height: 42,        // Barcode height
+        width: 1.3,          // 1.3px bar width for 203 DPI thermal print heads
+        height: 28,         // 28px height fits 12mm label height
         displayValue: false,
-        margin: 2,         // Minimal side margins so barcode spans width
+        margin: 0,          // 0 margin
         background: "#FFFFFF",
         lineColor: "#000000"
       });
-      return canvas.toDataURL("image/png");
+      svg.setAttribute("style", "width: 100%; height: 100%; display: block; max-height: 5.4mm;");
+      return svg.outerHTML;
     } catch (err) {
       console.error("Barcode generation error:", err);
       return "";
@@ -2041,8 +2042,8 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     if (!text) return "";
     try {
       return await QRCode.toDataURL(String(text).trim(), {
-        margin: 1,
-        width: 360,
+        margin: 0,
+        width: 180,
         errorCorrectionLevel: "M",
         color: {
           dark: "#000000",
@@ -2120,8 +2121,8 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
           </div>
         `;
       } else {
-        // 1D Barcode tag for "Jewels" category
-        const barcodeDataUrl = generateBarcodeDataUrl(unitSerial);
+        // 1D Barcode tag for "Jewels" category (Direct Vector SVG)
+        const barcodeSvgHtml = generateBarcodeSvg(unitSerial);
         tagsHtml += `
           <div class="tag-page barcode-page">
             <div class="tag-card">
@@ -2129,7 +2130,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               <div class="tag-left">
                 <div class="store-name">${storeName}</div>
                 <div class="barcode-container">
-                  <img class="barcode-img" src="${barcodeDataUrl}" alt="${unitSerial}" />
+                  ${barcodeSvgHtml}
                 </div>
                 <div class="serial-text">${unitSerial}</div>
               </div>
@@ -2171,7 +2172,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
           <title></title>
           <style>
             @page {
-              size: 70mm ${isQr ? "22mm" : "15mm"};
+              size: 92mm 12mm;
               margin: 0mm !important;
             }
             @page :left { margin: 0mm !important; }
@@ -2179,15 +2180,15 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
             @page :first { margin: 0mm !important; }
             @media print {
               html, body {
-                width: 70mm !important;
-                height: auto !important;
+                width: 92mm !important;
+                height: 12mm !important;
                 margin: 0mm !important;
                 padding: 0mm !important;
-                overflow: visible !important;
+                overflow: hidden !important;
               }
               .tag-page {
-                width: 70mm !important;
-                height: ${isQr ? "22mm" : "15mm"} !important;
+                width: 92mm !important;
+                height: 12mm !important;
                 page-break-after: always !important;
                 break-after: page !important;
                 page-break-inside: avoid !important;
@@ -2207,20 +2208,20 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               print-color-adjust: exact;
             }
             html, body {
-              width: 70mm;
-              height: auto;
+              width: 92mm;
+              height: 12mm;
               margin: 0;
               padding: 0;
               background: #fff;
               color: #000;
             }
             .tag-page {
-              width: 70mm;
-              height: ${isQr ? "22mm" : "15mm"};
-              padding: 0.5mm 1.5mm;
+              width: 92mm;
+              height: 12mm;
+              padding: 0.4mm 1mm;
               display: flex;
               align-items: center;
-              justify-content: center;
+              justify-content: flex-start;
               page-break-after: always;
               break-after: page;
               page-break-inside: avoid;
@@ -2232,12 +2233,13 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               break-after: auto;
             }
             .tag-card {
-              width: 100%;
-              height: 100%;
+              width: 45mm;
+              height: 11.2mm;
               display: flex;
               flex-direction: row;
               align-items: stretch;
               justify-content: space-between;
+              overflow: hidden;
             }
             .tag-left {
               width: 49%;
@@ -2245,7 +2247,8 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               flex-direction: column;
               align-items: flex-start;
               justify-content: space-between;
-              padding-right: 1mm;
+              padding-right: 0.5mm;
+              overflow: hidden;
             }
             .tag-left-qr {
               width: 42%;
@@ -2255,10 +2258,11 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               align-items: center;
               justify-content: center;
               text-align: center;
+              overflow: hidden;
             }
             .qr-container {
-              width: 16mm;
-              height: 16mm;
+              width: 8.5mm;
+              height: 8.5mm;
               display: flex;
               align-items: center;
               justify-content: center;
@@ -2272,7 +2276,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               display: block;
             }
             .store-name {
-              font-size: 6.8pt;
+              font-size: 5.2pt;
               font-weight: 700;
               line-height: 1;
               white-space: nowrap;
@@ -2280,11 +2284,10 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               text-overflow: ellipsis;
               max-width: 100%;
               color: #000;
-              padding-left: 1mm;
             }
             .barcode-container {
               width: 100%;
-              height: 7.2mm;
+              height: 5.4mm;
               display: flex;
               align-items: center;
               justify-content: center;
@@ -2299,13 +2302,13 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               display: block;
             }
             .serial-text {
-              font-size: 7.2pt;
+              font-size: 5.5pt;
               font-weight: 700;
-              letter-spacing: 0.8px;
+              letter-spacing: 0.3px;
               line-height: 1;
               width: 100%;
               text-align: center;
-              font-family: Arial, "Helvetica Neue", sans-serif;
+              font-family: monospace, Arial, sans-serif;
               color: #000;
             }
             .tag-right {
@@ -2315,10 +2318,11 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               align-items: flex-start;
               justify-content: space-between;
               text-align: left;
-              padding-left: 1mm;
+              padding-left: 0.5mm;
+              overflow: hidden;
             }
             .sku-code {
-              font-size: 7.8pt;
+              font-size: 6.2pt;
               font-weight: 700;
               line-height: 1;
               white-space: nowrap;
@@ -2328,11 +2332,11 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               color: #000;
             }
             .item-title {
-              font-size: 6.8pt;
+              font-size: 5pt;
               font-weight: 500;
-              line-height: 1.1;
+              line-height: 1.05;
               color: #000;
-              max-height: 2.2em;
+              max-height: 2.1em;
               overflow: hidden;
               text-overflow: ellipsis;
               display: -webkit-box;
@@ -2340,10 +2344,11 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               -webkit-box-orient: vertical;
             }
             .price-val {
-              font-size: 9pt;
+              font-size: 7.2pt;
               font-weight: 800;
               line-height: 1;
               color: #000;
+              white-space: nowrap;
             }
           </style>
         </head>

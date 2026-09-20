@@ -251,6 +251,7 @@ const Nav = () => {
                                         <Link to="/reports/sales" className={subLinkClasses('/reports/sales')}><span>Sales Report</span></Link>
                                         <Link to="/reports/sales-by-group" className={subLinkClasses('/reports/sales-by-group')}><span>Sales by Group</span></Link>
                                         <Link to="/reports/inventory" className={subLinkClasses('/reports/inventory')}><span>Inventory Report</span></Link>
+                                        <Link to="/reports/aging" className={subLinkClasses('/reports/aging')}><span>Aging Report</span></Link>
                                         <Link to="/reports/income-expense" className={subLinkClasses('/reports/income-expense')}><span>Income &amp; Expense</span></Link>
                                     </div>
                                 )}
@@ -351,6 +352,7 @@ const Nav = () => {
                                                 <Link to="/reports/sales" className={subLinkClasses('/reports/sales')}><span>Sales Report</span></Link>
                                                 <Link to="/reports/sales-by-group" className={subLinkClasses('/reports/sales-by-group')}><span>Sales by Group</span></Link>
                                                 <Link to="/reports/inventory" className={subLinkClasses('/reports/inventory')}><span>Inventory Report</span></Link>
+                                                <Link to="/reports/aging" className={subLinkClasses('/reports/aging')}><span>Aging Report</span></Link>
                                             </>
                                         )}
                                         <Link to="/reports/income-expense" className={subLinkClasses('/reports/income-expense')}><span>Income &amp; Expense</span></Link>
