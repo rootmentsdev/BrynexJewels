@@ -32,5 +32,21 @@ router
   .route("/purchase/receives/:purchaseReceiveId/convert-to-bill")
   .post(convertPurchaseReceiveToBill);
 
+// Direct 1-Click Raw Thermal ZPL Print
+router.post("/purchase/print-thermal-tag", async (req, res) => {
+  try {
+    const { zpl, printerName } = req.body;
+    if (!zpl) {
+      return res.status(400).json({ success: false, message: "ZPL string is required" });
+    }
+    const { sendRawZplToPrinter } = await import("../utils/rawPrinter.js");
+    const result = await sendRawZplToPrinter(zpl, printerName || "BOXP BP 4206e (203 dpi) - ZPL");
+    return res.json(result);
+  } catch (error) {
+    console.error("Thermal tag print error:", error);
+    return res.status(500).json({ success: false, message: error.message || "Failed to print thermal tag" });
+  }
+});
+
 export default router;
 
