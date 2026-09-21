@@ -228,6 +228,13 @@ const ItemGroupSchema = new mongoose.Schema(
             },
           }],
         }],
+        image: {
+          type: String,
+          trim: true,
+        },
+        images: [{
+          type: String,
+        }],
       },
     ],
     stock: {
@@ -235,6 +242,10 @@ const ItemGroupSchema = new mongoose.Schema(
       default: 0,
     },
     reorder: {
+      type: String,
+      trim: true,
+    },
+    image: {
       type: String,
       trim: true,
     },

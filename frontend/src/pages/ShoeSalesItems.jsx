@@ -415,9 +415,25 @@ const ShoeSalesItems = () => {
                                 to={itemPath}
                                 className="flex items-center gap-3 group cursor-pointer"
                               >
-                                <div className="w-10 h-10 rounded-none bg-[#e2e8f0] flex-shrink-0 flex items-center justify-center text-gray-700 font-bold text-sm group-hover:bg-[#f1e6fa] group-hover:text-[#9B48D7] transition-colors uppercase">
-                                  {(item.itemName || item.name || "?")[0]}
-                                </div>
+                                {(() => {
+                                  const itemImg = item.image || (item.images && item.images[0]?.data) || (item.images && typeof item.images[0] === 'string' && item.images[0]) || "";
+                                  if (itemImg) {
+                                    return (
+                                      <div className="w-10 h-10 rounded-none bg-white border border-gray-200 flex-shrink-0 flex items-center justify-center overflow-hidden p-0.5 shadow-sm">
+                                        <img
+                                          src={itemImg}
+                                          alt={item.itemName || item.name}
+                                          className="w-full h-full object-contain"
+                                        />
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <div className="w-10 h-10 rounded-none bg-[#e2e8f0] flex-shrink-0 flex items-center justify-center text-gray-700 font-bold text-sm group-hover:bg-[#f1e6fa] group-hover:text-[#9B48D7] transition-colors uppercase">
+                                      {(item.itemName || item.name || "?")[0]}
+                                    </div>
+                                  );
+                                })()}
                                 <div>
                                   <div className="flex items-center gap-2">
                                     <p className="text-sm font-semibold text-gray-900 group-hover:text-[#9B48D7] transition-colors">

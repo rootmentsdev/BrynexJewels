@@ -1119,6 +1119,17 @@ const ShoeSalesItemDetailFromGroup = () => {
               <ArrowLeft size={14} className="text-[#111827]" />
               <span>Item Group</span>
             </button>
+            {(() => {
+              const itemImg = item.image || (item.images && item.images[0]?.data) || (item.images && typeof item.images[0] === 'string' && item.images[0]) || (itemGroup.image) || (itemGroup.images && itemGroup.images[0]) || "";
+              if (itemImg) {
+                return (
+                  <div className="w-12 h-12 rounded-none border border-[#E5E7EB] bg-white shrink-0 overflow-hidden flex items-center justify-center p-0.5 shadow-xs">
+                    <img src={itemImg} alt="" className="w-full h-full object-contain" />
+                  </div>
+                );
+              }
+              return null;
+            })()}
             <div className="min-w-0">
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-[#111827] uppercase font-mono truncate">

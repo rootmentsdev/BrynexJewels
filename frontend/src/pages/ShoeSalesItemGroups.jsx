@@ -388,9 +388,15 @@ const ShoeSalesItemGroups = () => {
                             to={`/shoe-sales/item-groups/${row.id}`}
                             className="flex items-center gap-3 group cursor-pointer"
                           >
-                            <div className="w-10 h-10 rounded-none bg-[#e2e8f0] flex-shrink-0 flex items-center justify-center text-gray-500 group-hover:bg-[#f1e6fa] group-hover:text-[#9B48D7] transition-colors">
-                              <Folder size={18} />
-                            </div>
+                            {row.image ? (
+                              <div className="w-10 h-10 rounded-none bg-white border border-gray-200 flex-shrink-0 flex items-center justify-center overflow-hidden p-0.5 shadow-sm">
+                                <img src={row.image} alt={row.name} className="w-full h-full object-contain" />
+                              </div>
+                            ) : (
+                              <div className="w-10 h-10 rounded-none bg-[#e2e8f0] flex-shrink-0 flex items-center justify-center text-gray-500 group-hover:bg-[#f1e6fa] group-hover:text-[#9B48D7] transition-colors">
+                                <Folder size={18} />
+                              </div>
+                            )}
                             <div>
                               <p className="text-sm font-semibold text-gray-900 group-hover:text-[#9B48D7] transition-colors">
                                 {row.name}

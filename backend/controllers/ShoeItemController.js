@@ -574,6 +574,7 @@ export const getShoeItems = async (req, res) => {
             stock: itemStockOnHand,
             stockOnHand: itemStockOnHand,
             warehouseStocks: item.warehouseStocks || [],
+            image: item.image || (item.images && item.images[0]) || group.image || (group.images && group.images[0]) || "",
             itemGroupId: group._id,
             itemGroupName: group.name,
             isFromGroup: true,
@@ -620,6 +621,7 @@ export const getShoeItems = async (req, res) => {
 
         return {
           ...item,
+          image: item.image || (item.images && item.images[0]?.data) || (item.images && item.images[0]) || "",
           stock: itemStockOnHand,
           stockOnHand: itemStockOnHand,
           isFromGroup: false
@@ -718,6 +720,7 @@ export const getShoeItemById = async (req, res) => {
             reorderPoint: groupItem.reorderPoint || "",
             stock: groupItem.stock || 0,
             warehouseStocks: groupItem.warehouseStocks || [],
+            image: groupItem.image || (groupItem.images && groupItem.images[0]) || group.image || (group.images && group.images[0]) || "",
             // Include group information
             itemGroupId: group._id,
             itemGroupName: group.name,

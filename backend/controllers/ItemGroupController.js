@@ -600,6 +600,7 @@ export const getItemGroups = async (req, res) => {
         sku: groupObj.sku || "",
         stock: totalStock.toFixed(2),
         reorder: groupObj.reorder || "",
+        image: groupObj.image || (groupObj.images && groupObj.images[0]) || "",
         itemType: groupObj.itemType,
         unit: groupObj.unit,
         manufacturer: groupObj.manufacturer,

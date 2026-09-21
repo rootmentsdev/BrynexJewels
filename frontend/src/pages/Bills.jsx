@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import { useEnterToSave } from "../hooks/useEnterToSave";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Search, X, Plus, Pencil, Image as ImageIcon, ChevronDown, Mail, Printer, Download, Trash2, Link as LinkIcon, Package, PackageX, MoreVertical, Upload, Calendar, Check, ArrowLeft, Settings, UploadCloud, Minus, Layers, RotateCw } from "lucide-react";
+import { Search, X, Plus, Pencil, Image as ImageIcon, ChevronDown, Mail, Printer, Download, Trash2, Link as LinkIcon, Package, PackageX, MoreVertical, Upload, Calendar, Check, ArrowLeft, Settings, UploadCloud, Minus, Layers, RotateCw, Copy, Zap, Usb, FileCode } from "lucide-react";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 import ImageUpload from "../components/ImageUpload";
@@ -938,6 +938,9 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
   const [tdsTcsType, setTdsTcsType] = useState(""); // "TDS" or "TCS"
   const [tdsTcsTax, setTdsTcsTax] = useState("");
   const [adjustment, setAdjustment] = useState("");
+  const [printModalData, setPrintModalData] = useState(null);
+  const [printLabelType, setPrintLabelType] = useState("barcode");
+  const [copiedZpl, setCopiedZpl] = useState(false);
   const [showNewTaxModal, setShowNewTaxModal] = useState(false);
   const [newTax, setNewTax] = useState({
     name: "",
@@ -2022,14 +2025,14 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       JsBarcode(svg, String(text).trim(), {
         format: "CODE128",
-        width: 1.3,          // 1.3px bar width for 203 DPI thermal print heads
-        height: 28,         // 28px height fits 12mm label height
+        width: 1.3,          // 1.3px bar width calibrated for 203 DPI thermal heads
+        height: 28,         // 28px fits 12mm jewelry tag height
         displayValue: false,
-        margin: 0,          // 0 margin
+        margin: 0,
         background: "#FFFFFF",
         lineColor: "#000000"
       });
-      svg.setAttribute("style", "width: 100%; height: 100%; display: block; max-height: 5.4mm;");
+      svg.setAttribute("style", "width: 100%; height: 100%; display: block; max-height: 5.2mm;");
       return svg.outerHTML;
     } catch (err) {
       console.error("Barcode generation error:", err);
@@ -2056,7 +2059,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     }
   };
 
-  // Helper to generate guaranteed non-repeating 10-digit sequential unique product code (e.g. 1000015983)
+  // Helper to generate guaranteed non-repeating 10-digit sequential unique product code
   const getNextUniqueProductCode = () => {
     const STORAGE_KEY = "brynex_last_unique_code_seq";
     let lastCode = parseInt(localStorage.getItem(STORAGE_KEY), 10);
@@ -2068,8 +2071,74 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     return nextCode.toString();
   };
 
-  // Handler to print Jewelry Barcode / QR Code Labels for each quantity unit
-  const handlePrintRowSku = async (row) => {
+  // Generate 100% compliant ZPL code matching D123.prn specification
+  const generateZplString = ({
+    unitCode = "12345678",
+    itemName = "Jewelry Item",
+    sku = "20602",
+    price = "1000.00",
+    storeName = "Brynex Jewels & Co.",
+    isQr = false,
+    qty = 1,
+  }) => {
+    let zpl = "";
+    for (let i = 0; i < qty; i++) {
+      if (isQr) {
+        zpl += `^XA
+^SZ2^JMA
+^MCY^PMN
+^PW787^MTT
+^JZY
+^LH0,0^LRN
+^XZ
+^XA
+^FT80,17
+^CI0
+^A0N,17,23^FD${storeName}^FS
+^FO80,22
+^BQN,2,3
+^FDQA,${unitCode}^FS
+^FT80,72
+^A0N,14,20^FD${unitCode}^FS
+^FT319,22
+^A0N,17,23^FD${sku}^FS
+^FT310,48
+^A0N,17,23^FD${itemName}^FS
+^FT321,73
+^A0N,17,23^FDRs. ${price}^FS
+^PQ1,0,1,Y
+^XZ\n`;
+      } else {
+        zpl += `^XA
+^SZ2^JMA
+^MCY^PMN
+^PW787^MTT
+^JZY
+^LH0,0^LRN
+^XZ
+^XA
+^FT80,17
+^CI0
+^A0N,17,23^FD${storeName}^FS
+^FO81,21
+^BY2^BCN,35,N,N^FD>;${unitCode}^FS
+^FT80,72
+^A0N,14,20^FD${unitCode}^FS
+^FT319,22
+^A0N,17,23^FD${sku}^FS
+^FT310,48
+^A0N,17,23^FD${itemName}^FS
+^FT321,73
+^A0N,17,23^FDRs. ${price}^FS
+^PQ1,0,1,Y
+^XZ\n`;
+      }
+    }
+    return zpl;
+  };
+
+  // Method 1: Calibrated Browser Print for Jewelry Barcode / QR Code Labels
+  const handlePrintRowSku = async (row, forceType = null) => {
     const mrpNum = parseFloat(row.mrp);
     if (row.mrp === undefined || row.mrp === null || String(row.mrp).trim() === "" || isNaN(mrpNum) || mrpNum <= 0) {
       alert("Please enter a valid MRP before printing the barcode label.");
@@ -2078,55 +2147,45 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
 
     const itemName = (row.item || row.itemData?.itemName || "Jewelry Item").trim();
     const uiItemCode = (row.sku || row.itemData?.sku || row.itemCode || row.designNo || row.dNo || "").trim();
-
-    const displayPrice = mrpNum.toFixed(2);
-    
-    // Company Name
-    const storeName = "Brynex Jewels";
-
-    // Number of tags to print equals Quantity
+    const storeName = "Brynex Jewels & Co.";
     const qty = Math.max(1, Math.round(parseFloat(row.quantity) || 1));
-
-    const isQr = String(row.category || "").toLowerCase().includes("qr") || String(row.category || "").toLowerCase() === "others";
-
+    const isQr = forceType ? forceType === "qr" : (String(row.category || "").toLowerCase().includes("qr") || String(row.category || "").toLowerCase() === "others");
     const formattedPrice = mrpNum % 1 === 0 ? mrpNum.toFixed(0) : mrpNum.toFixed(2);
 
     let tagsHtml = "";
     for (let i = 0; i < qty; i++) {
-      // Every printed unit gets a guaranteed unique, non-repeating 10-digit sequential code
       const unitCode = getNextUniqueProductCode();
       const currentDNo = uiItemCode || unitCode;
 
       if (isQr) {
-        // QR Code tag matching the sticker alignment (Left: QR Code, Right: Brynex Jewels, P.NO, MRP, Code all flush left)
         const qrDataUrl = await generateQrDataUrl(unitCode);
         tagsHtml += `
           <div class="tag-page qr-page">
-            <div class="tag-card qr-card-layout">
-              <!-- Left Block: High-Resolution Square QR Code -->
-              <div class="tag-left-qr">
+            <div class="tag-card">
+              <!-- Left Wing: Store Name, QR Code, Serial Number -->
+              <div class="tag-left">
+                <div class="store-name">${storeName}</div>
                 <div class="qr-container">
                   <img class="qr-img" src="${qrDataUrl}" alt="${unitCode}" />
                 </div>
+                <div class="serial-text">${unitCode}</div>
               </div>
 
-              <!-- Right Block: Perfectly Left-Aligned Brand, P.NO, MRP, Code -->
-              <div class="tag-right-qr">
-                <div class="company-title-qr">Brynex Jewels</div>
-                <div class="qr-line"><span class="qr-lbl">P.NO:</span> ${currentDNo}</div>
-                <div class="qr-line"><span class="qr-lbl">MRP:</span> ${formattedPrice} Rs</div>
-                <div class="qr-line"><span class="qr-lbl">Code:</span> ${unitCode}</div>
+              <!-- Right Wing: Design No, Item Name, MRP -->
+              <div class="tag-right">
+                <div class="sku-code">${currentDNo}</div>
+                <div class="item-name-text">${itemName}</div>
+                <div class="price-val">Rs. ${formattedPrice}</div>
               </div>
             </div>
           </div>
         `;
       } else {
-        // 1D Barcode tag for "Jewels" category (Direct Vector SVG)
         const barcodeSvgHtml = generateBarcodeSvg(unitCode);
         tagsHtml += `
           <div class="tag-page barcode-page">
             <div class="tag-card">
-              <!-- Left Block: Store Name, 1D Barcode, Serial Number -->
+              <!-- Left Wing: Store Name, 1D Barcode, Serial Number -->
               <div class="tag-left">
                 <div class="store-name">${storeName}</div>
                 <div class="barcode-container">
@@ -2135,33 +2194,17 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                 <div class="serial-text">${unitCode}</div>
               </div>
 
-              <!-- Right Block: P.NO, MRP -->
+              <!-- Right Wing: Design No, Item Name, MRP -->
               <div class="tag-right">
-                <div class="sku-code">P.NO: ${currentDNo}</div>
-                <div class="price-val">MRP: ${formattedPrice} Rs</div>
+                <div class="sku-code">${currentDNo}</div>
+                <div class="item-name-text">${itemName}</div>
+                <div class="price-val">Rs. ${formattedPrice}</div>
               </div>
             </div>
           </div>
         `;
       }
     }
-
-    // Create hidden print iframe
-    let printFrame = document.getElementById("sku-print-frame");
-    if (printFrame) {
-      printFrame.remove();
-    }
-
-    printFrame = document.createElement("iframe");
-    printFrame.id = "sku-print-frame";
-    printFrame.style.position = "fixed";
-    printFrame.style.right = "0";
-    printFrame.style.bottom = "0";
-    printFrame.style.width = "0";
-    printFrame.style.height = "0";
-    printFrame.style.border = "0";
-    printFrame.style.visibility = "hidden";
-    document.body.appendChild(printFrame);
 
     const printHtml = `
       <!DOCTYPE html>
@@ -2218,7 +2261,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
             .tag-page {
               width: 92mm;
               height: 12mm;
-              padding: 0.6mm 0.8mm;
+              padding: 0.4mm 1mm;
               display: flex;
               align-items: center;
               justify-content: flex-start;
@@ -2233,9 +2276,9 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               break-after: auto;
             }
             .tag-card {
-              width: 40mm;
-              max-width: 40mm;
-              height: 10.8mm;
+              width: 82mm;
+              max-width: 82mm;
+              height: 11.2mm;
               display: flex;
               flex-direction: row;
               align-items: center;
@@ -2243,86 +2286,30 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               overflow: hidden;
               box-sizing: border-box;
             }
-            .qr-card-layout {
-              display: flex;
-              flex-direction: row;
-              align-items: center;
-              justify-content: flex-start;
-              gap: 2.2mm;
-              padding-left: 0.4mm;
-              width: 40mm;
-              max-width: 40mm;
-            }
-            .tag-left-qr {
-              width: 9.6mm;
-              height: 9.6mm;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              flex-shrink: 0;
-            }
-            .qr-container {
-              width: 9.6mm;
-              height: 9.6mm;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-            }
-            .qr-img {
-              width: 100%;
-              height: 100%;
-              object-fit: contain;
-              image-rendering: -webkit-optimize-contrast;
-              image-rendering: pixelated;
-              display: block;
-            }
-            .tag-right-qr {
-              display: flex;
-              flex-direction: column;
-              justify-content: center;
-              align-items: flex-start;
-              text-align: left;
-              gap: 0.2mm;
-              overflow: hidden;
-            }
-            .company-title-qr {
-              font-size: 5.6pt;
-              font-weight: 800;
-              line-height: 1.15;
-              text-align: left;
-              margin: 0;
-              padding: 0;
-              color: #000;
-              white-space: nowrap;
-            }
-            .qr-line {
-              font-size: 5.2pt;
-              font-weight: 600;
-              line-height: 1.15;
-              white-space: nowrap;
-              color: #000;
-              display: flex;
-              align-items: baseline;
-              gap: 2px;
-              text-align: left;
-              margin: 0;
-              padding: 0;
-            }
-            .qr-lbl {
-              font-weight: 700;
-            }
             .tag-left {
-              width: 19.5mm;
+              width: 38mm;
+              max-width: 38mm;
               height: 100%;
               display: flex;
               flex-direction: column;
               align-items: center;
               justify-content: space-between;
-              padding-right: 0.5mm;
+              padding: 0.2mm 0.4mm;
+              overflow: hidden;
+            }
+            .tag-right {
+              width: 38mm;
+              max-width: 38mm;
+              height: 100%;
+              display: flex;
+              flex-direction: column;
+              align-items: flex-start;
+              justify-content: space-between;
+              padding: 0.2mm 0.4mm 0.2mm 1.5mm;
               overflow: hidden;
             }
             .store-name {
-              font-size: 4.8pt;
+              font-size: 5pt;
               font-weight: 700;
               line-height: 1;
               white-space: nowrap;
@@ -2334,13 +2321,21 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
             }
             .barcode-container {
               width: 100%;
-              height: 4.5mm;
+              height: 5.2mm;
               display: flex;
               align-items: center;
               justify-content: center;
-              margin: 0.1mm 0;
+              margin: 0;
             }
-            .barcode-img {
+            .qr-container {
+              width: 5.6mm;
+              height: 5.6mm;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              margin: 0 auto;
+            }
+            .qr-img {
               width: 100%;
               height: 100%;
               object-fit: contain;
@@ -2358,21 +2353,20 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               font-family: monospace, Arial, sans-serif;
               color: #000;
             }
-            .tag-right {
-              width: 19.5mm;
-              height: 100%;
-              display: flex;
-              flex-direction: column;
-              align-items: flex-start;
-              justify-content: center;
-              gap: 0.6mm;
-              padding-left: 0.8mm;
-              overflow: hidden;
-            }
             .sku-code {
-              font-size: 5.4pt;
+              font-size: 5.5pt;
               font-weight: 700;
-              line-height: 1.15;
+              line-height: 1.1;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              max-width: 100%;
+              color: #000;
+            }
+            .item-name-text {
+              font-size: 5pt;
+              font-weight: 600;
+              line-height: 1.1;
               white-space: nowrap;
               overflow: hidden;
               text-overflow: ellipsis;
@@ -2380,9 +2374,9 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               color: #000;
             }
             .price-val {
-              font-size: 6pt;
+              font-size: 5.8pt;
               font-weight: 800;
-              line-height: 1.15;
+              line-height: 1.1;
               color: #000;
               white-space: nowrap;
             }
@@ -2394,23 +2388,151 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       </html>
     `;
 
-    const frameDoc = printFrame.contentWindow.document;
-    frameDoc.open();
-    frameDoc.write(printHtml);
-    frameDoc.close();
+    // Open dedicated print popup window for 100% reliable Chrome print preview
+    const printWin = window.open("", "_blank", "width=850,height=600");
+    if (!printWin) {
+      alert("Please allow pop-ups for this website in your browser to open the print dialog.");
+      return;
+    }
 
+    printWin.document.open();
+    printWin.document.write(printHtml);
+    printWin.document.close();
+    printWin.focus();
+
+    // Trigger print preview as soon as document renders
     setTimeout(() => {
       try {
-        printFrame.contentWindow.focus();
-        printFrame.contentWindow.print();
+        printWin.focus();
+        printWin.print();
       } catch (err) {
-        console.error("Print error:", err);
-      } finally {
-        setTimeout(() => {
-          if (printFrame) printFrame.remove();
-        }, 1200);
+        console.error("Print dialog error:", err);
       }
-    }, 250);
+    }, 400);
+  };
+
+  // Method 2A: Direct WebUSB Raw Printing to USB Thermal Printer
+  const handleDirectWebUsbPrint = async (row, forceType = null) => {
+    const mrpNum = parseFloat(row.mrp);
+    if (row.mrp === undefined || row.mrp === null || String(row.mrp).trim() === "" || isNaN(mrpNum) || mrpNum <= 0) {
+      alert("Please enter a valid MRP before printing.");
+      return;
+    }
+    if (!navigator.usb) {
+      alert("WebUSB is supported in Google Chrome and Microsoft Edge. For other browsers, please use Calibrated Browser Print or Download .PRN file.");
+      return;
+    }
+
+    const itemName = (row.item || row.itemData?.itemName || "Jewelry Item").trim();
+    const uiItemCode = (row.sku || row.itemData?.sku || row.itemCode || row.designNo || row.dNo || "").trim();
+    const formattedPrice = mrpNum % 1 === 0 ? mrpNum.toFixed(0) : mrpNum.toFixed(2);
+    const qty = Math.max(1, Math.round(parseFloat(row.quantity) || 1));
+    const isQr = forceType ? forceType === "qr" : (String(row.category || "").toLowerCase().includes("qr") || String(row.category || "").toLowerCase() === "others");
+    const unitCode = getNextUniqueProductCode();
+    const currentDNo = uiItemCode || unitCode;
+
+    const zpl = generateZplString({
+      unitCode,
+      itemName,
+      sku: currentDNo,
+      price: formattedPrice,
+      storeName: "Brynex Jewels & Co.",
+      isQr,
+      qty,
+    });
+
+    try {
+      const device = await navigator.usb.requestDevice({ filters: [] });
+      await device.open();
+      if (device.configuration === null) {
+        await device.selectConfiguration(1);
+      }
+      await device.claimInterface(0);
+      const encoder = new TextEncoder();
+      const data = encoder.encode(zpl);
+      const outEndpoint = device.configuration?.interfaces?.[0]?.alternate?.endpoints?.find(
+        (ep) => ep.direction === "out"
+      );
+      const epNumber = outEndpoint ? outEndpoint.endpointNumber : 1;
+      await device.transferOut(epNumber, data);
+      await device.close();
+      alert("Print command sent directly to thermal printer successfully!");
+    } catch (err) {
+      console.error("Direct USB print error:", err);
+      if (err.name !== "NotFoundError") {
+        alert("Thermal USB Print: " + (err.message || "Failed to communicate with printer."));
+      }
+    }
+  };
+
+  // Method 2B: Download .PRN / .ZPL File matching D123.prn
+  const handleDownloadPrn = (row, forceType = null) => {
+    const mrpNum = parseFloat(row.mrp);
+    if (row.mrp === undefined || row.mrp === null || String(row.mrp).trim() === "" || isNaN(mrpNum) || mrpNum <= 0) {
+      alert("Please enter a valid MRP before downloading the .prn file.");
+      return;
+    }
+    const itemName = (row.item || row.itemData?.itemName || "Jewelry Item").trim();
+    const uiItemCode = (row.sku || row.itemData?.sku || row.itemCode || row.designNo || row.dNo || "").trim();
+    const formattedPrice = mrpNum % 1 === 0 ? mrpNum.toFixed(0) : mrpNum.toFixed(2);
+    const qty = Math.max(1, Math.round(parseFloat(row.quantity) || 1));
+    const isQr = forceType ? forceType === "qr" : (String(row.category || "").toLowerCase().includes("qr") || String(row.category || "").toLowerCase() === "others");
+    const unitCode = getNextUniqueProductCode();
+    const currentDNo = uiItemCode || unitCode;
+
+    const zpl = generateZplString({
+      unitCode,
+      itemName,
+      sku: currentDNo,
+      price: formattedPrice,
+      storeName: "Brynex Jewels & Co.",
+      isQr,
+      qty,
+    });
+
+    const blob = new Blob([zpl], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Tag_${currentDNo}_${unitCode}.prn`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Method 2C: Copy Raw ZPL String to Clipboard
+  const handleCopyZpl = (row, forceType = null) => {
+    const mrpNum = parseFloat(row.mrp) || 0;
+    const itemName = (row.item || row.itemData?.itemName || "Jewelry Item").trim();
+    const uiItemCode = (row.sku || row.itemData?.sku || row.itemCode || row.designNo || row.dNo || "").trim();
+    const formattedPrice = mrpNum % 1 === 0 ? mrpNum.toFixed(0) : mrpNum.toFixed(2);
+    const qty = Math.max(1, Math.round(parseFloat(row.quantity) || 1));
+    const isQr = forceType ? forceType === "qr" : (String(row.category || "").toLowerCase().includes("qr") || String(row.category || "").toLowerCase() === "others");
+    const unitCode = "12345678";
+    const currentDNo = uiItemCode || unitCode;
+
+    const zpl = generateZplString({
+      unitCode,
+      itemName,
+      sku: currentDNo,
+      price: formattedPrice,
+      storeName: "Brynex Jewels & Co.",
+      isQr,
+      qty,
+    });
+
+    navigator.clipboard.writeText(zpl).then(() => {
+      setCopiedZpl(true);
+      setTimeout(() => setCopiedZpl(false), 2000);
+    });
+  };
+
+  // Open Print Options Modal
+  const handleOpenPrintModal = (row) => {
+    const isQrDefault = String(row.category || "").toLowerCase().includes("qr") || String(row.category || "").toLowerCase() === "others";
+    setPrintLabelType(isQrDefault ? "qr" : "barcode");
+    setPrintModalData(row);
   };
 
   // Calculate totals
@@ -2976,6 +3098,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               targetItem.sellingPrice = rowSelling || targetItem.sellingPrice || 0;
               targetItem.costPrice = rowCost || targetItem.costPrice || 0;
               if (rowHsn) targetItem.hsnCode = rowHsn;
+              if (row.image) targetItem.image = row.image;
               currentGroupItems[existingItemIdx] = targetItem;
             } else {
               // Append new item to group with initial 0 stock; BillController adds bill quantity
@@ -2989,6 +3112,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                 sellingPrice: rowSelling,
                 stock: 0,
                 isActive: true,
+                image: row.image || "",
                 warehouseStocks: [{
                   warehouse: targetWarehouse,
                   openingStock: 0,
@@ -3034,6 +3158,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               itemGroupId: groupId,
               itemName: finalItemName,
               itemDescription: row.itemDescription || "",
+              image: row.image || "",
               size: rowSize,
               hsnCode: rowHsn,
               quantity: rowQuantity,
@@ -3083,6 +3208,8 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               unit: "PCS",
               taxRateIntra: row.tax || "",
               trackInventory: true,
+              image: row.image || "",
+              images: row.image ? [{ filename: "item-image.jpg", contentType: "image/jpeg", data: row.image }] : [],
               warehouseStocks: [{
                 warehouse: targetWarehouse,
                 openingStock: 0,
@@ -3100,6 +3227,16 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
           if (createItemRes.ok) {
             const standaloneItem = await createItemRes.json();
             if (!itemId) itemId = standaloneItem._id || standaloneItem.id;
+          } else if (itemId && row.image) {
+            // Update image on existing item
+            await fetch(`${API_URL}/api/shoe-sales/items/${itemId}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                image: row.image,
+                images: [{ filename: "item-image.jpg", contentType: "image/jpeg", data: row.image }],
+              }),
+            });
           }
         } catch (err) {
           console.warn("Could not sync standalone item on bill save:", err);
@@ -3110,6 +3247,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
           itemGroupId: null,
           itemName: finalItemName,
           itemDescription: row.itemDescription || "",
+          image: row.image || "",
           size: rowSize,
           hsnCode: rowHsn,
           quantity: rowQuantity,
@@ -3850,9 +3988,9 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                           {hasValidMrp ? (
                             <button
                               type="button"
-                              onClick={() => handlePrintRowSku(row)}
+                              onClick={() => handleOpenPrintModal(row)}
                               className="w-7 h-7 rounded-none bg-gray-100 text-gray-700 hover:bg-purple-50 hover:text-purple-600 flex items-center justify-center transition-colors shadow-2xs cursor-pointer"
-                              title="Print SKU & Barcode Label"
+                              title="Print Options (Browser / Direct Thermal / .PRN)"
                             >
                               <Printer size={14} />
                             </button>
@@ -4940,6 +5078,200 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Print Options Modal (Calibrated D123.prn System) */}
+      {printModalData && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-4">
+          <div className="relative w-full max-w-lg rounded-none bg-white shadow-2xl border border-gray-200 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3.5 bg-gray-50">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-none bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+                  <Printer size={16} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Jewelry Label Print Options</h3>
+                  <p className="text-[11px] text-gray-500">Calibrated to D123 203 DPI Dual-Wing Tag Specification</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPrintModalData(null)}
+                className="text-gray-400 hover:text-gray-700 p-1 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+              {/* Item Details Card */}
+              <div className="bg-purple-50/60 border border-purple-100 p-3 rounded-none flex items-center justify-between text-xs">
+                <div>
+                  <div className="font-bold text-gray-900 text-sm">
+                    {printModalData.item || printModalData.itemData?.itemName || "Jewelry Item"}
+                  </div>
+                  <div className="text-gray-600 mt-0.5">
+                    SKU / D.No: <span className="font-semibold text-purple-700">{printModalData.sku || printModalData.itemData?.sku || printModalData.designNo || "20602"}</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-gray-500">MRP Price</div>
+                  <div className="text-sm font-bold text-emerald-700">₹{parseFloat(printModalData.mrp || 0).toFixed(2)}</div>
+                  <div className="text-[10px] text-gray-500">Qty: {Math.max(1, Math.round(parseFloat(printModalData.quantity) || 1))} tag(s)</div>
+                </div>
+              </div>
+
+              {/* Tag Format Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">
+                  Select Tag Code Format
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPrintLabelType("barcode")}
+                    className={`px-3 py-2 text-xs font-medium border flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      printLabelType === "barcode"
+                        ? "border-purple-600 bg-purple-50 text-purple-700 font-bold shadow-2xs"
+                        : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    <span>1D Barcode (Code 128)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintLabelType("qr")}
+                    className={`px-3 py-2 text-xs font-medium border flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      printLabelType === "qr"
+                        ? "border-purple-600 bg-purple-50 text-purple-700 font-bold shadow-2xs"
+                        : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    <span>2D QR Code</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Tag Preview Box */}
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+                  Tag Layout Preview (92mm × 12mm Dual-Wing)
+                </label>
+                <div className="p-3 bg-gray-100 border border-gray-200 rounded-none flex items-center justify-center">
+                  <div className="bg-white border border-gray-300 shadow-sm p-2 flex items-center justify-between w-full max-w-[340px] text-[9px] font-sans">
+                    {/* Left Wing */}
+                    <div className="w-[45%] flex flex-col items-center justify-center text-center border-r border-dashed border-gray-300 pr-2">
+                      <div className="font-bold text-[8px] truncate max-w-full">Brynex Jewels & Co.</div>
+                      <div className="my-0.5 h-6 w-full flex items-center justify-center bg-gray-50 text-[8px] font-mono text-gray-500 border border-gray-200">
+                        {printLabelType === "barcode" ? "|||||||||||||||" : "[ QR CODE ]"}
+                      </div>
+                      <div className="font-mono text-[8px] font-bold">12345678</div>
+                    </div>
+
+                    {/* Right Wing */}
+                    <div className="w-[50%] flex flex-col items-start justify-center pl-2">
+                      <div className="font-bold text-[8px] truncate max-w-full">
+                        {printModalData.sku || printModalData.itemData?.sku || "20602"}
+                      </div>
+                      <div className="text-[7.5px] text-gray-600 truncate max-w-full">
+                        {printModalData.item || printModalData.itemData?.itemName || "Gold Neck Chain"}
+                      </div>
+                      <div className="font-bold text-[8.5px] text-gray-900 mt-0.5">
+                        Rs. {parseFloat(printModalData.mrp || 0).toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Print Action Methods */}
+              <div className="space-y-2 pt-1">
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Choose Printing Method
+                </label>
+
+                {/* Option 1: Browser Standard Print */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    handlePrintRowSku(printModalData, printLabelType);
+                    setPrintModalData(null);
+                  }}
+                  className="w-full text-left p-3 border border-purple-200 bg-purple-50/40 hover:bg-purple-50 hover:border-purple-600 transition-all flex items-start gap-3 cursor-pointer group"
+                >
+                  <div className="w-8 h-8 rounded-none bg-purple-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                    <Printer size={16} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-gray-900 group-hover:text-purple-700 flex items-center justify-between">
+                      <span>Method 1: Print via Browser (Calibrated HTML/CSS)</span>
+                      <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 font-semibold">Recommended</span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      Opens Chrome print dialog with exact 92×12mm dimensions. (Tip: Margins: None, Scale: 100%)
+                    </p>
+                  </div>
+                </button>
+
+                {/* Option 2: Direct WebUSB Thermal Print */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleDirectWebUsbPrint(printModalData, printLabelType);
+                  }}
+                  className="w-full text-left p-3 border border-gray-200 bg-white hover:bg-emerald-50/50 hover:border-emerald-500 transition-all flex items-start gap-3 cursor-pointer group"
+                >
+                  <div className="w-8 h-8 rounded-none bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                    <Usb size={16} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-gray-900 group-hover:text-emerald-700 flex items-center justify-between">
+                      <span>Method 2A: Direct Thermal Print (WebUSB)</span>
+                      <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 font-semibold">100% Raw ZPL</span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      Sends raw ZPL directly to USB thermal printer without opening any browser dialog.
+                    </p>
+                  </div>
+                </button>
+
+                {/* Secondary Actions: Download .PRN / Copy ZPL */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadPrn(printModalData, printLabelType)}
+                    className="px-3 py-2 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Download size={13} />
+                    <span>Download .PRN File</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyZpl(printModalData, printLabelType)}
+                    className="px-3 py-2 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    {copiedZpl ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                    <span>{copiedZpl ? "ZPL Copied!" : "Copy Raw ZPL"}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setPrintModalData(null)}
+                className="h-8 px-4 text-xs font-medium text-gray-700 hover:text-gray-900 bg-white border border-gray-300 hover:bg-gray-100 transition-colors cursor-pointer"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>,

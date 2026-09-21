@@ -1246,11 +1246,28 @@ const ShoeSalesItemDetail = () => {
                           isActive ? "bg-[#eef2ff] font-semibold text-[#1f2937]" : "text-[#475569] hover:bg-[#f6f8ff]"
                         }`}
                       >
-                        <div className="flex flex-col">
-                          <span>{entry.itemName || "Untitled Item"}</span>
-                          <span className="text-xs text-[#94a3b8]">{entry.sku || "No SKU"}</span>
+                        <div className="flex items-center gap-3 min-w-0">
+                          {(() => {
+                            const entryImg = entry.image || (entry.images && entry.images[0]?.data) || (entry.images && typeof entry.images[0] === 'string' && entry.images[0]) || "";
+                            if (entryImg) {
+                              return (
+                                <div className="w-8 h-8 rounded border border-gray-200 bg-white shrink-0 overflow-hidden flex items-center justify-center p-0.5">
+                                  <img src={entryImg} alt="" className="w-full h-full object-contain" />
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="w-8 h-8 rounded bg-gray-100 text-gray-600 font-bold text-xs shrink-0 flex items-center justify-center">
+                                {(entry.itemName || "?")[0]}
+                              </div>
+                            );
+                          })()}
+                          <div className="flex flex-col truncate">
+                            <span className="truncate">{entry.itemName || "Untitled Item"}</span>
+                            <span className="text-xs text-[#94a3b8]">{entry.sku || "No SKU"}</span>
+                          </div>
                         </div>
-                        <span className="text-xs font-semibold text-[#1f2937]">
+                        <span className="text-xs font-semibold text-[#1f2937] shrink-0 ml-2">
                           {formatCurrency(entry.sellingPrice || 0)}
                         </span>
                       </Link>
@@ -1324,9 +1341,26 @@ const ShoeSalesItemDetail = () => {
           {/* Item Header Card */}
           <div className="bg-white rounded-2xl shadow-sm p-8">
             <div className="flex items-start justify-between mb-8">
-              <div>
-                <h1 className="text-3xl font-bold text-[#1a1a2e] tracking-tight">{item.itemName}</h1>
-                <p className="text-base text-[#64748b] mt-2">SKU: {item.sku || "N/A"} {item.brand && `• ${item.brand}`}</p>
+              <div className="flex items-center gap-5">
+                {(() => {
+                  const itemImg = item.image || (item.images && item.images[0]?.data) || (item.images && typeof item.images[0] === 'string' && item.images[0]) || "";
+                  if (itemImg) {
+                    return (
+                      <div className="w-20 h-20 rounded-xl overflow-hidden border border-gray-200 bg-white flex items-center justify-center shrink-0 shadow-sm p-1">
+                        <img
+                          src={itemImg}
+                          alt={item.itemName}
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                <div>
+                  <h1 className="text-3xl font-bold text-[#1a1a2e] tracking-tight">{item.itemName}</h1>
+                  <p className="text-base text-[#64748b] mt-2">SKU: {item.sku || "N/A"} {item.brand && `• ${item.brand}`}</p>
+                </div>
               </div>
               <div className="text-right">
                 <p className="text-sm text-[#64748b] mb-1">Selling Price</p>

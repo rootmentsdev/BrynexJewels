@@ -37,6 +37,7 @@ const billSchema = new mongoose.Schema(
       itemId: { type: mongoose.Schema.Types.ObjectId, ref: "ShoeItem" },
       itemName: String,
       itemDescription: String,
+      image: { type: String, default: "" },
       account: String,
       size: String,
       hsnCode: { type: String, default: "" },

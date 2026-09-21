@@ -212,6 +212,10 @@ const ShoeItemSchema = new mongoose.Schema(
         data: String, // Base64 string
       },
     ],
+    image: {
+      type: String, // Base64 string or URL
+      trim: true,
+    },
     createdBy: {
       type: String,
       trim: true,
