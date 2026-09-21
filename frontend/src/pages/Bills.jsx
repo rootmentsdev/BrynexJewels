@@ -2056,6 +2056,18 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     }
   };
 
+  // Helper to generate guaranteed non-repeating 10-digit sequential unique product code (e.g. 1000015983)
+  const getNextUniqueProductCode = () => {
+    const STORAGE_KEY = "brynex_last_unique_code_seq";
+    let lastCode = parseInt(localStorage.getItem(STORAGE_KEY), 10);
+    if (isNaN(lastCode) || lastCode < 1000015000) {
+      lastCode = 1000015982;
+    }
+    const nextCode = lastCode + 1;
+    localStorage.setItem(STORAGE_KEY, nextCode.toString());
+    return nextCode.toString();
+  };
+
   // Handler to print Jewelry Barcode / QR Code Labels for each quantity unit
   const handlePrintRowSku = async (row) => {
     const mrpNum = parseFloat(row.mrp);
@@ -2065,64 +2077,52 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     }
 
     const itemName = (row.item || row.itemData?.itemName || "Jewelry Item").trim();
-    let sku = (row.sku || row.itemData?.sku || "").trim();
-
-    // If row doesn't have SKU yet, auto-generate one
-    if (!sku) {
-      const cleanName = itemName.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-      const prefix = cleanName.slice(0, 4) || "ITEM";
-      const randomNum = Math.floor(1000 + Math.random() * 9000);
-      sku = `${prefix}-${randomNum}`;
-      handleUpdateRow(row.id, "sku", sku);
-    }
+    const uiItemCode = (row.sku || row.itemData?.sku || row.itemCode || row.designNo || row.dNo || "").trim();
 
     const displayPrice = mrpNum.toFixed(2);
     
-    // Store name / Company Name
-    const storeName = "Brynex Jewels & Co.";
+    // Company Name
+    const storeName = "Brynex Jewels";
 
     // Number of tags to print equals Quantity
     const qty = Math.max(1, Math.round(parseFloat(row.quantity) || 1));
 
-    // Generate unique 10-digit sequential serial numbers for each quantity unit
-    let baseSerialSeed = 1000001000 + Math.floor(Math.random() * 899000);
-    if (/^\d{6,10}$/.test(sku)) {
-      baseSerialSeed = parseInt(sku, 10);
-    }
-
     const isQr = String(row.category || "").toLowerCase() === "others";
+
+    const formattedPrice = mrpNum % 1 === 0 ? mrpNum.toFixed(0) : mrpNum.toFixed(2);
 
     let tagsHtml = "";
     for (let i = 0; i < qty; i++) {
-      const unitSerial = (baseSerialSeed + i).toString();
+      // Every printed unit gets a guaranteed unique, non-repeating 10-digit sequential code
+      const unitCode = getNextUniqueProductCode();
+      const currentDNo = uiItemCode || unitCode;
 
       if (isQr) {
-        // QR Code tag for "Others" category
-        const qrDataUrl = await generateQrDataUrl(unitSerial);
+        // QR Code tag matching the sticker alignment (Left: QR Code, Right: Brynex Jewels, P.NO, MRP, Code all flush left)
+        const qrDataUrl = await generateQrDataUrl(unitCode);
         tagsHtml += `
           <div class="tag-page qr-page">
-            <div class="tag-card">
-              <!-- Left Block: Large High-Resolution QR Code & Serial Number -->
+            <div class="tag-card qr-card-layout">
+              <!-- Left Block: High-Resolution Square QR Code -->
               <div class="tag-left-qr">
                 <div class="qr-container">
-                  <img class="qr-img" src="${qrDataUrl}" alt="${unitSerial}" />
+                  <img class="qr-img" src="${qrDataUrl}" alt="${unitCode}" />
                 </div>
-                <div class="serial-text">${unitSerial}</div>
               </div>
 
-              <!-- Right Block: Store Name, Item Code, Item Name, Price -->
-              <div class="tag-right">
-                <div class="store-name">${storeName}</div>
-                <div class="sku-code">${sku}</div>
-                <div class="item-title">${itemName}</div>
-                <div class="price-val">Rs ${displayPrice}</div>
+              <!-- Right Block: Perfectly Left-Aligned Brand, P.NO, MRP, Code -->
+              <div class="tag-right-qr">
+                <div class="company-title-qr">Brynex Jewels</div>
+                <div class="qr-line"><span class="qr-lbl">P.NO:</span> ${currentDNo}</div>
+                <div class="qr-line"><span class="qr-lbl">MRP:</span> ${formattedPrice} Rs</div>
+                <div class="qr-line"><span class="qr-lbl">Code:</span> ${unitCode}</div>
               </div>
             </div>
           </div>
         `;
       } else {
         // 1D Barcode tag for "Jewels" category (Direct Vector SVG)
-        const barcodeSvgHtml = generateBarcodeSvg(unitSerial);
+        const barcodeSvgHtml = generateBarcodeSvg(unitCode);
         tagsHtml += `
           <div class="tag-page barcode-page">
             <div class="tag-card">
@@ -2132,14 +2132,13 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                 <div class="barcode-container">
                   ${barcodeSvgHtml}
                 </div>
-                <div class="serial-text">${unitSerial}</div>
+                <div class="serial-text">${unitCode}</div>
               </div>
 
-              <!-- Right Block: SKU Code, Item Title, Price / MRP -->
+              <!-- Right Block: P.NO, MRP -->
               <div class="tag-right">
-                <div class="sku-code">${sku}</div>
-                <div class="item-title">${itemName}</div>
-                <div class="price-val">Rs ${displayPrice}</div>
+                <div class="sku-code">P.NO: ${currentDNo}</div>
+                <div class="price-val">MRP: ${formattedPrice} Rs</div>
               </div>
             </div>
           </div>
@@ -2214,11 +2213,12 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               padding: 0;
               background: #fff;
               color: #000;
+              overflow: hidden;
             }
             .tag-page {
               width: 92mm;
               height: 12mm;
-              padding: 0.4mm 1mm;
+              padding: 0.6mm 0.8mm;
               display: flex;
               align-items: center;
               justify-content: flex-start;
@@ -2233,36 +2233,37 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               break-after: auto;
             }
             .tag-card {
-              width: 45mm;
-              height: 11.2mm;
+              width: 40mm;
+              max-width: 40mm;
+              height: 10.8mm;
               display: flex;
               flex-direction: row;
-              align-items: stretch;
+              align-items: center;
               justify-content: space-between;
               overflow: hidden;
+              box-sizing: border-box;
             }
-            .tag-left {
-              width: 49%;
+            .qr-card-layout {
               display: flex;
-              flex-direction: column;
-              align-items: flex-start;
-              justify-content: space-between;
-              padding-right: 0.5mm;
-              overflow: hidden;
+              flex-direction: row;
+              align-items: center;
+              justify-content: flex-start;
+              gap: 2.2mm;
+              padding-left: 0.4mm;
+              width: 40mm;
+              max-width: 40mm;
             }
             .tag-left-qr {
-              width: 42%;
-              height: 100%;
+              width: 9.6mm;
+              height: 9.6mm;
               display: flex;
-              flex-direction: column;
               align-items: center;
               justify-content: center;
-              text-align: center;
-              overflow: hidden;
+              flex-shrink: 0;
             }
             .qr-container {
-              width: 8.5mm;
-              height: 8.5mm;
+              width: 9.6mm;
+              height: 9.6mm;
               display: flex;
               align-items: center;
               justify-content: center;
@@ -2275,19 +2276,65 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               image-rendering: pixelated;
               display: block;
             }
-            .store-name {
+            .tag-right-qr {
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
+              align-items: flex-start;
+              text-align: left;
+              gap: 0.2mm;
+              overflow: hidden;
+            }
+            .company-title-qr {
+              font-size: 5.6pt;
+              font-weight: 800;
+              line-height: 1.15;
+              text-align: left;
+              margin: 0;
+              padding: 0;
+              color: #000;
+              white-space: nowrap;
+            }
+            .qr-line {
               font-size: 5.2pt;
+              font-weight: 600;
+              line-height: 1.15;
+              white-space: nowrap;
+              color: #000;
+              display: flex;
+              align-items: baseline;
+              gap: 2px;
+              text-align: left;
+              margin: 0;
+              padding: 0;
+            }
+            .qr-lbl {
+              font-weight: 700;
+            }
+            .tag-left {
+              width: 19.5mm;
+              height: 100%;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: space-between;
+              padding-right: 0.5mm;
+              overflow: hidden;
+            }
+            .store-name {
+              font-size: 4.8pt;
               font-weight: 700;
               line-height: 1;
               white-space: nowrap;
               overflow: hidden;
               text-overflow: ellipsis;
               max-width: 100%;
+              text-align: center;
               color: #000;
             }
             .barcode-container {
               width: 100%;
-              height: 5.4mm;
+              height: 4.5mm;
               display: flex;
               align-items: center;
               justify-content: center;
@@ -2302,9 +2349,9 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               display: block;
             }
             .serial-text {
-              font-size: 5.5pt;
+              font-size: 4.8pt;
               font-weight: 700;
-              letter-spacing: 0.3px;
+              letter-spacing: 0.2px;
               line-height: 1;
               width: 100%;
               text-align: center;
@@ -2312,41 +2359,30 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               color: #000;
             }
             .tag-right {
-              width: 49%;
+              width: 19.5mm;
+              height: 100%;
               display: flex;
               flex-direction: column;
               align-items: flex-start;
-              justify-content: space-between;
-              text-align: left;
-              padding-left: 0.5mm;
+              justify-content: center;
+              gap: 0.6mm;
+              padding-left: 0.8mm;
               overflow: hidden;
             }
             .sku-code {
-              font-size: 6.2pt;
+              font-size: 5.4pt;
               font-weight: 700;
-              line-height: 1;
+              line-height: 1.15;
               white-space: nowrap;
               overflow: hidden;
               text-overflow: ellipsis;
               max-width: 100%;
               color: #000;
             }
-            .item-title {
-              font-size: 5pt;
-              font-weight: 500;
-              line-height: 1.05;
-              color: #000;
-              max-height: 2.1em;
-              overflow: hidden;
-              text-overflow: ellipsis;
-              display: -webkit-box;
-              -webkit-line-clamp: 2;
-              -webkit-box-orient: vertical;
-            }
             .price-val {
-              font-size: 7.2pt;
+              font-size: 6pt;
               font-weight: 800;
-              line-height: 1;
+              line-height: 1.15;
               color: #000;
               white-space: nowrap;
             }
