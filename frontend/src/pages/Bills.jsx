@@ -2087,7 +2087,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     // Number of tags to print equals Quantity
     const qty = Math.max(1, Math.round(parseFloat(row.quantity) || 1));
 
-    const isQr = String(row.category || "").toLowerCase() === "others";
+    const isQr = String(row.category || "").toLowerCase().includes("qr") || String(row.category || "").toLowerCase() === "others";
 
     const formattedPrice = mrpNum % 1 === 0 ? mrpNum.toFixed(0) : mrpNum.toFixed(2);
 
@@ -2804,15 +2804,77 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       // 1. Gather valid rows
       const validRows = tableRows.filter((r) => (r.item || r.itemData?.itemName || "").trim());
 
-      // Validate mandatory MRP on all valid item rows
-      const rowsWithoutMrp = validRows.filter((r) => {
-        const mrpNum = parseFloat(r.mrp);
-        return r.mrp === undefined || r.mrp === null || String(r.mrp).trim() === "" || isNaN(mrpNum) || mrpNum <= 0;
-      });
-      if (rowsWithoutMrp.length > 0) {
-        alert("MRP is mandatory for all items. Please enter a valid MRP for each item.");
+      if (validRows.length === 0) {
+        alert("Please add at least one line item.");
         setSaving(false);
         return;
+      }
+
+      // Validate all required fields for each row (everything mandatory except HSN code)
+      for (let i = 0; i < validRows.length; i++) {
+        const r = validRows[i];
+        const rowNum = i + 1;
+        const itemName = (r.item || r.itemData?.itemName || "").trim();
+        
+        if (!itemName) {
+          alert(`Row ${rowNum}: Item Name is required.`);
+          setSaving(false);
+          return;
+        }
+
+        if (!r.category || String(r.category).trim() === "") {
+          alert(`Row ${rowNum} (${itemName}): Category is mandatory. Please select BR code or QR code.`);
+          setSaving(false);
+          return;
+        }
+
+        const sku = (r.sku || r.itemData?.sku || "").trim();
+        if (!sku) {
+          alert(`Row ${rowNum} (${itemName}): Item Code is mandatory.`);
+          setSaving(false);
+          return;
+        }
+
+        const qty = parseFloat(r.quantity);
+        if (isNaN(qty) || qty <= 0) {
+          alert(`Row ${rowNum} (${itemName}): Quantity is mandatory and must be greater than 0.`);
+          setSaving(false);
+          return;
+        }
+
+        if (!r.tax && !r.taxCode && r.tax !== 0) {
+          alert(`Row ${rowNum} (${itemName}): Tax is mandatory. Please select a Tax.`);
+          setSaving(false);
+          return;
+        }
+
+        const rate = parseFloat(r.rate);
+        if (r.rate === undefined || r.rate === null || String(r.rate).trim() === "" || isNaN(rate) || rate < 0) {
+          alert(`Row ${rowNum} (${itemName}): Cost Price is mandatory.`);
+          setSaving(false);
+          return;
+        }
+
+        const pct = parseFloat(r.percentage);
+        if (r.percentage === undefined || r.percentage === null || String(r.percentage).trim() === "" || isNaN(pct)) {
+          alert(`Row ${rowNum} (${itemName}): Percentage is mandatory.`);
+          setSaving(false);
+          return;
+        }
+
+        const sp = parseFloat(r.sellingPrice);
+        if (r.sellingPrice === undefined || r.sellingPrice === null || String(r.sellingPrice).trim() === "" || isNaN(sp) || sp <= 0) {
+          alert(`Row ${rowNum} (${itemName}): Selling Price is mandatory and must be greater than 0.`);
+          setSaving(false);
+          return;
+        }
+
+        const mrpNum = parseFloat(r.mrp);
+        if (r.mrp === undefined || r.mrp === null || String(r.mrp).trim() === "" || isNaN(mrpNum) || mrpNum <= 0) {
+          alert(`Row ${rowNum} (${itemName}): MRP is mandatory and must be greater than 0.`);
+          setSaving(false);
+          return;
+        }
       }
 
       // 2. Identify new groups to create (deduplicated by name)
@@ -3469,25 +3531,23 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
         {/* Item Details Table */}
         <div className="bg-white rounded-none border border-gray-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-[#181920] text-white text-[11px] font-semibold tracking-wider">
-                  <th className="w-10 px-3 py-3 text-center">
-                    <input type="checkbox" className="rounded-none border-gray-600 bg-transparent text-purple-600 focus:ring-purple-500" />
+            <table className="w-full text-left border-collapse min-w-[1180px]">
+              <thead className="bg-[#181924] text-slate-200 text-[11px] font-semibold tracking-wider sticky top-0 z-10 select-none">
+                <tr className="border-b border-slate-700/60">
+                  <th className="w-10 px-3 py-3.5 text-center whitespace-nowrap">
+                    <input type="checkbox" className="rounded-none border-gray-600 bg-transparent text-purple-600 focus:ring-purple-500 cursor-pointer" />
                   </th>
-                  <th className="px-3 py-3 font-bold uppercase min-w-[200px]">ITEM NAME</th>
-                  <th className="px-3 py-3 font-bold uppercase w-28">CATEGORY</th>
-                  <th className="px-3 py-3 font-bold uppercase w-28">ITEM CODE</th>
-                  <th className="px-3 py-3 font-bold uppercase w-28">HSN CODE</th>
-                  <th className="px-3 py-3 font-bold uppercase w-28 text-center">QUANTITY</th>
-                  <th className="px-3 py-3 font-bold uppercase w-36">TAX</th>
-                  <th className="px-3 py-3 font-bold uppercase w-28">COST PRICE</th>
-                  <th className="px-3 py-3 font-bold uppercase w-24 text-center">PERCENTAGE</th>
-                  <th className="px-3 py-3 font-bold uppercase w-28">SELLING PRICE</th>
-                  <th className="px-3 py-3 font-bold uppercase w-28">
-                    MRP <span className="text-red-500">*</span>
-                  </th>
-                  <th className="px-3 py-3 font-bold uppercase w-28 text-center">ACTIONS</th>
+                  <th className="px-3 py-3.5 font-semibold uppercase min-w-[220px] text-left whitespace-nowrap">ITEM NAME</th>
+                  <th className="px-3 py-3.5 font-semibold uppercase w-28 text-left whitespace-nowrap">CATEGORY</th>
+                  <th className="px-3 py-3.5 font-semibold uppercase w-28 text-left whitespace-nowrap">ITEM CODE</th>
+                  <th className="px-3 py-3.5 font-semibold uppercase w-28 text-left whitespace-nowrap">HSN CODE</th>
+                  <th className="px-3 py-3.5 font-semibold uppercase w-28 text-center whitespace-nowrap">QUANTITY</th>
+                  <th className="px-3 py-3.5 font-semibold uppercase w-36 text-left whitespace-nowrap">TAX</th>
+                  <th className="px-3 py-3.5 font-semibold uppercase w-28 text-left whitespace-nowrap">COST PRICE</th>
+                  <th className="px-3 py-3.5 font-semibold uppercase w-24 text-center whitespace-nowrap">PERCENTAGE</th>
+                  <th className="px-3 py-3.5 font-semibold uppercase w-28 text-left whitespace-nowrap">SELLING PRICE</th>
+                  <th className="px-3 py-3.5 font-semibold uppercase w-28 text-left whitespace-nowrap">MRP</th>
+                  <th className="px-3 py-3.5 font-semibold uppercase w-24 text-center whitespace-nowrap">ACTIONS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
@@ -3510,8 +3570,51 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                       {/* Item Name */}
                       <td className="px-3 py-3 align-middle">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-none bg-gray-200/90 flex items-center justify-center text-gray-400 shrink-0">
-                            <ImageIcon size={16} />
+                          {/* Item Image Upload Box (Max 10MB) */}
+                          <div className="relative group w-8 h-8 rounded-none bg-gray-100 hover:bg-gray-200 border border-gray-200 flex items-center justify-center text-gray-400 shrink-0 cursor-pointer overflow-hidden transition-colors">
+                            {row.image || row.itemData?.image || row.itemData?.images?.[0]?.url ? (
+                              <>
+                                <img
+                                  src={row.image || row.itemData?.image || row.itemData?.images?.[0]?.url}
+                                  alt={row.item || "item"}
+                                  className="w-full h-full object-cover"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleUpdateRow(row.id, "image", null);
+                                  }}
+                                  className="absolute inset-0 bg-black/60 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-xs"
+                                  title="Remove image"
+                                >
+                                  <X size={13} />
+                                </button>
+                              </>
+                            ) : (
+                              <label className="w-full h-full flex items-center justify-center cursor-pointer" title="Upload Item Image (Max 10MB)">
+                                <ImageIcon size={16} className="text-gray-400 group-hover:text-purple-600 transition-colors" />
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    if (file.size > 10 * 1024 * 1024) {
+                                      alert(`Image size must be less than 10MB. Selected file is ${(file.size / (1024 * 1024)).toFixed(2)}MB.`);
+                                      e.target.value = "";
+                                      return;
+                                    }
+                                    const reader = new FileReader();
+                                    reader.onload = (loadEvt) => {
+                                      handleUpdateRow(row.id, "image", loadEvt.target.result);
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }}
+                                />
+                              </label>
+                            )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <ItemDropdown
@@ -3556,12 +3659,12 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                       <td className="px-3 py-3 align-middle w-28">
                         <div className="relative w-full">
                           <select
-                            value={row.category || "Jewels"}
+                            value={row.category || "BR code"}
                             onChange={(e) => handleUpdateRow(row.id, "category", e.target.value)}
                             className="w-full h-8 rounded-none border border-gray-200 bg-white px-2.5 py-1 text-xs font-semibold text-gray-900 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600 appearance-none cursor-pointer pr-6"
                           >
-                            <option value="Jewels">Jewels</option>
-                            <option value="Others">Others</option>
+                            <option value="BR code">BR code</option>
+                            <option value="QR code">QR code</option>
                           </select>
                           <ChevronDown
                             size={13}
