@@ -2536,33 +2536,60 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       showTagToast(`Sending ${qty} tag(s) to BOXP BP 4206e...`, "loading");
     }
     try {
-      const response = await fetch(`${API_URL}/api/purchase/print-thermal-tag`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          zpl,
-          printerName: "BOXP BP 4206e (203 dpi) - ZPL"
-        }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        showTagToast(`✓ Printed ${qty} tag(s) for ${uiItemCode || itemName || "Item"}`, "success");
-        if (printModalData) {
-          setPrintModalData(null);
+      // 1. Try local hardware bridge first (localhost:7000) or configured API_URL
+      let response = null;
+      try {
+        const localBridgeUrl = "http://localhost:7000/api/purchase/print-thermal-tag";
+        const localRes = await fetch(localBridgeUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            zpl,
+            printerName: "BOXP BP 4206e (203 dpi) - ZPL"
+          }),
+        });
+        if (localRes.ok) {
+          response = localRes;
         }
-      } else {
-        if (!silent) {
-          alert("Printer message: " + (data.message || "Failed to print"));
-        } else {
-          showTagToast(`Printer error: ${data.message || "Failed to print"}`, "error");
+      } catch (localErr) {
+        // If local bridge is not running, proceed to API_URL
+      }
+
+      if (!response) {
+        response = await fetch(`${API_URL}/api/purchase/print-thermal-tag`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            zpl,
+            printerName: "BOXP BP 4206e (203 dpi) - ZPL"
+          }),
+        });
+      }
+
+      if (response && response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          showTagToast(`✓ Printed ${qty} tag(s) for ${uiItemCode || itemName || "Item"}`, "success");
+          if (printModalData) {
+            setPrintModalData(null);
+          }
+          return;
         }
       }
+
+      // If cloud backend returned 500 (Vercel cloud environment has no physical USB printer access)
+      // Gracefully fall back to calibrated browser thermal print
+      showTagToast("Opening print dialog...", "loading");
+      handlePrintRowSku(row, forceType);
+      if (printModalData) {
+        setPrintModalData(null);
+      }
     } catch (err) {
-      console.error("Native thermal print error:", err);
-      if (!silent) {
-        handlePrintRowSku(row, forceType);
-      } else {
-        showTagToast("Could not connect to printer service", "error");
+      console.warn("Direct thermal print fallback:", err);
+      // Fall back to calibrated browser print
+      handlePrintRowSku(row, forceType);
+      if (printModalData) {
+        setPrintModalData(null);
       }
     } finally {
       setIsPrintingDirect(false);

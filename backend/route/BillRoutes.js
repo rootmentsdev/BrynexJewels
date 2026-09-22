@@ -39,12 +39,18 @@ router.post("/purchase/print-thermal-tag", async (req, res) => {
     if (!zpl) {
       return res.status(400).json({ success: false, message: "ZPL string is required" });
     }
+    if (process.platform !== "win32") {
+      return res.status(200).json({
+        success: false,
+        message: "Server is running on Linux/Cloud (Vercel). Windows printer spooler is only available on local Windows host.",
+      });
+    }
     const { sendRawZplToPrinter } = await import("../utils/rawPrinter.js");
     const result = await sendRawZplToPrinter(zpl, printerName || "BOXP BP 4206e (203 dpi) - ZPL");
     return res.json(result);
   } catch (error) {
     console.error("Thermal tag print error:", error);
-    return res.status(500).json({ success: false, message: error.message || "Failed to print thermal tag" });
+    return res.status(200).json({ success: false, message: error.message || "Failed to print thermal tag" });
   }
 });
 
