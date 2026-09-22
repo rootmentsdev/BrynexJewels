@@ -72,7 +72,8 @@ const corsOptions = {
       /\.onrender\.com$/.test(origin) ||
       /\.rootments\.live$/.test(origin) ||
       /\.brynex\.com$/.test(origin) ||
-      /^http:\/\/localhost(:\d+)?$/.test(origin)
+      /^http:\/\/localhost(:\d+)?$/.test(origin) ||
+      /^http:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)
     ) {
       return callback(null, true);
     }
@@ -83,6 +84,15 @@ const corsOptions = {
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "x-user-id", "x-user-name", "user"],
 };
+
+// Enable Chrome Private Network Access for Local Print Spooler from Cloud HTTPS
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Private-Network", "true");
+  if (req.method === "OPTIONS") {
+    res.setHeader("Access-Control-Allow-Private-Network", "true");
+  }
+  next();
+});
 
 app.use(cors(corsOptions));
 
