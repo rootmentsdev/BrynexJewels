@@ -2292,6 +2292,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       text-align: center;
       overflow: hidden;
       padding: 0;
+      padding-left: 0.05in;
       flex-shrink: 0;
       gap: 0.01in;
     }
