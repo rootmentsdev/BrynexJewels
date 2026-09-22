@@ -2292,7 +2292,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       text-align: center;
       overflow: hidden;
       padding: 0;
-      padding-left: 0.05in;
+      padding-left: 0.22in;
       flex-shrink: 0;
       gap: 0.01in;
     }
@@ -2305,7 +2305,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       justify-content: flex-start;
       text-align: left;
       padding-left: 0;
-      margin-left: -0.15in;
+      margin-left: -0.05in;
       overflow: hidden;
       flex-shrink: 0;
       gap: 0.05in;
