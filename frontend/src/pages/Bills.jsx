@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import { useEnterToSave } from "../hooks/useEnterToSave";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Search, X, Plus, Pencil, Image as ImageIcon, ChevronDown, Mail, Printer, Download, Trash2, Link as LinkIcon, Package, PackageX, MoreVertical, Upload, Calendar, Check, ArrowLeft, Settings, UploadCloud, Minus, Layers, RotateCw, Copy, Zap, Usb, FileCode } from "lucide-react";
+import { Search, X, Plus, Pencil, Image as ImageIcon, ChevronDown, Mail, Printer, Download, Trash2, Link as LinkIcon, Package, PackageX, MoreVertical, Upload, Calendar, Check, ArrowLeft, Settings, UploadCloud, Minus, Layers, RotateCw, Copy, Zap, Usb, FileCode, Loader2, Barcode, QrCode } from "lucide-react";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 import ImageUpload from "../components/ImageUpload";
@@ -940,9 +940,42 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
   const [adjustment, setAdjustment] = useState("");
   const [printModalData, setPrintModalData] = useState(null);
   const [printLabelType, setPrintLabelType] = useState("barcode");
-  const [printXOffset, setPrintXOffset] = useState(35); // Default +35 dots (~4.4mm) right shift to avoid cutting left edge
+  const [printXOffset, setPrintXOffset] = useState(() => {
+    const saved = localStorage.getItem("tag_print_x_offset");
+    return saved !== null ? parseInt(saved, 10) : 35;
+  }); // Default +35 dots (~4.4mm) right shift to avoid cutting left edge
+  const [printYOffset, setPrintYOffset] = useState(() => {
+    const saved = localStorage.getItem("tag_print_y_offset");
+    return saved !== null ? parseInt(saved, 10) : 0;
+  }); // Top/Bottom spacing offset
+
+  const handleUpdateXOffset = (newVal) => {
+    const clamped = Math.max(0, Math.min(150, newVal));
+    setPrintXOffset(clamped);
+    localStorage.setItem("tag_print_x_offset", clamped.toString());
+  };
+
+  const handleUpdateYOffset = (newVal) => {
+    const clamped = Math.max(-50, Math.min(50, newVal));
+    setPrintYOffset(clamped);
+    localStorage.setItem("tag_print_y_offset", clamped.toString());
+  };
+
   const [modalPreviewImg, setModalPreviewImg] = useState("");
   const [copiedZpl, setCopiedZpl] = useState(false);
+  const [isPrintingDirect, setIsPrintingDirect] = useState(false);
+  const [tagPrintToast, setTagPrintToast] = useState(null);
+  const toastTimerRef = useRef(null);
+
+  const showTagToast = (message, type = "success") => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setTagPrintToast({ message, type });
+    if (type !== "loading") {
+      toastTimerRef.current = setTimeout(() => {
+        setTagPrintToast(null);
+      }, 3000);
+    }
+  };
   const [showNewTaxModal, setShowNewTaxModal] = useState(false);
   const [newTax, setNewTax] = useState({
     name: "",
@@ -2072,7 +2105,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     return nextCode.toString();
   };
 
-  // Generate 100% compliant ZPL code matching D123.prn specification with adjustable X offset
+  // Generate 100% compliant ZPL code matching D123.prn specification with adjustable X and Y offsets
   const generateZplString = ({
     unitCodes = null,
     unitCode = "12345678",
@@ -2083,6 +2116,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     isQr = false,
     qty = 1,
     offsetX = 35,
+    offsetY = 0,
   }) => {
     let zpl = "";
     for (let i = 0; i < qty; i++) {
@@ -2098,10 +2132,10 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
 ^MCY^PMN
 ^PW787^MTT
 ^JZY
-^LH${offsetX},0^LRN
+^LH${offsetX},${offsetY}^LRN
 ^XZ
 ^XA
-^LH${offsetX},0
+^LH${offsetX},${offsetY}
 ^FT80,17
 ^CI0
 ^A0N,17,23^FD${storeName}^FS
@@ -2124,10 +2158,10 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
 ^MCY^PMN
 ^PW787^MTT
 ^JZY
-^LH${offsetX},0^LRN
+^LH${offsetX},${offsetY}^LRN
 ^XZ
 ^XA
-^LH${offsetX},0
+^LH${offsetX},${offsetY}
 ^FT80,17
 ^CI0
 ^A0N,17,23^FD${storeName}^FS
@@ -2462,11 +2496,15 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     setPrintModalData(null);
   };
 
-  // Method 1-Click: Direct Native Thermal Print via Windows Spooler API (BOXP BP 4206e - ZPL)
-  const handleDirectNativeThermalPrint = async (row, forceType = null) => {
+  // Method: Direct Native Thermal Print via Windows Spooler API (BOXP BP 4206e - ZPL)
+  const handleDirectNativeThermalPrint = async (row, forceType = null, silent = false) => {
     const mrpNum = parseFloat(row.mrp);
     if (row.mrp === undefined || row.mrp === null || String(row.mrp).trim() === "" || isNaN(mrpNum) || mrpNum <= 0) {
-      alert("Please enter a valid MRP before printing.");
+      if (!silent) {
+        alert("Please enter a valid MRP before printing.");
+      } else {
+        showTagToast("Please enter a valid MRP before printing", "error");
+      }
       return;
     }
     const itemName = (row.item || row.itemData?.itemName || "Jewelry Item").trim();
@@ -2490,8 +2528,13 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       isQr,
       qty,
       offsetX: printXOffset,
+      offsetY: printYOffset,
     });
 
+    setIsPrintingDirect(true);
+    if (silent) {
+      showTagToast(`Sending ${qty} tag(s) to BOXP BP 4206e...`, "loading");
+    }
     try {
       const response = await fetch(`${API_URL}/api/purchase/print-thermal-tag`, {
         method: "POST",
@@ -2503,15 +2546,26 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       });
       const data = await response.json();
       if (data.success) {
-        alert("Tag sent directly to BOXP BP 4206e thermal printer! Label printed successfully.");
-        setPrintModalData(null);
+        showTagToast(`✓ Printed ${qty} tag(s) for ${uiItemCode || itemName || "Item"}`, "success");
+        if (printModalData) {
+          setPrintModalData(null);
+        }
       } else {
-        alert("Printer message: " + (data.message || "Failed to print"));
+        if (!silent) {
+          alert("Printer message: " + (data.message || "Failed to print"));
+        } else {
+          showTagToast(`Printer error: ${data.message || "Failed to print"}`, "error");
+        }
       }
     } catch (err) {
       console.error("Native thermal print error:", err);
-      // If API route failed, fall back to browser print
-      handlePrintRowSku(row, forceType);
+      if (!silent) {
+        handlePrintRowSku(row, forceType);
+      } else {
+        showTagToast("Could not connect to printer service", "error");
+      }
+    } finally {
+      setIsPrintingDirect(false);
     }
   };
 
@@ -4101,10 +4155,11 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                               e.stopPropagation();
                               const currentMrp = parseFloat(row.mrp);
                               if (row.mrp === undefined || row.mrp === null || String(row.mrp).trim() === "" || isNaN(currentMrp) || currentMrp <= 0) {
-                                alert("Please enter a valid MRP before printing");
+                                showTagToast("Please enter a valid MRP before printing", "error");
                                 return;
                               }
-                              handlePrintRowSku(row);
+                              // Direct instant native thermal print without opening modal (zero touch points!)
+                              handleDirectNativeThermalPrint(row, null, true);
                               const isLastRow = tableRows[tableRows.length - 1]?.id === row.id;
                               if (isLastRow) {
                                 handleAddNewRow();
@@ -5225,75 +5280,88 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
         document.body
       )}
 
-      {/* Print Options Modal (Calibrated D123.prn System) */}
+      {/* Print Options Modal (Calibrated D123 / BOXP BP 4206e Direct Print) */}
       {printModalData && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-4">
-          <div className="relative w-full max-w-lg rounded-none bg-white shadow-2xl border border-gray-200 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs px-4 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-in zoom-in-95 duration-150">
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3.5 bg-gray-50">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-none bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
-                  <Printer size={16} />
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-gradient-to-r from-slate-50 via-purple-50/30 to-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold shadow-md shadow-purple-500/20">
+                  <Printer size={20} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900">Jewelry Label Print Options</h3>
-                  <p className="text-[11px] text-gray-500">Calibrated to D123 203 DPI Dual-Wing Tag Specification</p>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    Jewelry Tag Print
+                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                      BOXP BP 4206e
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500">Calibrated Dual-Wing Tag (92mm × 12mm • 203 DPI)</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setPrintModalData(null)}
-                className="text-gray-400 hover:text-gray-700 p-1 transition-colors cursor-pointer"
+                className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg p-1.5 transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+            <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
               {/* Item Details Card */}
-              <div className="bg-purple-50/60 border border-purple-100 p-3 rounded-none flex items-center justify-between text-xs">
-                <div>
-                  <div className="font-bold text-gray-900 text-sm">
-                    {printModalData.item || printModalData.itemData?.itemName || "Jewelry Item"}
+              <div className="bg-gradient-to-br from-purple-50/80 via-white to-slate-50 border border-purple-100 rounded-xl p-4 flex items-center justify-between shadow-xs">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-purple-700 bg-purple-100/80 px-2 py-0.5 rounded">
+                      SKU: {printModalData.sku || printModalData.itemData?.sku || printModalData.designNo || "20602"}
+                    </span>
                   </div>
-                  <div className="text-gray-600 mt-0.5">
-                    SKU / D.No: <span className="font-semibold text-purple-700">{printModalData.sku || printModalData.itemData?.sku || printModalData.designNo || "20602"}</span>
+                  <div className="font-bold text-slate-900 text-sm">
+                    {printModalData.item || printModalData.itemData?.itemName || "Jewelry Item"}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs text-gray-500">MRP Price</div>
-                  <div className="text-sm font-bold text-emerald-700">₹{parseFloat(printModalData.mrp || 0).toFixed(2)}</div>
-                  <div className="text-[10px] text-gray-500">Qty: {Math.max(1, Math.round(parseFloat(printModalData.quantity) || 1))} tag(s)</div>
+                  <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">MRP Price</div>
+                  <div className="text-base font-bold text-emerald-600">
+                    ₹{parseFloat(printModalData.mrp || 0).toFixed(2)}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    Quantity: <span className="font-semibold text-slate-700">{Math.max(1, Math.round(parseFloat(printModalData.quantity) || 1))} tag(s)</span>
+                  </div>
                 </div>
               </div>
 
               {/* Tag Format Selector */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">
+                <label className="block text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wider">
                   Select Tag Code Format
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2.5">
                   <button
                     type="button"
                     onClick={() => setPrintLabelType("barcode")}
-                    className={`px-3 py-2 text-xs font-medium border flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    className={`px-3.5 py-2.5 text-xs font-medium rounded-xl border flex items-center justify-center gap-2 transition-all cursor-pointer ${
                       printLabelType === "barcode"
-                        ? "border-purple-600 bg-purple-50 text-purple-700 font-bold shadow-2xs"
-                        : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                        ? "border-purple-600 bg-purple-50/80 text-purple-700 font-bold shadow-xs ring-2 ring-purple-600/10"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
                     }`}
                   >
+                    <Barcode size={16} className={printLabelType === "barcode" ? "text-purple-600" : "text-slate-400"} />
                     <span>1D Barcode (Code 128)</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setPrintLabelType("qr")}
-                    className={`px-3 py-2 text-xs font-medium border flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    className={`px-3.5 py-2.5 text-xs font-medium rounded-xl border flex items-center justify-center gap-2 transition-all cursor-pointer ${
                       printLabelType === "qr"
-                        ? "border-purple-600 bg-purple-50 text-purple-700 font-bold shadow-2xs"
-                        : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                        ? "border-purple-600 bg-purple-50/80 text-purple-700 font-bold shadow-xs ring-2 ring-purple-600/10"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
                     }`}
                   >
+                    <QrCode size={16} className={printLabelType === "qr" ? "text-purple-600" : "text-slate-400"} />
                     <span>2D QR Code</span>
                   </button>
                 </div>
@@ -5301,190 +5369,175 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
 
               {/* Tag Preview Box */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                    Tag Layout Live Preview (92mm × 12mm Dual-Wing)
+                <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Tag Layout Live Preview
                   </label>
-                  {/* Fine-tune X-Offset (Move Right / Left) */}
-                  <div className="flex items-center gap-1.5 text-xs bg-purple-50 px-2 py-0.5 border border-purple-200">
-                    <span className="text-purple-800 font-semibold text-[11px]">Shift Right:</span>
-                    <button
-                      type="button"
-                      onClick={() => setPrintXOffset((prev) => Math.max(0, prev - 5))}
-                      className="w-5 h-5 bg-white border border-purple-300 flex items-center justify-center font-bold hover:bg-purple-100 text-purple-800 cursor-pointer shadow-2xs"
-                      title="Move Left (-5 dots)"
-                    >
-                      −
-                    </button>
-                    <span className="font-mono text-xs font-bold px-1 text-purple-900">+{printXOffset}px</span>
-                    <button
-                      type="button"
-                      onClick={() => setPrintXOffset((prev) => Math.min(150, prev + 5))}
-                      className="w-5 h-5 bg-white border border-purple-300 flex items-center justify-center font-bold hover:bg-purple-100 text-purple-800 cursor-pointer shadow-2xs"
-                      title="Move Right (+5 dots)"
-                    >
-                      +
-                    </button>
+                  
+                  {/* Position Fine-Tuning Controls (Left/Right & Top/Bottom Spacing) */}
+                  <div className="flex items-center gap-2">
+                    {/* Left / Right (X-Offset) */}
+                    <div className="flex items-center gap-1 text-xs bg-slate-100 px-2 py-1 rounded-lg border border-slate-200">
+                      <span className="text-slate-600 font-medium text-[11px]" title="Horizontal Shift">X:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateXOffset(printXOffset - 5)}
+                        className="w-5 h-5 bg-white border border-slate-300 rounded flex items-center justify-center font-bold hover:bg-slate-100 text-slate-700 cursor-pointer shadow-2xs"
+                        title="Move Left (-5 dots)"
+                      >
+                        −
+                      </button>
+                      <span className="font-mono text-xs font-bold px-0.5 text-slate-900 min-w-[36px] text-center">
+                        {printXOffset >= 0 ? `+${printXOffset}` : printXOffset}px
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateXOffset(printXOffset + 5)}
+                        className="w-5 h-5 bg-white border border-slate-300 rounded flex items-center justify-center font-bold hover:bg-slate-100 text-slate-700 cursor-pointer shadow-2xs"
+                        title="Move Right (+5 dots)"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    {/* Top / Bottom Spacing (Y-Offset) */}
+                    <div className="flex items-center gap-1 text-xs bg-slate-100 px-2 py-1 rounded-lg border border-slate-200">
+                      <span className="text-slate-600 font-medium text-[11px]" title="Vertical Shift / Top-Bottom Spacing">Y:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateYOffset(printYOffset - 3)}
+                        className="w-5 h-5 bg-white border border-slate-300 rounded flex items-center justify-center font-bold hover:bg-slate-100 text-slate-700 cursor-pointer shadow-2xs"
+                        title="Move Up / Decrease Top Spacing (-3 dots)"
+                      >
+                        −
+                      </button>
+                      <span className="font-mono text-xs font-bold px-0.5 text-slate-900 min-w-[36px] text-center">
+                        {printYOffset >= 0 ? `+${printYOffset}` : printYOffset}px
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateYOffset(printYOffset + 3)}
+                        className="w-5 h-5 bg-white border border-slate-300 rounded flex items-center justify-center font-bold hover:bg-slate-100 text-slate-700 cursor-pointer shadow-2xs"
+                        title="Move Down / Increase Top Spacing (+3 dots)"
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div className="p-3 bg-gray-100 border border-gray-200 rounded-none flex items-center justify-center">
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-center overflow-hidden">
                   <div
-                    className="bg-white border border-gray-400 shadow-sm p-2 flex items-center justify-between w-full max-w-[360px] h-[64px] text-[9px] font-sans transition-all duration-150"
-                    style={{ paddingLeft: `${8 + Math.round(printXOffset * 0.35)}px` }}
+                    className="bg-white border border-slate-300 rounded-lg shadow-sm p-2 flex items-center justify-between w-full max-w-[360px] h-[68px] text-[9px] font-sans transition-all duration-150 overflow-hidden relative"
                   >
-                    {/* Left Wing */}
-                    <div className="w-[48%] h-full flex flex-col items-center justify-between text-center border-r border-dashed border-gray-300 pr-2 overflow-hidden">
-                      <div className="font-bold text-[8.5px] text-gray-900 truncate max-w-full">Brynex Jewels & Co.</div>
-                      <div className="h-6 w-full flex items-center justify-center overflow-hidden my-0.5">
-                        {modalPreviewImg ? (
-                          <img
-                            src={modalPreviewImg}
-                            alt="Live Preview"
-                            className={printLabelType === "qr" ? "h-6 w-6 object-contain" : "h-5 w-full object-fill"}
-                          />
-                        ) : (
-                          <span className="text-[8px] text-gray-400">Loading code...</span>
-                        )}
+                    <div
+                      className="w-full h-full flex items-center justify-between transition-transform duration-150"
+                      style={{
+                        transform: `translate(${Math.round(printXOffset * 0.35)}px, ${Math.round(printYOffset * 0.35)}px)`
+                      }}
+                    >
+                      {/* Left Wing */}
+                      <div className="w-[48%] h-full flex flex-col items-center justify-between text-center border-r border-dashed border-slate-200 pr-2 overflow-hidden">
+                        <div className="font-bold text-[8.5px] text-slate-900 truncate max-w-full">Brynex Jewels & Co.</div>
+                        <div className="h-6 w-full flex items-center justify-center overflow-hidden my-0.5">
+                          {modalPreviewImg ? (
+                            <img
+                              src={modalPreviewImg}
+                              alt="Live Preview"
+                              className={printLabelType === "qr" ? "h-6 w-6 object-contain" : "h-5 w-full object-fill"}
+                            />
+                          ) : (
+                            <span className="text-[8px] text-slate-400">Loading code...</span>
+                          )}
+                        </div>
+                        <div className="font-mono text-[8px] font-bold text-slate-800">12345678</div>
                       </div>
-                      <div className="font-mono text-[8px] font-bold text-gray-800">12345678</div>
-                    </div>
 
-                    {/* Right Wing */}
-                    <div className="w-[48%] h-full flex flex-col items-start justify-between pl-2 overflow-hidden">
-                      <div className="font-bold text-[8.5px] text-gray-900 truncate max-w-full">
-                        {printModalData.sku || printModalData.itemData?.sku || "20602"}
-                      </div>
-                      <div className="text-[8px] text-gray-700 truncate max-w-full">
-                        {printModalData.item || printModalData.itemData?.itemName || "Gold Neck Chain"}
-                      </div>
-                      <div className="font-bold text-[9px] text-gray-900 mt-0.5">
-                        Rs. {parseFloat(printModalData.mrp || 0).toFixed(2)}
+                      {/* Right Wing */}
+                      <div className="w-[48%] h-full flex flex-col items-start justify-between pl-2 overflow-hidden">
+                        <div className="font-bold text-[8.5px] text-slate-900 truncate max-w-full">
+                          {printModalData.sku || printModalData.itemData?.sku || "20602"}
+                        </div>
+                        <div className="text-[8px] text-slate-600 truncate max-w-full">
+                          {printModalData.item || printModalData.itemData?.itemName || "Gold Neck Chain"}
+                        </div>
+                        <div className="font-bold text-[9px] text-slate-900 mt-0.5">
+                          Rs. {parseFloat(printModalData.mrp || 0).toFixed(2)}
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Print Action Methods */}
-              <div className="space-y-2 pt-1">
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Choose Printing Method
-                </label>
-
-                {/* Primary Option: 1-Click Direct Native Thermal Print */}
+              {/* Print Action Area (Single Direct Print Button) */}
+              <div className="pt-1">
                 <button
                   type="button"
+                  disabled={isPrintingDirect}
                   onClick={() => handleDirectNativeThermalPrint(printModalData, printLabelType)}
-                  className="w-full text-left p-3 border-2 border-emerald-600 bg-emerald-50/70 hover:bg-emerald-100/70 transition-all flex items-start gap-3 cursor-pointer group shadow-xs"
+                  className="w-full relative group overflow-hidden rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.99] text-white p-4 shadow-lg shadow-emerald-600/25 transition-all cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed text-left flex items-center gap-3.5 border border-emerald-500"
                 >
-                  <div className="w-9 h-9 rounded-none bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
-                    <Zap size={18} />
+                  <div className="w-11 h-11 rounded-lg bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0 shadow-inner">
+                    {isPrintingDirect ? (
+                      <Loader2 size={22} className="animate-spin text-white" />
+                    ) : (
+                      <Zap size={22} className="text-yellow-300 fill-yellow-300" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-xs font-bold text-emerald-900 flex items-center justify-between">
-                      <span className="text-sm">⚡ 1-Click Direct Print to BOXP BP 4206e</span>
-                      <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 font-bold uppercase tracking-wider">100% Native</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold tracking-tight text-white">
+                        {isPrintingDirect ? "Sending to Printer..." : "1-Click Direct Print to BOXP BP 4206e"}
+                      </span>
+                      <span className="text-[10px] bg-white/20 backdrop-blur-xs text-white px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                        100% Native
+                      </span>
                     </div>
-                    <p className="text-[11px] text-emerald-800 font-medium mt-0.5">
-                      Sends exact raw ZPL directly to printer queue. Instant print with laser-sharp barcode & text without opening any dialogs!
+                    <p className="text-xs text-emerald-100 font-normal mt-0.5">
+                      Sends exact raw ZPL directly to printer queue. Instant print without opening dialogs.
                     </p>
                   </div>
                 </button>
-
-                {/* Option 2: Browser Standard Print */}
-                <button
-                  type="button"
-                  onClick={() => handlePrintRowSku(printModalData, printLabelType)}
-                  className="w-full text-left p-2.5 border border-purple-200 bg-white hover:bg-purple-50/50 hover:border-purple-600 transition-all flex items-start gap-3 cursor-pointer group"
-                >
-                  <div className="w-7 h-7 rounded-none bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-                    <Printer size={15} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-bold text-gray-800 group-hover:text-purple-700 flex items-center justify-between">
-                      <span>Method 2: Print via Browser (Calibrated HTML/CSS)</span>
-                      <span className="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.5 font-semibold">Browser Dialog</span>
-                    </div>
-                    <p className="text-[11px] text-gray-500 mt-0.5">
-                      Opens Chrome print dialog with exact 92×12mm dimensions.
-                    </p>
-                  </div>
-                </button>
-
-                {/* Option 3: Fallback Print in Clean Popup Window */}
-                <button
-                  type="button"
-                  onClick={() => handleOpenPrintWindow(printModalData, printLabelType)}
-                  className="w-full text-left p-2.5 border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center gap-3 cursor-pointer group text-xs"
-                >
-                  <div className="w-7 h-7 rounded-none bg-gray-100 text-gray-700 flex items-center justify-center shrink-0">
-                    <Printer size={14} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-gray-800 group-hover:text-purple-700">
-                      Open in Clean Print Window (Alternative)
-                    </div>
-                    <p className="text-[10px] text-gray-500">
-                      Opens isolated browser tab/window to print if iframe is restricted.
-                    </p>
-                  </div>
-                </button>
-
-                {/* Option 2: Direct WebUSB Thermal Print */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleDirectWebUsbPrint(printModalData, printLabelType);
-                  }}
-                  className="w-full text-left p-3 border border-gray-200 bg-white hover:bg-emerald-50/50 hover:border-emerald-500 transition-all flex items-start gap-3 cursor-pointer group"
-                >
-                  <div className="w-8 h-8 rounded-none bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
-                    <Usb size={16} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-bold text-gray-900 group-hover:text-emerald-700 flex items-center justify-between">
-                      <span>Method 2A: Direct Thermal Print (WebUSB)</span>
-                      <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 font-semibold">100% Raw ZPL</span>
-                    </div>
-                    <p className="text-[11px] text-gray-500 mt-0.5">
-                      Sends raw ZPL directly to USB thermal printer without opening any browser dialog.
-                    </p>
-                  </div>
-                </button>
-
-                {/* Secondary Actions: Download .PRN / Copy ZPL */}
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadPrn(printModalData, printLabelType)}
-                    className="px-3 py-2 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Download size={13} />
-                    <span>Download .PRN File</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleCopyZpl(printModalData, printLabelType)}
-                    className="px-3 py-2 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    {copiedZpl ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
-                    <span>{copiedZpl ? "ZPL Copied!" : "Copy Raw ZPL"}</span>
-                  </button>
-                </div>
               </div>
             </div>
 
             {/* Modal Footer */}
-            <div className="px-5 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-end">
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <span className="text-xs text-slate-500">
+                Ready to print <span className="font-semibold text-slate-700">{Math.max(1, Math.round(parseFloat(printModalData.quantity) || 1))}</span> label(s)
+              </span>
               <button
                 type="button"
                 onClick={() => setPrintModalData(null)}
-                className="h-8 px-4 text-xs font-medium text-gray-700 hover:text-gray-900 bg-white border border-gray-300 hover:bg-gray-100 transition-colors cursor-pointer"
+                className="h-8.5 px-4 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 Close
               </button>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Non-intrusive Zero-Touch Tag Print Toast Notification */}
+      {tagPrintToast && createPortal(
+        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-3 duration-150 pointer-events-none">
+          <div className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl shadow-2xl border text-xs font-semibold backdrop-blur-md ${
+            tagPrintToast.type === "error"
+              ? "bg-red-600 text-white border-red-500 shadow-red-500/20"
+              : tagPrintToast.type === "loading"
+              ? "bg-slate-900 text-white border-slate-700 shadow-slate-900/30"
+              : "bg-emerald-600 text-white border-emerald-500 shadow-emerald-600/30"
+          }`}>
+            {tagPrintToast.type === "error" ? (
+              <X size={16} className="text-white shrink-0" />
+            ) : tagPrintToast.type === "loading" ? (
+              <Loader2 size={16} className="animate-spin text-emerald-400 shrink-0" />
+            ) : (
+              <Check size={16} className="text-white shrink-0" />
+            )}
+            <span>{tagPrintToast.message}</span>
           </div>
         </div>,
         document.body

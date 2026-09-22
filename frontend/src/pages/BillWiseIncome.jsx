@@ -608,6 +608,10 @@ const DayBookInc = () => {
         return filteredTransactions.reduce((sum, tx) => sum + (Number(tx.discountAmount) || 0), 0);
     }, [filteredTransactions]);
 
+    const totalCalculatedBillValue = useMemo(() => {
+        return filteredTransactions.reduce((sum, tx) => sum + (Number(tx.billValue != null ? tx.billValue : (tx.invoiceAmount || 0)) || 0), 0);
+    }, [filteredTransactions]);
+
     const handleQuantityChange = useCallback((index, value) => {
         if (preOpen1 != null) return;
         setQuantities(prev => {
@@ -1125,19 +1129,24 @@ const DayBookInc = () => {
                             {/* Main Transactions Table */}
                             <div className="bg-white border border-gray-200 overflow-hidden shadow-xs mb-8">
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse min-w-[900px]">
+                                    <table className="w-full text-left border-collapse min-w-[1200px]">
                                         <thead>
                                             <tr className="bg-[#1c1c1c] text-white">
-                                                <th className="py-3.5 pl-6 pr-3 text-[11px] font-bold uppercase tracking-wider">TIME</th>
-                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider">INVOICE NO.</th>
-                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider">CUSTOMER NAME</th>
-                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider">CATEGORY</th>
-                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider">SUB CATEGORY</th>
-                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider">REMARKS</th>
-                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider text-right">AMOUNT</th>
-                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider text-right">TOTAL TXN</th>
-                                                <th className="py-3.5 pl-3 pr-6 text-[11px] font-bold uppercase tracking-wider text-right">DISCOUNT</th>
-                                                {showAction && <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider text-center">ACTION</th>}
+                                                <th className="py-3.5 pl-6 pr-3 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">TIME</th>
+                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">INVOICE NO.</th>
+                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">CUSTOMER NAME</th>
+                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">CATEGORY</th>
+                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">SUB CATEGORY</th>
+                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">REMARKS</th>
+                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider text-right whitespace-nowrap">AMOUNT</th>
+                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider text-right whitespace-nowrap">TOTAL TXN</th>
+                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider text-right whitespace-nowrap">DISCOUNT</th>
+                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider text-right whitespace-nowrap">BILL VALUE</th>
+                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider text-right whitespace-nowrap">CASH</th>
+                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider text-right whitespace-nowrap">RAZORPAY</th>
+                                                <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider text-right whitespace-nowrap">CARD/BANK</th>
+                                                <th className="py-3.5 pl-3 pr-6 text-[11px] font-bold uppercase tracking-wider text-right whitespace-nowrap">UPI</th>
+                                                {showAction && <th className="py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider text-center whitespace-nowrap">ACTION</th>}
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-100 text-sm">
@@ -1152,6 +1161,13 @@ const DayBookInc = () => {
                                                 <td className="py-3.5 px-3 text-right font-medium text-gray-800">
                                                     {preOpen?.cash ?? preOpen?.Closecash ?? 0}
                                                 </td>
+                                                <td className="py-3.5 px-3 text-right text-gray-400">-</td>
+                                                <td className="py-3.5 px-3 text-right text-gray-400">-</td>
+                                                <td className="py-3.5 px-3 text-right font-medium text-gray-800">
+                                                    {preOpen?.cash ?? preOpen?.Closecash ?? 0}
+                                                </td>
+                                                <td className="py-3.5 px-3 text-right text-gray-400">-</td>
+                                                <td className="py-3.5 px-3 text-right text-gray-400">-</td>
                                                 <td className="py-3.5 pl-3 pr-6 text-right text-gray-400">-</td>
                                                 {showAction && <td className="py-3.5 px-3"></td>}
                                             </tr>
@@ -1169,6 +1185,11 @@ const DayBookInc = () => {
                                                     const displayAmount = tx.amount != null ? tx.amount : 0;
                                                     const displayTotalTxn = tx.totalTransaction != null ? tx.totalTransaction : 0;
                                                     const displayDiscount = tx.discountAmount ? tx.discountAmount : "-";
+                                                    const displayBillValue = tx.billValue != null ? tx.billValue : (tx.invoiceAmount || "-");
+                                                    const displayCash = tx.cash != null ? tx.cash : 0;
+                                                    const displayRazorpay = tx.rbl != null ? tx.rbl : 0;
+                                                    const displayBank = tx.bank != null ? tx.bank : 0;
+                                                    const displayUpi = tx.upi != null ? tx.upi : 0;
 
                                                     return (
                                                         <tr key={tx._id || idx} className="hover:bg-gray-50/70 transition-colors text-gray-800">
@@ -1198,8 +1219,23 @@ const DayBookInc = () => {
                                                                     />
                                                                 ) : displayTotalTxn}
                                                             </td>
-                                                            <td className="py-3.5 pl-3 pr-6 text-right text-xs text-gray-600 whitespace-nowrap">
+                                                            <td className="py-3.5 px-3 text-right text-xs text-gray-600 whitespace-nowrap">
                                                                 {displayDiscount}
+                                                            </td>
+                                                            <td className="py-3.5 px-3 text-right font-medium text-xs whitespace-nowrap">
+                                                                {displayBillValue}
+                                                            </td>
+                                                            <td className="py-3.5 px-3 text-right font-medium text-xs whitespace-nowrap">
+                                                                {displayCash}
+                                                            </td>
+                                                            <td className="py-3.5 px-3 text-right font-medium text-xs whitespace-nowrap">
+                                                                {displayRazorpay}
+                                                            </td>
+                                                            <td className="py-3.5 px-3 text-right font-medium text-xs whitespace-nowrap">
+                                                                {displayBank}
+                                                            </td>
+                                                            <td className="py-3.5 pl-3 pr-6 text-right font-medium text-xs whitespace-nowrap">
+                                                                {displayUpi}
                                                             </td>
                                                             {showAction && (
                                                                 <td className="py-3.5 px-3 text-center whitespace-nowrap">
@@ -1225,7 +1261,7 @@ const DayBookInc = () => {
                                                 })
                                             ) : (
                                                 <tr>
-                                                    <td colSpan={showAction ? 10 : 9} className="py-12 text-center text-gray-400 text-sm">
+                                                    <td colSpan={showAction ? 15 : 14} className="py-12 text-center text-gray-400 text-sm">
                                                         No transactions found
                                                     </td>
                                                 </tr>
@@ -1242,8 +1278,23 @@ const DayBookInc = () => {
                                                 <td className="py-3.5 px-3 text-right text-xs font-bold">
                                                     {totalCalculatedTxn}
                                                 </td>
-                                                <td className="py-3.5 pl-3 pr-6 text-right text-xs font-bold">
+                                                <td className="py-3.5 px-3 text-right text-xs font-bold">
                                                     {totalCalculatedDiscount > 0 ? totalCalculatedDiscount : "-"}
+                                                </td>
+                                                <td className="py-3.5 px-3 text-right text-xs font-bold">
+                                                    {totalCalculatedBillValue > 0 ? totalCalculatedBillValue : "-"}
+                                                </td>
+                                                <td className="py-3.5 px-3 text-right text-xs font-bold">
+                                                    {calculatedTotals.dayCashTransactions}
+                                                </td>
+                                                <td className="py-3.5 px-3 text-right text-xs font-bold">
+                                                    {calculatedTotals.totalRblAmount}
+                                                </td>
+                                                <td className="py-3.5 px-3 text-right text-xs font-bold">
+                                                    {calculatedTotals.totalBankAmount1}
+                                                </td>
+                                                <td className="py-3.5 pl-3 pr-6 text-right text-xs font-bold">
+                                                    {calculatedTotals.totalBankAmountupi}
                                                 </td>
                                                 {showAction && <td className="py-3.5 px-3"></td>}
                                             </tr>

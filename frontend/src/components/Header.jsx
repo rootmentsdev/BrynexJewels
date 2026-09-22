@@ -203,7 +203,7 @@ const Header = (prop) => {
 
     return (
         <nav className="bg-white border-b border-gray-200 shadow-sm">
-            <div className="max-w-full px-6 py-3.5 flex flex-wrap items-center justify-between mx-auto">
+            <div className="max-w-full pl-14 md:pl-16 pr-6 py-3.5 flex flex-wrap items-center justify-between mx-auto">
                 <div className="flex items-center gap-3">
                     {prop.title && (
                         <h1 className="text-xl font-bold text-gray-800">{prop.title}</h1>
