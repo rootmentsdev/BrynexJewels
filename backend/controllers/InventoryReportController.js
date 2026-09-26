@@ -368,6 +368,7 @@ export const getInventorySummary = async (req, res) => {
               itemName: item.name || "",
               sku: item.sku || "",
               costPrice: item.costPrice || 0,
+              sellingPrice: item.sellingPrice || group.sellingPrice || 0,
               category: group.category || "",
               warehouseStocks: item.warehouseStocks || [],
               itemGroupId: group._id,
@@ -390,6 +391,7 @@ export const getInventorySummary = async (req, res) => {
     const inventorySummary = items.map(item => {
       let totalStock = 0;
       let totalValue = 0;
+      let totalSellingValue = 0;
       
       // Determine which warehouse stocks to count based on user role and selection
       let warehouseStocksToShow = item.warehouseStocks || [];
@@ -419,8 +421,10 @@ export const getInventorySummary = async (req, res) => {
         warehouseStocksToShow.forEach(ws => {
           const stock = parseFloat(ws.stockOnHand) || parseFloat(ws.stock) || 0;
           const cost = parseFloat(item.costPrice) || 0;
+          const sellingPrice = parseFloat(item.sellingPrice) || 0;
           totalStock += stock;
           totalValue += stock * cost;
+          totalSellingValue += stock * sellingPrice;
         });
       }
 
@@ -430,8 +434,10 @@ export const getInventorySummary = async (req, res) => {
         sku: item.sku,
         category: item.category,
         cost: parseFloat(item.costPrice) || 0,
+        sellingPrice: parseFloat(item.sellingPrice) || 0,
         totalStock,
         totalValue,
+        totalSellingValue,
         warehouseStocks: warehouseStocksToShow,
         branch: item.branch || item.warehouse,
         _hasMatchingWarehouseStock: warehouseStocksToShow && warehouseStocksToShow.length > 0,
@@ -453,6 +459,7 @@ export const getInventorySummary = async (req, res) => {
 
     const totalItems = inventorySummary.length;
     const totalStockValue = inventorySummary.reduce((sum, item) => sum + item.totalValue, 0);
+    const totalSellingStockValue = inventorySummary.reduce((sum, item) => sum + (item.totalSellingValue || 0), 0);
     const totalQuantity = inventorySummary.reduce((sum, item) => sum + item.totalStock, 0);
     
     console.log(`📊 Final inventory summary: ${totalItems} items, ${totalQuantity} total quantity, ₹${totalStockValue} total value`);
@@ -567,7 +574,8 @@ export const getInventorySummary = async (req, res) => {
         summary: {
           totalItems,
           totalQuantity,
-          totalStockValue
+          totalStockValue,
+          totalSellingStockValue
         },
         items: sortedItems
       }
@@ -693,6 +701,7 @@ export const getStockSummary = async (req, res) => {
               itemName: item.name || "",
               sku: item.sku || "",
               costPrice: item.costPrice || 0,
+              sellingPrice: item.sellingPrice || group.sellingPrice || 0,
               category: group.category || "",
               warehouseStocks: item.warehouseStocks || [],
               itemGroupId: group._id,
@@ -809,6 +818,7 @@ export const getStockSummary = async (req, res) => {
         warehouse: storeName,
         totalQuantity: 0,
         totalValue: 0,
+        totalSellingValue: 0,
         itemCount: 0
       };
     });
@@ -820,7 +830,8 @@ export const getStockSummary = async (req, res) => {
     filteredItems.forEach(item => {
       if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
         item.warehouseStocks.forEach(ws => {
-          if (restrictToWarehouse && ws.warehouse !== restrictToWarehouse) return;
+          if (!ws || !ws.warehouse) return;
+          if (restrictToWarehouse && !warehouseMatches(ws.warehouse)) return;
           
           // Normalize the warehouse name from the item
           const normalizedWsName = normalizeWarehouseName(ws.warehouse) || ws.warehouse || "Unknown";
@@ -832,11 +843,13 @@ export const getStockSummary = async (req, res) => {
           
           const stock = parseFloat(ws.stockOnHand) || parseFloat(ws.stock) || 0;
           const cost = parseFloat(item.costPrice) || 0;
+          const sellingPrice = parseFloat(item.sellingPrice) || 0;
 
           // Only add to map if it's in our predefined list
           if (warehouseStockMap[normalizedWsName]) {
             warehouseStockMap[normalizedWsName].totalQuantity += stock;
             warehouseStockMap[normalizedWsName].totalValue += stock * cost;
+            warehouseStockMap[normalizedWsName].totalSellingValue += stock * sellingPrice;
             warehouseStockMap[normalizedWsName].itemCount++;
           }
         });
@@ -845,6 +858,7 @@ export const getStockSummary = async (req, res) => {
 
     const stockSummary = Object.values(warehouseStockMap);
     const grandTotal = stockSummary.reduce((sum, ws) => sum + ws.totalValue, 0);
+    const grandTotalSelling = stockSummary.reduce((sum, ws) => sum + (ws.totalSellingValue || 0), 0);
     const grandQuantity = stockSummary.reduce((sum, ws) => sum + ws.totalQuantity, 0);
 
     res.status(200).json({
@@ -853,7 +867,8 @@ export const getStockSummary = async (req, res) => {
         summary: {
           totalWarehouses: stockSummary.length,
           grandTotalQuantity: grandQuantity,
-          grandTotalValue: grandTotal
+          grandTotalValue: grandTotal,
+          grandTotalSellingValue: grandTotalSelling
         },
         warehouses: stockSummary.sort((a, b) => b.totalValue - a.totalValue)
       }
@@ -1040,19 +1055,20 @@ export const getOpeningStockReport = async (req, res) => {
     const standaloneItems = await ShoeItem.find({
       'warehouseStocks.openingStock': { $gt: 0 },
       ...dateFilter
-    }).select('itemName sku warehouseStocks createdAt');
+    }).select('itemName sku warehouseStocks createdAt sellingPrice costPrice');
     
     // Get item groups with opening stock created in the date range
     const itemGroups = await ItemGroup.find({
       'items.warehouseStocks.openingStock': { $gt: 0 },
       ...dateFilter
-    }).select('groupName items.name items.warehouseStocks createdAt');
+    }).select('groupName sellingPrice items.name items.sku items.costPrice items.sellingPrice items.warehouseStocks createdAt');
     
     // Process data by store (no monthly grouping)
     const storeData = {};
     const itemDetails = [];
     let totalOpeningStock = 0;
     let totalOpeningValue = 0;
+    let totalOpeningSellingValue = 0;
     
     // Helper function to normalize warehouse names
     const normalizeWarehouseName = (name) => {
@@ -1067,14 +1083,18 @@ export const getOpeningStockReport = async (req, res) => {
         if (stock.openingStock > 0) {
           const storeName = normalizeWarehouseName(stock.warehouse);
           const stockQty = stock.openingStock || 0;
-          const stockValue = stock.openingStockValue || 0;
+          const cost = parseFloat(item.costPrice) || 0;
+          const sellingPrice = parseFloat(item.sellingPrice) || 0;
+          const stockValue = stock.openingStockValue || (stockQty * cost);
+          const openingSellingValue = stockQty * sellingPrice;
           
           // Store totals
           if (!storeData[storeName]) {
-            storeData[storeName] = { totalStock: 0, totalValue: 0, itemCount: 0 };
+            storeData[storeName] = { totalStock: 0, totalValue: 0, totalSellingValue: 0, itemCount: 0 };
           }
           storeData[storeName].totalStock += stockQty;
           storeData[storeName].totalValue += stockValue;
+          storeData[storeName].totalSellingValue = (storeData[storeName].totalSellingValue || 0) + openingSellingValue;
           storeData[storeName].itemCount += 1;
           
           // Item details
@@ -1084,6 +1104,9 @@ export const getOpeningStockReport = async (req, res) => {
             store: storeName,
             openingStock: stockQty,
             openingValue: stockValue,
+            costPrice: cost,
+            sellingPrice: sellingPrice,
+            openingSellingValue: openingSellingValue,
             createdAt: item.createdAt,
             type: 'standalone'
           });
@@ -1091,6 +1114,7 @@ export const getOpeningStockReport = async (req, res) => {
           // Grand totals
           totalOpeningStock += stockQty;
           totalOpeningValue += stockValue;
+          totalOpeningSellingValue += openingSellingValue;
         }
       });
     });
@@ -1103,14 +1127,18 @@ export const getOpeningStockReport = async (req, res) => {
             if (stock.openingStock > 0) {
               const storeName = normalizeWarehouseName(stock.warehouse);
               const stockQty = stock.openingStock || 0;
-              const stockValue = stock.openingStockValue || 0;
+              const cost = parseFloat(item.costPrice) || 0;
+              const sellingPrice = parseFloat(item.sellingPrice || group.sellingPrice) || 0;
+              const stockValue = stock.openingStockValue || (stockQty * cost);
+              const openingSellingValue = stockQty * sellingPrice;
               
               // Store totals
               if (!storeData[storeName]) {
-                storeData[storeName] = { totalStock: 0, totalValue: 0, itemCount: 0 };
+                storeData[storeName] = { totalStock: 0, totalValue: 0, totalSellingValue: 0, itemCount: 0 };
               }
               storeData[storeName].totalStock += stockQty;
               storeData[storeName].totalValue += stockValue;
+              storeData[storeName].totalSellingValue = (storeData[storeName].totalSellingValue || 0) + openingSellingValue;
               storeData[storeName].itemCount += 1;
               
               // Item details
@@ -1120,6 +1148,9 @@ export const getOpeningStockReport = async (req, res) => {
                 store: storeName,
                 openingStock: stockQty,
                 openingValue: stockValue,
+                costPrice: cost,
+                sellingPrice: sellingPrice,
+                openingSellingValue: openingSellingValue,
                 createdAt: group.createdAt,
                 type: 'grouped',
                 groupName: group.groupName
@@ -1128,6 +1159,7 @@ export const getOpeningStockReport = async (req, res) => {
               // Grand totals
               totalOpeningStock += stockQty;
               totalOpeningValue += stockValue;
+              totalOpeningSellingValue += openingSellingValue;
             }
           });
         }
@@ -1139,6 +1171,7 @@ export const getOpeningStockReport = async (req, res) => {
       store,
       totalStock: data.totalStock,
       totalValue: data.totalValue,
+      totalSellingValue: data.totalSellingValue || 0,
       itemCount: data.itemCount
     })).sort((a, b) => b.totalStock - a.totalStock);
     
@@ -1158,6 +1191,7 @@ export const getOpeningStockReport = async (req, res) => {
       // Recalculate totals for filtered data
       totalOpeningStock = filteredItemDetails.reduce((sum, item) => sum + item.openingStock, 0);
       totalOpeningValue = filteredItemDetails.reduce((sum, item) => sum + item.openingValue, 0);
+      totalOpeningSellingValue = filteredItemDetails.reduce((sum, item) => sum + (item.openingSellingValue || 0), 0);
     }
     
     console.log("📊 Opening Stock Report Generated:", {
@@ -1174,6 +1208,7 @@ export const getOpeningStockReport = async (req, res) => {
         summary: {
           totalOpeningStock,
           totalOpeningValue,
+          totalOpeningSellingValue,
           totalItems: filteredItemDetails.length,
           totalStores: filteredStoreReport.length,
           period: displayPeriod
@@ -1296,6 +1331,7 @@ export const getStockOnHandReport = async (req, res) => {
               itemName: item.name || "",
               sku: item.sku || "",
               costPrice: item.costPrice || 0,
+              sellingPrice: item.sellingPrice || group.sellingPrice || 0,
               category: group.category || "",
               warehouseStocks: item.warehouseStocks || [],
               itemGroupId: group._id,
@@ -1363,6 +1399,7 @@ export const getStockOnHandReport = async (req, res) => {
     const stockOnHandData = [];
     let totalStockOnHand = 0;
     let totalStockValue = 0;
+    let totalSellingStockValue = 0;
     let totalStockIn = 0;
     let totalStockOut = 0;
     let totalOpeningStock = 0;
@@ -1427,7 +1464,9 @@ export const getStockOnHandReport = async (req, res) => {
 
         const closingStock = Math.max(0, openingStock + stockIn - stockOut);
         const itemCost = parseFloat(item.costPrice) || 0;
+        const itemSelling = parseFloat(item.sellingPrice) || 0;
         const stockValue = closingStock * itemCost;
+        const sellingStockValue = closingStock * itemSelling;
 
         const hasWarehouseEntry = warehouseStocksToProcess.length > 0;
         const shouldInclude = closingStock > 0 || stockIn > 0 || stockOut > 0 || openingStock > 0 || hasWarehouseEntry;
@@ -1444,13 +1483,16 @@ export const getStockOnHandReport = async (req, res) => {
             stockOut,
             closingStock,
             costPrice: itemCost,
+            sellingPrice: itemSelling,
             stockValue: Math.max(0, stockValue),
+            sellingStockValue: Math.max(0, sellingStockValue),
             itemGroupId: item.itemGroupId || null,
             itemGroupName: item.itemGroupName || null,
             isFromGroup: item.isFromGroup || false
           });
           totalStockOnHand += closingStock;
           totalStockValue += Math.max(0, stockValue);
+          totalSellingStockValue += Math.max(0, sellingStockValue);
           totalStockIn += stockIn;
           totalStockOut += stockOut;
           totalOpeningStock += openingStock;
@@ -1474,13 +1516,15 @@ export const getStockOnHandReport = async (req, res) => {
           warehouse: item.warehouse,
           totalItems: 0,
           totalStock: 0,
-          totalValue: 0
+          totalValue: 0,
+          totalSellingValue: 0
         };
       }
       
       warehouseSummary[item.warehouse].totalItems += 1;
       warehouseSummary[item.warehouse].totalStock += item.closingStock;
       warehouseSummary[item.warehouse].totalValue += item.stockValue;
+      warehouseSummary[item.warehouse].totalSellingValue += (item.sellingStockValue || 0);
     });
     
     const warehouseReport = Object.values(warehouseSummary).sort((a, b) => b.totalValue - a.totalValue);
@@ -1490,6 +1534,7 @@ export const getStockOnHandReport = async (req, res) => {
       totalWarehouses: warehouseReport.length,
       grandTotalStock: totalStockOnHand,
       grandTotalValue: totalStockValue,
+      grandTotalSellingValue: totalSellingStockValue,
       period: displayPeriod,
       itemsProcessed: items.length,
       itemsIncluded: stockOnHandData.length
@@ -1505,6 +1550,7 @@ export const getStockOnHandReport = async (req, res) => {
           totalStockOut,
           totalClosingStock: totalStockOnHand,
           totalStockValue,
+          totalSellingStockValue,
           totalWarehouses: warehouseReport.length,
           period: displayPeriod
         },
@@ -1773,6 +1819,7 @@ export const getInventoryAging = async (req, res) => {
         const sellingPrice = parseFloat(item.sellingPrice || parentGroup?.sellingPrice || 0) || 0;
         const mrp = parseFloat(item.mrp || parentGroup?.mrp || 0) || 0;
         const totalValue = currentQty * costPrice;
+        const totalSellingValue = currentQty * sellingPrice;
 
         agingRecords.push({
           itemId,
@@ -1788,6 +1835,8 @@ export const getInventoryAging = async (req, res) => {
           sellingPrice,
           mrp,
           stockValue: totalValue,
+          stockSellingValue: totalSellingValue,
+          totalSellingValue,
           inwardDate: new Date(inwardDate).toISOString().split('T')[0],
           inwardSource,
           ageInDays,
@@ -1832,30 +1881,34 @@ export const getInventoryAging = async (req, res) => {
     // 3. Compute Summary Metrics & Bracket Aggregations
     let grandTotalStock = 0;
     let grandTotalValue = 0;
+    let grandTotalSellingValue = 0;
     let totalAgeDaysWeighted = 0;
 
     const bracketsSummary = {
-      "0_30": { bracket: "0_30", label: "0 - 30 Days", count: 0, stock: 0, value: 0, color: "emerald", badgeBg: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-      "31_60": { bracket: "31_60", label: "31 - 60 Days", count: 0, stock: 0, value: 0, color: "blue", badgeBg: "bg-blue-50 text-blue-700 border-blue-200" },
-      "61_90": { bracket: "61_90", label: "61 - 90 Days", count: 0, stock: 0, value: 0, color: "amber", badgeBg: "bg-amber-50 text-amber-700 border-amber-200" },
-      "91_120": { bracket: "91_120", label: "91 - 120 Days", count: 0, stock: 0, value: 0, color: "orange", badgeBg: "bg-orange-50 text-orange-700 border-orange-200" },
-      "120_plus": { bracket: "120_plus", label: "120+ Days", count: 0, stock: 0, value: 0, color: "red", badgeBg: "bg-red-50 text-red-700 border-red-200" }
+      "0_30": { bracket: "0_30", label: "0 - 30 Days", count: 0, stock: 0, value: 0, sellingValue: 0, color: "emerald", badgeBg: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+      "31_60": { bracket: "31_60", label: "31 - 60 Days", count: 0, stock: 0, value: 0, sellingValue: 0, color: "blue", badgeBg: "bg-blue-50 text-blue-700 border-blue-200" },
+      "61_90": { bracket: "61_90", label: "61 - 90 Days", count: 0, stock: 0, value: 0, sellingValue: 0, color: "amber", badgeBg: "bg-amber-50 text-amber-700 border-amber-200" },
+      "91_120": { bracket: "91_120", label: "91 - 120 Days", count: 0, stock: 0, value: 0, sellingValue: 0, color: "orange", badgeBg: "bg-orange-50 text-orange-700 border-orange-200" },
+      "120_plus": { bracket: "120_plus", label: "120+ Days", count: 0, stock: 0, value: 0, sellingValue: 0, color: "red", badgeBg: "bg-red-50 text-red-700 border-red-200" }
     };
 
     agingRecords.forEach(rec => {
       grandTotalStock += rec.stockOnHand;
       grandTotalValue += rec.stockValue;
+      grandTotalSellingValue += rec.totalSellingValue;
       totalAgeDaysWeighted += (rec.ageInDays * rec.stockOnHand);
 
       if (bracketsSummary[rec.ageBracket]) {
         bracketsSummary[rec.ageBracket].count += 1;
         bracketsSummary[rec.ageBracket].stock += rec.stockOnHand;
         bracketsSummary[rec.ageBracket].value += rec.stockValue;
+        bracketsSummary[rec.ageBracket].sellingValue += rec.totalSellingValue;
       }
     });
 
     const averageAgeDays = grandTotalStock > 0 ? Math.round(totalAgeDaysWeighted / grandTotalStock) : 0;
     const criticalAgedValue = bracketsSummary["91_120"].value + bracketsSummary["120_plus"].value;
+    const criticalAgedSellingValue = bracketsSummary["91_120"].sellingValue + bracketsSummary["120_plus"].sellingValue;
     const criticalAgedStock = bracketsSummary["91_120"].stock + bracketsSummary["120_plus"].stock;
 
     res.status(200).json({
@@ -1865,8 +1918,10 @@ export const getInventoryAging = async (req, res) => {
           totalItems: agingRecords.length,
           totalStock: grandTotalStock,
           totalValue: grandTotalValue,
+          totalSellingValue: grandTotalSellingValue,
           averageAgeDays,
           criticalAgedValue,
+          criticalAgedSellingValue,
           criticalAgedStock,
           asOfDate: targetDate.toISOString().split('T')[0],
           warehouse: warehouse || "All Stores"

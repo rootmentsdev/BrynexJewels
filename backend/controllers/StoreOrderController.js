@@ -71,13 +71,17 @@ const WAREHOUSE_NAME_MAPPING = {
   "Kottayam Branch": "Kottayam Branch",
   "G.MG Road": "SuitorGuy MG Road",
   "G.Mg Road": "SuitorGuy MG Road",
+  "G-MG Road": "SuitorGuy MG Road",
+  "G-Mg Road": "SuitorGuy MG Road",
   "GMG Road": "SuitorGuy MG Road",
   "GMg Road": "SuitorGuy MG Road",
   "MG Road": "SuitorGuy MG Road",
   "Mg Road": "SuitorGuy MG Road",
+  "mg road": "SuitorGuy MG Road",
   "MG Road Branch": "SuitorGuy MG Road",
   "Mg Road Branch": "SuitorGuy MG Road",
   "G Road Branch": "SuitorGuy MG Road",
+  "Grooms MG Road": "SuitorGuy MG Road",
   "SuitorGuy MG Road": "SuitorGuy MG Road",
   "HEAD OFFICE01": "Head Office",
   "Head Office": "Head Office",
@@ -85,7 +89,9 @@ const WAREHOUSE_NAME_MAPPING = {
   "Z- Edappal": "Warehouse",
   "Production": "Warehouse",
   "Office": "Warehouse",
-  "G.Vadakara": "Warehouse",
+  "G.Vadakara": "Vadakara Branch",
+  "GVadakara": "Vadakara Branch",
+  "Vadakara Branch": "Vadakara Branch",
 };
 
 const normalizeWarehouseName = (warehouseName) => {
@@ -180,16 +186,15 @@ const getCurrentStock = async (itemIdValue, warehouseName, itemName = null, item
         }
         return { currentQuantity: 0, availableForSale: 0, type: 'group' };
       } else {
-        // Return total group stock in target warehouse
+        // Return total group stock in target warehouse (one stock entry per item)
         let totalGroupStock = 0;
         let totalAvailableForSale = 0;
         (group.items || []).forEach(grpItem => {
-          (grpItem.warehouseStocks || []).forEach(ws => {
-            if (matchesWarehouse(ws.warehouse, normalizedTarget)) {
-              totalGroupStock += (parseFloat(ws.stockOnHand) || 0);
-              totalAvailableForSale += (parseFloat(ws.availableForSale) || 0);
-            }
-          });
+          const ws = (grpItem.warehouseStocks || []).find(w => matchesWarehouse(w.warehouse, normalizedTarget));
+          if (ws) {
+            totalGroupStock += (parseFloat(ws.stockOnHand) || 0);
+            totalAvailableForSale += (parseFloat(ws.availableForSale) || 0);
+          }
         });
         return {
           currentQuantity: totalGroupStock,
@@ -327,11 +332,12 @@ export const createStoreOrder = async (req, res) => {
     }
     
     // Prepare store order data
+    const normalizedStoreWarehouse = normalizeWarehouseName(orderData.storeWarehouse) || orderData.storeWarehouse;
     const storeOrderData = {
       orderNumber,
       date: orderDate,
       reason: orderData.reason || "",
-      storeWarehouse: orderData.storeWarehouse,
+      storeWarehouse: normalizedStoreWarehouse,
       destinationWarehouse: "Warehouse", // Always warehouse
       items: processedItems,
       totalQuantityRequested,
@@ -360,21 +366,41 @@ export const createStoreOrder = async (req, res) => {
 // Get all store orders
 export const getStoreOrders = async (req, res) => {
   try {
-    const { userId, storeWarehouse, status, startDate, endDate, userPower } = req.query;
+    const { userId, storeWarehouse, status, startDate, endDate, userPower, locCode } = req.query;
     
     const query = {};
     
-    // Filter by store warehouse for store users
-    if (storeWarehouse && userPower !== 'admin' && userPower !== 'warehouse') {
-      query.storeWarehouse = storeWarehouse;
-    }
+    // Determine if requester is Warehouse or Admin
+    const isWarehouseOrAdmin = 
+      userPower === 'admin' || 
+      userPower === 'warehouse' || 
+      locCode === '103' || 
+      locCode === '858' ||
+      (storeWarehouse && (storeWarehouse.toLowerCase() === 'warehouse' || storeWarehouse.toLowerCase() === 'all'));
     
-    // Admin/warehouse users see all orders, but can filter by storeWarehouse if provided
-    if (storeWarehouse && (userPower === 'admin' || userPower === 'warehouse')) {
-      // Use flexible matching for admin/warehouse users
-      const normalizedTarget = normalizeWarehouseName(storeWarehouse);
-      // We'll filter after fetching or use regex
-      query.storeWarehouse = { $regex: new RegExp(normalizedTarget, 'i') };
+    // Filter by store warehouse for store users or when specific store is selected
+    if (storeWarehouse && storeWarehouse.toLowerCase() !== 'warehouse' && storeWarehouse.toLowerCase() !== 'all') {
+      const normalizedTarget = normalizeWarehouseName(storeWarehouse) || storeWarehouse;
+      
+      // Build all known variations
+      const variations = Object.entries(WAREHOUSE_NAME_MAPPING)
+        .filter(([k, v]) => v.toLowerCase() === normalizedTarget.toLowerCase())
+        .map(([k]) => k);
+      variations.push(normalizedTarget);
+      variations.push(storeWarehouse);
+      
+      if (normalizedTarget.toLowerCase().includes("mg") || storeWarehouse.toLowerCase().includes("mg")) {
+        variations.push("MG Road", "Mg Road", "G.Mg Road", "G.MG Road", "GMG Road", "GMg Road", "MG Road Branch", "SuitorGuy MG Road", "Grooms MG Road");
+      }
+      
+      const uniqueVariations = [...new Set(variations)];
+      const baseName = normalizedTarget.replace(/\s*(branch|warehouse|suitorguy|sg|g|z)\s*$/i, "").trim();
+      const escapedBase = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      
+      query.$or = [
+        { storeWarehouse: { $in: uniqueVariations } },
+        { storeWarehouse: { $regex: new RegExp(escapedBase, 'i') } }
+      ];
     }
     
     if (status) {
@@ -393,9 +419,9 @@ export const getStoreOrders = async (req, res) => {
       .limit(1000)
       .lean();
     
-    // Apply flexible warehouse matching for admin/warehouse users
-    if (storeWarehouse && (userPower === 'admin' || userPower === 'warehouse')) {
-      const normalizedTarget = normalizeWarehouseName(storeWarehouse);
+    // If a specific store warehouse was requested, ensure flexible match filter
+    if (storeWarehouse && storeWarehouse.toLowerCase() !== 'warehouse' && storeWarehouse.toLowerCase() !== 'all') {
+      const normalizedTarget = normalizeWarehouseName(storeWarehouse) || storeWarehouse;
       storeOrders = storeOrders.filter(order => {
         return matchesWarehouse(order.storeWarehouse, normalizedTarget);
       });

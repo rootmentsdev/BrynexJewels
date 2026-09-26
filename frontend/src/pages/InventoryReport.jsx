@@ -217,9 +217,17 @@ const InventoryReport = () => {
         "Item Name": item.itemName,
         SKU: item.sku,
         Category: item.category,
-        Cost: item.cost,
-        "Total Stock": item.totalStock,
-        "Total Value": item.totalValue,
+        ...(isAdmin
+          ? {
+              Cost: item.cost,
+              "Total Stock": item.totalStock,
+              "Total Value": item.totalValue,
+            }
+          : {
+              "Selling Price": item.sellingPrice || 0,
+              "Total Stock": item.totalStock,
+              "Total Value": item.totalSellingValue ?? ((item.sellingPrice || 0) * (item.totalStock || 0)),
+            }),
       })) || [];
     } else if (type === "stock-summary") {
       const corruptedStores = ["arehouse Branch", "Grooms Trivandum"];
@@ -230,7 +238,7 @@ const InventoryReport = () => {
       csv = filteredWarehouses.map((wh) => ({
         Warehouse: wh.warehouse,
         "Total Quantity": wh.totalQuantity,
-        "Total Value": wh.totalValue,
+        "Total Value": isAdmin ? wh.totalValue : (wh.totalSellingValue ?? wh.totalValue),
         "Item Count": wh.itemCount,
       }));
     } else if (type === "opening-stock") {
@@ -239,7 +247,7 @@ const InventoryReport = () => {
         SKU: item.sku || "",
         Store: item.store,
         "Opening Stock": item.openingStock,
-        "Opening Value": item.openingValue,
+        "Opening Value": isAdmin ? item.openingValue : (item.openingSellingValue ?? item.openingValue),
         "Date Added": new Date(item.createdAt).toLocaleDateString("en-IN"),
         Type: item.type,
         "Group Name": item.groupName || "",
@@ -254,8 +262,15 @@ const InventoryReport = () => {
         "Stock In": item.stockIn,
         "Stock Out": item.stockOut,
         "Closing Stock": item.closingStock,
-        "Cost Price": item.costPrice,
-        "Stock Value": item.stockValue,
+        ...(isAdmin
+          ? {
+              "Cost Price": item.costPrice,
+              "Stock Value": item.stockValue,
+            }
+          : {
+              "Selling Price": item.sellingPrice || 0,
+              "Stock Value": item.sellingStockValue ?? ((item.sellingPrice || 0) * (item.closingStock || 0)),
+            }),
         "Group Name": item.itemGroupName || "",
       })) || [];
     }
@@ -648,7 +663,9 @@ const InventoryReport = () => {
                             <th className="py-3.5 px-4 text-[11px] font-bold tracking-wider text-white uppercase">ITEM NAME</th>
                             <th className="py-3.5 px-4 text-[11px] font-bold tracking-wider text-white uppercase">SKU</th>
                             <th className="py-3.5 px-4 text-[11px] font-bold tracking-wider text-white uppercase">CATEGORY</th>
-                            <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase">COST</th>
+                            <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase">
+                              {isAdmin ? "COST" : "SELLING PRICE"}
+                            </th>
                             <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase">TOTAL STOCK</th>
                             <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase">TOTAL VALUE</th>
                           </>
@@ -681,7 +698,9 @@ const InventoryReport = () => {
                             <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase">IN</th>
                             <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase">OUT</th>
                             <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase">CLOSING</th>
-                            <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase">COST</th>
+                            <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase">
+                              {isAdmin ? "COST" : "SELLING PRICE"}
+                            </th>
                             <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase">STOCK VALUE</th>
                           </>
                         )}
@@ -721,7 +740,13 @@ const InventoryReport = () => {
                       </div>
                       <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                         <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Total Stock Value</div>
-                        <div className="text-3xl font-bold text-emerald-600">{formatCurrency(reportData.summary?.totalStockValue || 0)}</div>
+                        <div className="text-3xl font-bold text-emerald-600">
+                          {formatCurrency(
+                            isAdmin
+                              ? (reportData.summary?.totalStockValue || 0)
+                              : (reportData.summary?.totalSellingStockValue ?? reportData.summary?.totalStockValue ?? 0)
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -733,7 +758,9 @@ const InventoryReport = () => {
                               <th className="py-3.5 px-4 text-[11px] font-bold tracking-wider text-white uppercase border-r border-zinc-700/60">ITEM NAME</th>
                               <th className="py-3.5 px-4 text-[11px] font-bold tracking-wider text-white uppercase border-r border-zinc-700/60">SKU</th>
                               <th className="py-3.5 px-4 text-[11px] font-bold tracking-wider text-white uppercase border-r border-zinc-700/60">CATEGORY</th>
-                              <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase border-r border-zinc-700/60">COST</th>
+                              <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase border-r border-zinc-700/60">
+                                {isAdmin ? "COST" : "SELLING PRICE"}
+                              </th>
                               <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase border-r border-zinc-700/60">TOTAL STOCK</th>
                               <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase">TOTAL VALUE</th>
                             </tr>
@@ -748,9 +775,17 @@ const InventoryReport = () => {
                                     {item.category}
                                   </span>
                                 </td>
-                                <td className="py-3 px-4 text-right text-gray-700 border-r border-gray-200">{formatCurrency(item.cost)}</td>
+                                <td className="py-3 px-4 text-right text-gray-700 border-r border-gray-200">
+                                  {formatCurrency(isAdmin ? item.cost : (item.sellingPrice || 0))}
+                                </td>
                                 <td className="py-3 px-4 text-right font-bold text-[#9333ea] border-r border-gray-200">{item.totalStock}</td>
-                                <td className="py-3 px-4 text-right font-bold text-emerald-600">{formatCurrency(item.totalValue)}</td>
+                                <td className="py-3 px-4 text-right font-bold text-emerald-600">
+                                  {formatCurrency(
+                                    isAdmin
+                                      ? item.totalValue
+                                      : (item.totalSellingValue ?? ((item.sellingPrice || 0) * (item.totalStock || 0)))
+                                  )}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -775,7 +810,13 @@ const InventoryReport = () => {
                       </div>
                       <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                         <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Grand Total Value</div>
-                        <div className="text-3xl font-bold text-emerald-600">{formatCurrency(reportData.summary?.grandTotalValue || 0)}</div>
+                        <div className="text-3xl font-bold text-emerald-600">
+                          {formatCurrency(
+                            isAdmin
+                              ? (reportData.summary?.grandTotalValue || 0)
+                              : (reportData.summary?.grandTotalSellingValue ?? reportData.summary?.grandTotalValue ?? 0)
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -795,7 +836,9 @@ const InventoryReport = () => {
                               <tr key={idx} className="hover:bg-purple-50/40 transition-colors">
                                 <td className="py-3 px-4 font-semibold text-gray-900 border-r border-gray-200">{wh.warehouse}</td>
                                 <td className="py-3 px-4 text-right font-bold text-[#9333ea] border-r border-gray-200">{wh.totalQuantity}</td>
-                                <td className="py-3 px-4 text-right font-bold text-emerald-600 border-r border-gray-200">{formatCurrency(wh.totalValue)}</td>
+                                <td className="py-3 px-4 text-right font-bold text-emerald-600 border-r border-gray-200">
+                                  {formatCurrency(isAdmin ? wh.totalValue : (wh.totalSellingValue ?? wh.totalValue))}
+                                </td>
                                 <td className="py-3 px-4 text-right text-gray-700">{wh.itemCount}</td>
                               </tr>
                             ))}
@@ -820,7 +863,13 @@ const InventoryReport = () => {
                       </div>
                       <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                         <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Total Opening Value</div>
-                        <div className="text-3xl font-bold text-emerald-600">{formatCurrency(reportData.summary?.totalOpeningValue || 0)}</div>
+                        <div className="text-3xl font-bold text-emerald-600">
+                          {formatCurrency(
+                            isAdmin
+                              ? (reportData.summary?.totalOpeningValue || 0)
+                              : (reportData.summary?.totalOpeningSellingValue ?? reportData.summary?.totalOpeningValue ?? 0)
+                          )}
+                        </div>
                       </div>
                       <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                         <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Total Items</div>
@@ -869,7 +918,9 @@ const InventoryReport = () => {
                                     <td className="py-3 px-4 font-mono text-xs text-gray-600 border-r border-gray-200">{item.sku || "-"}</td>
                                     <td className="py-3 px-4 text-gray-700 border-r border-gray-200">{item.store}</td>
                                     <td className="py-3 px-4 text-right font-bold text-[#9333ea] border-r border-gray-200">{item.openingStock}</td>
-                                    <td className="py-3 px-4 text-right font-bold text-emerald-600 border-r border-gray-200">{formatCurrency(item.openingValue)}</td>
+                                    <td className="py-3 px-4 text-right font-bold text-emerald-600 border-r border-gray-200">
+                                      {formatCurrency(isAdmin ? item.openingValue : (item.openingSellingValue ?? item.openingValue))}
+                                    </td>
                                     <td className="py-3 px-4 text-gray-600">{new Date(item.createdAt).toLocaleDateString("en-IN")}</td>
                                   </tr>
                                 ))
@@ -902,7 +953,9 @@ const InventoryReport = () => {
                                 <tr key={idx} className="hover:bg-purple-50/40 transition-colors">
                                   <td className="py-3 px-4 font-semibold text-gray-900 border-r border-gray-200">{store.store}</td>
                                   <td className="py-3 px-4 text-right font-bold text-[#9333ea] border-r border-gray-200">{store.totalStock}</td>
-                                  <td className="py-3 px-4 text-right font-bold text-emerald-600 border-r border-gray-200">{formatCurrency(store.totalValue)}</td>
+                                  <td className="py-3 px-4 text-right font-bold text-emerald-600 border-r border-gray-200">
+                                    {formatCurrency(isAdmin ? store.totalValue : (store.totalSellingValue ?? store.totalValue))}
+                                  </td>
                                   <td className="py-3 px-4 text-right text-gray-700">{store.itemCount}</td>
                                 </tr>
                               ))}
@@ -936,7 +989,13 @@ const InventoryReport = () => {
                       </div>
                       <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                         <div className="text-xs font-semibold uppercase tracking-wider text-emerald-700 mb-1">Stock Value</div>
-                        <div className="text-2xl font-bold text-emerald-600">{formatCurrency(reportData.summary?.totalStockValue || 0)}</div>
+                        <div className="text-2xl font-bold text-emerald-600">
+                          {formatCurrency(
+                            isAdmin
+                              ? (reportData.summary?.totalStockValue || 0)
+                              : (reportData.summary?.totalSellingStockValue ?? reportData.summary?.totalStockValue ?? 0)
+                          )}
+                        </div>
                       </div>
                       <div className="bg-purple-50/50 p-4 rounded-xl border border-purple-100 shadow-sm hover:shadow-md transition-shadow">
                         <div className="text-xs font-semibold uppercase tracking-wider text-purple-700 mb-1">Period</div>
@@ -962,7 +1021,9 @@ const InventoryReport = () => {
                                 <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase border-r border-zinc-700/60">IN</th>
                                 <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase border-r border-zinc-700/60">OUT</th>
                                 <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase border-r border-zinc-700/60">CLOSING</th>
-                                <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase border-r border-zinc-700/60">COST</th>
+                                <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase border-r border-zinc-700/60">
+                                  {isAdmin ? "COST" : "SELLING PRICE"}
+                                </th>
                                 <th className="py-3.5 px-4 text-right text-[11px] font-bold tracking-wider text-white uppercase">STOCK VALUE</th>
                               </tr>
                             </thead>
@@ -993,8 +1054,16 @@ const InventoryReport = () => {
                                     <td className="py-3 px-4 text-right font-bold text-emerald-600 border-r border-gray-200">{item.stockIn || 0}</td>
                                     <td className="py-3 px-4 text-right font-bold text-red-500 border-r border-gray-200">{item.stockOut || 0}</td>
                                     <td className="py-3 px-4 text-right font-bold text-[#9333ea] border-r border-gray-200">{item.closingStock || 0}</td>
-                                    <td className="py-3 px-4 text-right text-gray-700 border-r border-gray-200">{formatCurrency(item.costPrice || 0)}</td>
-                                    <td className="py-3 px-4 text-right font-bold text-emerald-600">{formatCurrency(item.stockValue || 0)}</td>
+                                    <td className="py-3 px-4 text-right text-gray-700 border-r border-gray-200">
+                                      {formatCurrency(isAdmin ? (item.costPrice || 0) : (item.sellingPrice || 0))}
+                                    </td>
+                                    <td className="py-3 px-4 text-right font-bold text-emerald-600">
+                                      {formatCurrency(
+                                        isAdmin
+                                          ? (item.stockValue || 0)
+                                          : (item.sellingStockValue ?? ((item.sellingPrice || 0) * (item.closingStock || 0)))
+                                      )}
+                                    </td>
                                   </tr>
                                 ))
                               )}
@@ -1026,7 +1095,9 @@ const InventoryReport = () => {
                                 <tr key={idx} className="hover:bg-purple-50/40 transition-colors">
                                   <td className="py-3 px-4 font-semibold text-gray-900 border-r border-gray-200">{wh.warehouse}</td>
                                   <td className="py-3 px-4 text-right font-bold text-[#9333ea] border-r border-gray-200">{wh.totalStock}</td>
-                                  <td className="py-3 px-4 text-right font-bold text-emerald-600 border-r border-gray-200">{formatCurrency(wh.totalValue)}</td>
+                                  <td className="py-3 px-4 text-right font-bold text-emerald-600 border-r border-gray-200">
+                                    {formatCurrency(isAdmin ? wh.totalValue : (wh.totalSellingValue ?? wh.totalValue))}
+                                  </td>
                                   <td className="py-3 px-4 text-right text-gray-700">{wh.totalItems}</td>
                                 </tr>
                               ))}

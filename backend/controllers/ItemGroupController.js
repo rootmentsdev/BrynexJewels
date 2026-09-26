@@ -90,13 +90,17 @@ const WAREHOUSE_NAME_MAPPING = {
   // MG Road variations
   "G.MG Road": "SuitorGuy MG Road",
   "G.Mg Road": "SuitorGuy MG Road",
+  "G-MG Road": "SuitorGuy MG Road",
+  "G-Mg Road": "SuitorGuy MG Road",
   "GMG Road": "SuitorGuy MG Road",
   "GMg Road": "SuitorGuy MG Road",
   "MG Road": "SuitorGuy MG Road",
   "Mg Road": "SuitorGuy MG Road",
+  "mg road": "SuitorGuy MG Road",
   "MG Road Branch": "SuitorGuy MG Road",
   "Mg Road Branch": "SuitorGuy MG Road",
   "G Road Branch": "SuitorGuy MG Road",
+  "Grooms MG Road": "SuitorGuy MG Road",
   "SuitorGuy MG Road": "SuitorGuy MG Road",
   
   // Head Office variations
@@ -108,7 +112,9 @@ const WAREHOUSE_NAME_MAPPING = {
   "Z- Edappal": "Warehouse",
   "Production": "Warehouse",
   "Office": "Warehouse",
-  "G.Vadakara": "Warehouse",
+  "G.Vadakara": "Vadakara Branch",
+  "GVadakara": "Vadakara Branch",
+  "Vadakara Branch": "Vadakara Branch",
 };
 
 // Normalize warehouse name to standard format
@@ -569,13 +575,11 @@ export const getItemGroups = async (req, res) => {
       // Calculate total stock from items
       const totalStock = (isViewingSpecificStore ? relevantItems : itemsArray).reduce((sum, item) => {
         if (item.warehouseStocks && Array.isArray(item.warehouseStocks) && item.warehouseStocks.length > 0) {
+          if (isViewingSpecificStore && targetStoreWarehouse) {
+            const ws = item.warehouseStocks.find(w => matchesWarehouse(w.warehouse, targetStoreWarehouse));
+            return sum + (ws ? (parseFloat(ws.stockOnHand) || 0) : 0);
+          }
           const warehouseTotal = item.warehouseStocks.reduce((wsSum, ws) => {
-            if (isViewingSpecificStore && targetStoreWarehouse) {
-              if (matchesWarehouse(ws.warehouse, targetStoreWarehouse)) {
-                return wsSum + (parseFloat(ws.stockOnHand || 0));
-              }
-              return wsSum;
-            }
             return wsSum + (parseFloat(ws.stockOnHand || 0));
           }, 0);
           return sum + warehouseTotal;

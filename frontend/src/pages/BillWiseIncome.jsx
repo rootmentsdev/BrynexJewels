@@ -204,19 +204,27 @@ const DayBookInc = () => {
 
     const fetchOptions = useMemo(() => ({}), []);
 
-    const { data } = useFetch(apiUrl, fetchOptions);
-    const { data: data1 } = useFetch(apiurl1, fetchOptions);
-    const { data: data2 } = useFetch(apiUrl2, fetchOptions);
-    const { data: data3 } = useFetch(apiUrl3, fetchOptions);
+    const [loadingMongo, setLoadingMongo] = useState(true);
+    const [loadingOpening, setLoadingOpening] = useState(true);
+    const [loadingClosing, setLoadingClosing] = useState(true);
+
+    const { data, loading: loading0 } = useFetch(apiUrl, fetchOptions);
+    const { data: data1, loading: loading1 } = useFetch(apiurl1, fetchOptions);
+    const { data: data2, loading: loading2 } = useFetch(apiUrl2, fetchOptions);
+    const { data: data3, loading: loading3 } = useFetch(apiUrl3, fetchOptions);
+
+    const isPageLoading = loading0 || loading1 || loading2 || loading3 || loadingMongo || loadingOpening || loadingClosing;
 
     const [dayBookData, setDayBookData] = useState([]);
 
     // Fetch mongo transactions once on mount
     useEffect(() => {
+        setLoadingMongo(true);
         fetch(apiUrl4_fallback)
             .then(r => r.ok ? r.json() : null)
             .then(json => setDayBookData(json?.data || []))
-            .catch(() => setDayBookData([]));
+            .catch(() => setDayBookData([]))
+            .finally(() => setLoadingMongo(false));
     }, []);
 
     const isDataReady = true;
@@ -613,33 +621,33 @@ const DayBookInc = () => {
     }, [filteredTransactions]);
 
     const handleQuantityChange = useCallback((index, value) => {
-        if (preOpen1 != null) return;
+        if (preOpen1 != null || isPageLoading) return;
         setQuantities(prev => {
             const next = [...prev];
             next[index] = value === "" ? "" : Math.max(0, parseInt(value, 10) || 0);
             return next;
         });
-    }, [preOpen1]);
+    }, [preOpen1, isPageLoading]);
 
     const incrementQuantity = useCallback((index) => {
-        if (preOpen1 != null) return;
+        if (preOpen1 != null || isPageLoading) return;
         setQuantities(prev => {
             const next = [...prev];
             const currentVal = parseInt(next[index], 10) || 0;
             next[index] = currentVal + 1;
             return next;
         });
-    }, [preOpen1]);
+    }, [preOpen1, isPageLoading]);
 
     const decrementQuantity = useCallback((index) => {
-        if (preOpen1 != null) return;
+        if (preOpen1 != null || isPageLoading) return;
         setQuantities(prev => {
             const next = [...prev];
             const currentVal = parseInt(next[index], 10) || 0;
             next[index] = Math.max(0, currentVal - 1);
             return next;
         });
-    }, [preOpen1]);
+    }, [preOpen1, isPageLoading]);
 
     const totalAmount = useMemo(() => {
         return denominations.reduce(
@@ -658,6 +666,10 @@ const DayBookInc = () => {
     }), [date, locCode, email, calculatedTotals.totalCash, totalAmount, calculatedTotals.totalBankAmount]);
 
     const CreateCashBank = async () => {
+        if (isPageLoading) {
+            alert("Please wait until all transactions and balances have finished loading.");
+            return;
+        }
         if (savedData.totalAmount === 0) {
             const confirmed = window.confirm(
                 'Physical cash count is 0. Are you sure you want to close the day with zero cash? Click OK to proceed or Cancel to go back and enter the denomination count.'
@@ -697,6 +709,7 @@ const DayBookInc = () => {
     };
 
     const GetCreateCashBank = async () => {
+        setLoadingOpening(true);
         try {
             const response = await fetch(apiUrl6, {
                 method: 'GET',
@@ -718,10 +731,13 @@ const DayBookInc = () => {
         } catch (error) {
             console.error("Error fetching opening balance:", error);
             setPreOpen(null);
+        } finally {
+            setLoadingOpening(false);
         }
     };
 
     const takeCreateCashBank = async () => {
+        setLoadingClosing(true);
         try {
             const response = await fetch(apiUrl7, { method: 'GET' });
             if (response.status === 404) {
@@ -735,6 +751,8 @@ const DayBookInc = () => {
             setPreOpen1(json.data);
         } catch (err) {
             console.error("Error fetching closing data:", err);
+        } finally {
+            setLoadingClosing(false);
         }
     };
 
@@ -1042,6 +1060,7 @@ const DayBookInc = () => {
     }));
 
     const handleDownloadReport = () => {
+        if (preOpen1 == null) return;
         if (csvLinkRef.current) {
             csvLinkRef.current.link.click();
         }
@@ -1325,8 +1344,8 @@ const DayBookInc = () => {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => decrementQuantity(index)}
-                                                                disabled={preOpen1 != null}
-                                                                className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors border-r border-gray-300 disabled:opacity-40 cursor-pointer"
+                                                                disabled={preOpen1 != null || isPageLoading}
+                                                                className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors border-r border-gray-300 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                                                             >
                                                                 <Minus size={13} />
                                                             </button>
@@ -1335,15 +1354,15 @@ const DayBookInc = () => {
                                                                 min="0"
                                                                 value={quantities[index]}
                                                                 onChange={(e) => handleQuantityChange(index, e.target.value)}
-                                                                readOnly={preOpen1 != null}
+                                                                readOnly={preOpen1 != null || isPageLoading}
                                                                 placeholder="0"
                                                                 className="w-12 h-8 text-center text-sm font-semibold text-gray-800 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                             />
                                                             <button
                                                                 type="button"
                                                                 onClick={() => incrementQuantity(index)}
-                                                                disabled={preOpen1 != null}
-                                                                className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors border-l border-gray-300 disabled:opacity-40 cursor-pointer"
+                                                                disabled={preOpen1 != null || isPageLoading}
+                                                                className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors border-l border-gray-300 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                                                             >
                                                                 <Plus size={13} />
                                                             </button>
@@ -1400,7 +1419,13 @@ const DayBookInc = () => {
                                         <button
                                             type="button"
                                             onClick={handleDownloadReport}
-                                            className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-semibold rounded-none border border-gray-200 transition-colors text-center cursor-pointer"
+                                            disabled={preOpen1 == null || isPageLoading}
+                                            title={isPageLoading ? "Please wait, page is loading..." : preOpen1 == null ? "Please save & finish day first to enable report download" : "Download Report"}
+                                            className={`flex-1 py-2.5 px-4 text-sm font-semibold rounded-none border border-gray-200 transition-colors text-center ${
+                                                preOpen1 == null || isPageLoading
+                                                    ? "bg-gray-100 text-gray-400 opacity-60 cursor-not-allowed"
+                                                    : "bg-gray-100 hover:bg-gray-200 text-gray-800 cursor-pointer"
+                                            }`}
                                         >
                                             Download Report
                                         </button>
@@ -1412,6 +1437,15 @@ const DayBookInc = () => {
                                             >
                                                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                                                 <span>Saving...</span>
+                                            </button>
+                                        ) : isPageLoading ? (
+                                            <button
+                                                disabled
+                                                title="Loading day transactions..."
+                                                className="flex-1 py-2.5 px-4 bg-[#8b5cf6] opacity-60 text-white text-sm font-semibold rounded-none text-center flex items-center justify-center gap-2 cursor-not-allowed"
+                                            >
+                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                <span>Loading data...</span>
                                             </button>
                                         ) : preOpen1 == null ? (
                                             <button

@@ -108,15 +108,15 @@ const Nav = () => {
 
     const inventoryLinks = [
         { to: "/shoe-sales/items", label: "Items", Icon: List },
+        { to: "/shoe-sales/item-groups", label: "Item Groups", Icon: Layers },
         // Only show these for admin and warehouse users
-        ...(currentuser.power === 'admin' || currentuser.power === 'warehouse' ? [
-            { to: "/shoe-sales/item-groups", label: "Item Groups", Icon: Layers },
+        ...(currentuser?.power === 'admin' || currentuser?.power === 'warehouse' ? [
             { to: "/inventory/adjustments", label: "Inventory Adjustments", Icon: SlidersHorizontal },
         ] : []),
         { to: "/inventory/transfer-orders", label: "Transfer Orders", Icon: ArrowLeftRight },
         { to: "/inventory/store-orders", label: "Store Orders", Icon: ShoppingBasket },
         // Only show these for admin and warehouse users
-        ...(currentuser.power === 'admin' || currentuser.power === 'warehouse' ? [
+        ...(currentuser?.power === 'admin' || currentuser?.power === 'warehouse' ? [
             { to: "/inventory/reorder-alerts", label: "Reorder Alerts", Icon: AlertTriangle },
             { to: "/shoe-sales/inactive", label: "Inactive", Icon: FolderClosed }
         ] : [])
@@ -126,10 +126,8 @@ const Nav = () => {
         { to: "/sales/returns", label: "Invoice Return", Icon: RotateCcw }
     ];
     const isInventoryActive = inventoryLinks.some((link) => link.to === activePath) ||
-                               activePath.startsWith("/shoe-sales/items") ||
-                               (currentuser.power === 'admin' || currentuser.power === 'warehouse') && activePath.startsWith("/shoe-sales/item-groups") ||
-                               (currentuser.power === 'admin' || currentuser.power === 'warehouse') && activePath.startsWith("/shoe-sales/inactive") ||
-                               activePath.startsWith("/inventory/store-orders");
+                               activePath.startsWith("/shoe-sales") ||
+                               activePath.startsWith("/inventory");
     const isSalesActive = salesLinks.some((link) => link.to === activePath);
     const purchaseLinks = [
         { to: "/purchase/orders", label: "Purchase Orders", Icon: ClipboardList },
@@ -155,7 +153,10 @@ const Nav = () => {
         "/RentOutReport",
         "/reports/income-expense",
         "/reports/sales-by-group",
-        ...(hasSalesInventoryAccess ? ["/reports/sales", "/reports/sales-by-invoice", "/reports/inventory"] : [])
+        "/reports/sales",
+        "/reports/sales-by-invoice",
+        "/reports/inventory",
+        ...(currentuser?.power === 'admin' || currentuser?.power === 'warehouse' ? ["/reports/aging"] : [])
     ].includes(activePath);
 
     const groupButtonClasses = (isActive) =>
@@ -272,44 +273,40 @@ const Nav = () => {
                             </Link>
 
                             {/* Sales */}
-                            {hasSalesInventoryAccess && (
-                                <div>
-                                    <button onClick={() => setOpenSection(isSalesOpen ? null : "sales")} className={groupButtonClasses(isSalesActive || isSalesOpen)}>
-                                        <div className="flex w-full items-center gap-3">
-                                            <ShoppingCart size={16} className="shrink-0" />
-                                            <span className="flex-1 text-left whitespace-nowrap truncate">Sales</span>
-                                            <ChevronDown size={14} className={`shrink-0 transition-transform ${isSalesOpen ? "rotate-180" : "rotate-0"}`} />
-                                        </div>
-                                    </button>
-                                    {isSalesOpen && (
-                                        <div className="mt-1 space-y-0.5 border-l border-[#27272a] ml-[25px]">
-                                            {salesLinks.map(({ to, label }) => (
-                                                <Link key={to} to={to} className={subLinkClasses(to)}><span>{label}</span></Link>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                            <div>
+                                <button onClick={() => setOpenSection(isSalesOpen ? null : "sales")} className={groupButtonClasses(isSalesActive || isSalesOpen)}>
+                                    <div className="flex w-full items-center gap-3">
+                                        <ShoppingCart size={16} className="shrink-0" />
+                                        <span className="flex-1 text-left whitespace-nowrap truncate">Sales</span>
+                                        <ChevronDown size={14} className={`shrink-0 transition-transform ${isSalesOpen ? "rotate-180" : "rotate-0"}`} />
+                                    </div>
+                                </button>
+                                {isSalesOpen && (
+                                    <div className="mt-1 space-y-0.5 border-l border-[#27272a] ml-[25px]">
+                                        {salesLinks.map(({ to, label }) => (
+                                            <Link key={to} to={to} className={subLinkClasses(to)}><span>{label}</span></Link>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
 
                             {/* Inventory */}
-                            {hasSalesInventoryAccess && (
-                                <div>
-                                    <button onClick={() => setOpenSection(isInventoryOpen ? null : "inventory")} className={groupButtonClasses(isInventoryActive || isInventoryOpen)}>
-                                        <div className="flex w-full items-center gap-3">
-                                            <Box size={16} className="shrink-0" />
-                                            <span className="flex-1 text-left whitespace-nowrap truncate">Inventory</span>
-                                            <ChevronDown size={14} className={`shrink-0 transition-transform ${isInventoryOpen ? "rotate-180" : "rotate-0"}`} />
-                                        </div>
-                                    </button>
-                                    {isInventoryOpen && (
-                                        <div className="mt-1 space-y-0.5 border-l border-[#27272a] ml-[25px]">
-                                            {inventoryLinks.map(({ to, label }) => (
-                                                <Link key={to} to={to} className={subLinkClasses(to)}><span>{label}</span></Link>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                            <div>
+                                <button onClick={() => setOpenSection(isInventoryOpen ? null : "inventory")} className={groupButtonClasses(isInventoryActive || isInventoryOpen)}>
+                                    <div className="flex w-full items-center gap-3">
+                                        <Box size={16} className="shrink-0" />
+                                        <span className="flex-1 text-left whitespace-nowrap truncate">Inventory</span>
+                                        <ChevronDown size={14} className={`shrink-0 transition-transform ${isInventoryOpen ? "rotate-180" : "rotate-0"}`} />
+                                    </div>
+                                </button>
+                                {isInventoryOpen && (
+                                    <div className="mt-1 space-y-0.5 border-l border-[#27272a] ml-[25px]">
+                                        {inventoryLinks.map(({ to, label }) => (
+                                            <Link key={to} to={to} className={subLinkClasses(to)}><span>{label}</span></Link>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
 
                             {/* Purchase */}
                             {(currentuser.power === 'admin' || currentuser.power === 'warehouse') && (
@@ -346,14 +343,12 @@ const Nav = () => {
                                         <Link to="/RentOutReport" className={subLinkClasses('/RentOutReport')}><span>Rent Out Report</span></Link>
                                         <Link to="/securityReport" className={subLinkClasses('/securityReport')}><span>Security Report</span></Link>
                                         <Link to="/Revenuereport" className={subLinkClasses('/Revenuereport')}><span>Revenue Report</span></Link>
-                                        {hasSalesInventoryAccess && (
-                                            <>
-                                                <Link to="/reports/sales-by-invoice" className={subLinkClasses('/reports/sales-by-invoice')}><span>Sales by Invoice</span></Link>
-                                                <Link to="/reports/sales" className={subLinkClasses('/reports/sales')}><span>Sales Report</span></Link>
-                                                <Link to="/reports/sales-by-group" className={subLinkClasses('/reports/sales-by-group')}><span>Sales by Group</span></Link>
-                                                <Link to="/reports/inventory" className={subLinkClasses('/reports/inventory')}><span>Inventory Report</span></Link>
-                                                <Link to="/reports/aging" className={subLinkClasses('/reports/aging')}><span>Aging Report</span></Link>
-                                            </>
+                                        <Link to="/reports/sales-by-invoice" className={subLinkClasses('/reports/sales-by-invoice')}><span>Sales by Invoice</span></Link>
+                                        <Link to="/reports/sales" className={subLinkClasses('/reports/sales')}><span>Sales Report</span></Link>
+                                        <Link to="/reports/sales-by-group" className={subLinkClasses('/reports/sales-by-group')}><span>Sales by Group</span></Link>
+                                        <Link to="/reports/inventory" className={subLinkClasses('/reports/inventory')}><span>Inventory Report</span></Link>
+                                        {(currentuser?.power === 'admin' || currentuser?.power === 'warehouse') && (
+                                            <Link to="/reports/aging" className={subLinkClasses('/reports/aging')}><span>Aging Report</span></Link>
                                         )}
                                         <Link to="/reports/income-expense" className={subLinkClasses('/reports/income-expense')}><span>Income &amp; Expense</span></Link>
                                     </div>
