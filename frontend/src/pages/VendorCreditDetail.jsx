@@ -229,7 +229,7 @@ const VendorCreditDetail = () => {
     }));
 
   // Get company details (you may need to fetch this from user/organization settings)
-  const companyName = "Grooms Wedding Hub"; // This should come from user/organization settings
+  const companyName = "Bridesberry"; // This should come from user/organization settings
   const companyAddress = "Kerala"; // This should come from user/organization settings
   const companyGSTIN = "32ABCFR1426N129"; // This should come from user/organization settings
   const companyEmail = "rootmentsoffice@gmail.com"; // This should come from user/organization settings
@@ -287,20 +287,20 @@ const VendorCreditDetail = () => {
         </div>
 
         {/* Action Buttons */}
-        <div className="p-4 border-b border-[#e6eafb] flex gap-2">
+        <div className="p-3 border-b border-[#e6eafb] bg-[#fafbff] flex items-center gap-2">
           <button 
             onClick={() => navigate(`/purchase/vendor-credits/${id}/edit`)}
-            className="flex-1 px-3 py-2 text-sm font-medium text-[#475569] border border-[#d7dcf5] rounded-md hover:bg-[#f8fafc] transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200 rounded-lg shadow-xs hover:shadow-sm transition-all cursor-pointer"
           >
-            <Edit size={14} className="inline mr-1" />
-            Edit
+            <Edit size={14} className="text-slate-500" />
+            <span>Edit</span>
           </button>
           <button 
             onClick={handleDownloadPDF}
-            className="flex-1 px-3 py-2 text-sm font-medium text-[#475569] border border-[#d7dcf5] rounded-md hover:bg-[#f8fafc] transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100/80 active:bg-indigo-100 border border-indigo-200/80 rounded-lg shadow-xs hover:shadow-sm transition-all cursor-pointer"
           >
-            <Download size={14} className="inline mr-1" />
-            Download PDF
+            <Download size={14} className="text-indigo-600" />
+            <span>PDF</span>
           </button>
         </div>
 

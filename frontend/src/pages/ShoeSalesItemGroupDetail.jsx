@@ -782,6 +782,9 @@ const ShoeSalesItemGroupDetail = () => {
                           Selling Price
                         </th>
                         <th className="px-6 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider border-r border-[#333333]">
+                          MRP
+                        </th>
+                        <th className="px-6 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider border-r border-[#333333]">
                           Stock on Hand
                         </th>
                         <th className="px-6 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider border-r border-[#333333]">
@@ -826,8 +829,11 @@ const ShoeSalesItemGroupDetail = () => {
                             <td className="px-6 py-4 text-xs font-mono font-bold text-[#111827]">
                               ₹{typeof item.costPrice === 'number' ? item.costPrice.toFixed(2) : (item.costPrice || "0.00")}
                             </td>
-                            <td className="px-6 py-4 text-xs font-mono font-bold text-[#111827]">
+                            <td className="px-6 py-4 text-xs font-mono font-bold text-[#10B981]">
                               ₹{typeof item.sellingPrice === 'number' ? item.sellingPrice.toFixed(2) : (item.sellingPrice || "0.00")}
+                            </td>
+                            <td className="px-6 py-4 text-xs font-mono font-bold text-[#7C3AED]">
+                              ₹{parseFloat(item.mrp) > 0 ? parseFloat(item.mrp).toFixed(2) : (parseFloat(item.sellingPrice) || 0).toFixed(2)}
                             </td>
                             <td className="px-6 py-4 text-xs font-mono font-bold text-[#111827]">{Math.round(itemStock)}</td>
                             <td className="px-6 py-4 text-xs font-mono text-[#6B7280]">{item.reorderPoint || "—"}</td>

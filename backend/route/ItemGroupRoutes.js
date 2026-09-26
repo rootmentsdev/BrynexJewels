@@ -8,6 +8,7 @@ import {
   getItemHistory,
   saveMonthlyOpeningStock,
   getMonthlyOpeningStock,
+  addItemsToGroup,
 } from "../controllers/ItemGroupController.js";
 
 const router = express.Router();
@@ -16,6 +17,10 @@ router
   .route("/shoe-sales/item-groups")
   .get(getItemGroups)
   .post(createItemGroup);
+
+router
+  .route("/shoe-sales/item-groups/add-items")
+  .post(addItemsToGroup);
 
 router
   .route("/shoe-sales/item-groups/:id")

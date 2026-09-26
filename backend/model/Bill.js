@@ -42,6 +42,8 @@ const billSchema = new mongoose.Schema(
       size: String,
       hsnCode: { type: String, default: "" },
       itemSku: { type: String, default: "" },
+      sku: { type: String, default: "" },
+      itemCode: { type: String, default: "" },
       itemGroupId: { type: mongoose.Schema.Types.ObjectId, ref: "ItemGroup", default: null },
       quantity: { type: Number, default: 0 },
       rate: { type: Number, default: 0 },
@@ -63,6 +65,7 @@ const billSchema = new mongoose.Schema(
       sgstPercent: { type: Number, default: 0 },
       igstPercent: { type: Number, default: 0 },
       isInterState: { type: Boolean, default: false },
+      returnable: { type: Boolean, default: false },
     }],
     
     // Summary

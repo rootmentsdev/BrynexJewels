@@ -16,6 +16,11 @@ const ShoeItemSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    itemCode: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     unit: {
       type: String,
       trim: true,

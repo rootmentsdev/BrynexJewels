@@ -283,21 +283,14 @@ const InventoryAgingReport = () => {
       "Category": item.category || "",
       "Warehouse": item.warehouse || "",
       "Stock On Hand (pcs)": item.stockOnHand || 0,
-      ...(isAdmin
-        ? {
-            "Cost Price (₹)": item.costPrice || 0,
-            "Stock Valuation (₹)": item.stockValue || 0,
-          }
-        : {
-            "Selling Price (₹)": item.sellingPrice || 0,
-            "Total Value (₹)": item.totalSellingValue ?? item.stockSellingValue ?? ((item.sellingPrice || 0) * (item.stockOnHand || 0)),
-          }),
+      "Cost Price (₹)": item.costPrice || 0,
+      "Stock Valuation (₹)": item.stockValue || 0,
       "Inward Date": item.inwardDate || "",
       "Inward Source": item.inwardSource || "",
       "Age (Days)": item.ageInDays || 0,
       "Age Bracket": item.bracketLabel || "",
     }));
-  }, [processedItems, isAdmin]);
+  }, [processedItems]);
 
   const summary = reportData?.summary;
   const brackets = reportData?.brackets;
@@ -439,9 +432,7 @@ const InventoryAgingReport = () => {
                 </div>
               </div>
               <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-[#059669]">
-                  {formatCurrency(isAdmin ? summary.totalValue : (summary.totalSellingValue ?? summary.totalValue))}
-                </span>
+                <span className="text-2xl font-bold text-[#059669]">{formatCurrency(summary.totalValue)}</span>
               </div>
             </div>
 
@@ -466,9 +457,7 @@ const InventoryAgingReport = () => {
                 </div>
               </div>
               <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-[#ef4444]">
-                  {formatCurrency(isAdmin ? summary.criticalAgedValue : (summary.criticalAgedSellingValue ?? summary.criticalAgedValue))}
-                </span>
+                <span className="text-2xl font-bold text-[#ef4444]">{formatCurrency(summary.criticalAgedValue)}</span>
                 <span className="text-xs text-[#64748b]">({summary.criticalAgedStock} pcs)</span>
               </div>
             </div>
@@ -496,9 +485,7 @@ const InventoryAgingReport = () => {
                       {b.count} items
                     </span>
                   </div>
-                  <div className="text-base font-bold text-[#111827]">
-                    {formatCurrency(isAdmin ? b.value : (b.sellingValue ?? b.value))}
-                  </div>
+                  <div className="text-base font-bold text-[#111827]">{formatCurrency(b.value)}</div>
                   <div className="text-[11px] text-[#64748b] mt-0.5">{b.stock.toLocaleString()} units</div>
                 </button>
               );
@@ -595,8 +582,8 @@ const InventoryAgingReport = () => {
                     <th className="py-3 px-4 text-center">Stock Age</th>
                     <th className="py-3 px-4 text-center">Age Bracket</th>
                     <th className="py-3 px-4 text-right">Current Stock</th>
-                    <th className="py-3 px-4 text-right">{isAdmin ? "Unit Cost" : "Selling Price"}</th>
-                    <th className="py-3 px-4 text-right">{isAdmin ? "Stock Valuation" : "Total Value"}</th>
+                    <th className="py-3 px-4 text-right">Unit Cost</th>
+                    <th className="py-3 px-4 text-right">Stock Valuation</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f1f5f9] text-xs text-[#1e293b]">
@@ -660,18 +647,14 @@ const InventoryAgingReport = () => {
                           <span className="text-[10px] text-[#64748b] ml-1">pcs</span>
                         </td>
 
-                        {/* Cost / Selling Price */}
+                        {/* Cost Price */}
                         <td className="py-3 px-4 text-right font-medium text-[#475569]">
-                          {formatCurrency(isAdmin ? item.costPrice : (item.sellingPrice || 0))}
+                          {formatCurrency(item.costPrice)}
                         </td>
 
                         {/* Total Stock Valuation */}
                         <td className="py-3 px-4 text-right font-bold text-[#059669]">
-                          {formatCurrency(
-                            isAdmin
-                              ? item.stockValue
-                              : (item.totalSellingValue ?? item.stockSellingValue ?? ((item.sellingPrice || 0) * (item.stockOnHand || 0)))
-                          )}
+                          {formatCurrency(item.stockValue)}
                         </td>
                       </tr>
                     );

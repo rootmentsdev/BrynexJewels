@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useEnterToSave } from "../hooks/useEnterToSave";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ChevronDown, Search, Check, Settings, X, Package, DollarSign, ShoppingCart, Warehouse, Image, Info, AlertCircle } from "lucide-react";
 import Header from "../components/Header";
 import ImageUpload from "../components/ImageUpload";
@@ -134,6 +134,9 @@ const initialFormData = {
 const ShoeSalesItemCreate = () => {
   const isSidebarOpen = useSidebar();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const pieceSkuParam = searchParams.get("pieceSku");
+  const unitIndexParam = searchParams.get("unitIndex");
   const { id: groupId, itemId } = useParams(); // Get groupId and itemId from URL
   const isEditMode = !!itemId; // If itemId exists, we're in edit mode
   const isStandaloneItem = isEditMode && !groupId; // Editing standalone item (has itemId but no groupId)
@@ -235,7 +238,7 @@ const ShoeSalesItemCreate = () => {
             ...prev,
             type: data.type || "goods",
             itemName: data.itemName || "",
-            sku: data.sku || "",
+            sku: pieceSkuParam || data.sku || "",
             unit: data.unit || "",
             hsnCode: data.hsnCode || "",
             manufacturer: data.manufacturer || "",
@@ -276,7 +279,7 @@ const ShoeSalesItemCreate = () => {
           setTrackInventory(data.trackInventory !== undefined ? data.trackInventory : true);
           setTrackBin(data.trackBin !== undefined ? data.trackBin : false);
           setTrackingMethod(data.trackingMethod || "none");
-          setSkuManuallyEdited(!!data.sku);
+          setSkuManuallyEdited(!!(pieceSkuParam || data.sku));
         } catch (error) {
           console.error("Error fetching standalone item:", error);
           alert("Failed to load item data. Please try again.");
@@ -288,7 +291,7 @@ const ShoeSalesItemCreate = () => {
       
       fetchStandaloneItem();
     }
-  }, [isStandaloneItem, itemId, navigate]);
+  }, [isStandaloneItem, itemId, navigate, pieceSkuParam]);
 
   // Fetch item group data if adding to a group or editing an item
   useEffect(() => {
@@ -354,7 +357,7 @@ const ShoeSalesItemCreate = () => {
               setFormData((prev) => ({
                 ...prev,
                 itemName: foundItem.name || "",
-                sku: foundItem.sku || "",
+                sku: pieceSkuParam || foundItem.sku || "",
                 costPrice: foundItem.costPrice?.toString() || "",
                 sellingPrice: foundItem.sellingPrice?.toString() || "",
                 upc: foundItem.upc || "",
@@ -364,7 +367,7 @@ const ShoeSalesItemCreate = () => {
                 sac: foundItem.sac || "",
                 size: sizeValue || "", // Set size from attributes
               }));
-              setSkuManuallyEdited(!!foundItem.sku);
+              setSkuManuallyEdited(!!(pieceSkuParam || foundItem.sku));
               setAttributeValues(foundItem.attributeCombination || []);
             } else {
               alert("Item not found. Redirecting to item group.");
@@ -386,7 +389,7 @@ const ShoeSalesItemCreate = () => {
       
       fetchItemGroup();
     }
-  }, [groupId, itemId, isEditMode, navigate]);
+  }, [groupId, itemId, isEditMode, navigate, pieceSkuParam]);
 
   useEffect(() => {
     if (!trackInventory) {
@@ -816,7 +819,12 @@ const handleCheckboxChange = (field) => (event) => {
 
         // Navigate back to the item detail page if editing, or group detail page if creating
         if (isEditMode && itemId) {
-          navigate(`/shoe-sales/item-groups/${groupId}/items/${itemId}`);
+          const targetSku = formData.sku || pieceSkuParam;
+          const nextParams = new URLSearchParams();
+          if (targetSku) nextParams.set("pieceSku", targetSku);
+          if (unitIndexParam) nextParams.set("unitIndex", unitIndexParam);
+          const queryStr = nextParams.toString() ? `?${nextParams.toString()}` : "";
+          navigate(`/shoe-sales/item-groups/${groupId}/items/${itemId}${queryStr}`);
         } else {
           navigate(`/shoe-sales/item-groups/${groupId}`);
         }
@@ -864,7 +872,12 @@ const handleCheckboxChange = (field) => (event) => {
           throw new Error(payload?.message || "Failed to update item.");
         }
 
-        navigate(`/shoe-sales/items/${itemId}`);
+        const targetSku = formData.sku || pieceSkuParam;
+        const nextParams = new URLSearchParams();
+        if (targetSku) nextParams.set("pieceSku", targetSku);
+        if (unitIndexParam) nextParams.set("unitIndex", unitIndexParam);
+        const queryStr = nextParams.toString() ? `?${nextParams.toString()}` : "";
+        navigate(`/shoe-sales/items/${itemId}${queryStr}`);
       } else {
         // Create standalone item (original behavior)
         // Get current user for history tracking
@@ -970,9 +983,9 @@ const handleCheckboxChange = (field) => (event) => {
   }
 
   const backUrl = isStandaloneItem && itemId
-    ? `/shoe-sales/items/${itemId}`
+    ? `/shoe-sales/items/${itemId}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`
     : (isEditMode && itemId
-      ? `/shoe-sales/item-groups/${groupId}/items/${itemId}`
+      ? `/shoe-sales/item-groups/${groupId}/items/${itemId}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`
       : (groupId ? `/shoe-sales/item-groups/${groupId}` : "/shoe-sales/items"));
   const backText = isStandaloneItem
     ? "Back to Item"
@@ -980,9 +993,9 @@ const handleCheckboxChange = (field) => (event) => {
       ? "Back to Item"
       : (groupId ? "Back to Group" : "Back to Items"));
   const pageTitle = isStandaloneItem
-    ? "Edit Item"
+    ? `Edit Item${unitIndexParam ? ` (Unit ${unitIndexParam})` : ""}`
     : (isEditMode
-      ? `Edit Item - ${currentItem?.name || "Item"}` 
+      ? `Edit Item - ${currentItem?.name || "Item"}${unitIndexParam ? ` (Unit ${unitIndexParam})` : ""}` 
       : (groupId ? `Add Item to ${itemGroup?.name || "Group"}` : "New Item"));
   const pageDescription = isEditMode
     ? "Edit item details for sales, purchasing, and inventory tracking."

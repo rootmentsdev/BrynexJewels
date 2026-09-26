@@ -21,6 +21,8 @@ const StoreOrders = () => {
   const adminEmails = ['officerootments@gmail.com'];
   const isAdminEmail = userEmail && adminEmails.some(email => userEmail.toLowerCase() === email.toLowerCase());
   const isAdmin = isAdminEmail || user?.power === "admin";
+  const isWarehouseUser = user?.power === "warehouse";
+  const isStoreUser = !isAdmin && !isWarehouseUser;
   
   // Fallback locations mapping
   const fallbackLocations = [
@@ -64,13 +66,6 @@ const StoreOrders = () => {
   }
   
   const userWarehouse = mapLocNameToWarehouse(userLocName);
-  const isWarehouseLocation = 
-    (userWarehouse || "").toString().toLowerCase().trim() === "warehouse" ||
-    userLocCode === "858" || 
-    userLocCode === "103" ||
-    (userLocName || "").toString().toLowerCase().includes("warehouse");
-  const isWarehouseUser = user?.power === "warehouse" || isWarehouseLocation;
-  const isStoreUser = !isAdmin && !isWarehouseUser;
   
   const [storeOrders, setStoreOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -127,16 +122,10 @@ const StoreOrders = () => {
         if (statusFilter !== "all") params.append("status", statusFilter);
         
         // Filter by store warehouse for store users
-        if (isStoreUser && userWarehouse && userWarehouse.toLowerCase() !== "warehouse") {
+        if (isStoreUser && userWarehouse) {
           params.append("storeWarehouse", userWarehouse);
         }
-        if (isAdmin) {
-          params.append("userPower", "admin");
-        } else if (isWarehouseUser) {
-          params.append("userPower", "warehouse");
-        } else if (user?.power) {
-          params.append("userPower", user.power);
-        }
+        if (user?.power) params.append("userPower", user.power);
         if (user?.locCode) params.append("locCode", user.locCode);
         
         const response = await fetch(`${API_URL}/api/inventory/store-orders?${params}`);
@@ -300,17 +289,9 @@ const StoreOrders = () => {
       if (userId) params.append("userId", userId);
       if (statusFilter !== "all") params.append("status", statusFilter);
       
-      if (isStoreUser && userWarehouse && userWarehouse.toLowerCase() !== "warehouse") {
+      if (isStoreUser && userWarehouse) {
         params.append("storeWarehouse", userWarehouse);
       }
-      if (isAdmin) {
-        params.append("userPower", "admin");
-      } else if (isWarehouseUser) {
-        params.append("userPower", "warehouse");
-      } else if (user?.power) {
-        params.append("userPower", user.power);
-      }
-      if (user?.locCode) params.append("locCode", user.locCode);
       
       const response = await fetch(`${API_URL}/api/inventory/store-orders?${params}`);
       if (response.ok) {
@@ -384,17 +365,9 @@ const StoreOrders = () => {
       if (userId) params.append("userId", userId);
       if (statusFilter !== "all") params.append("status", statusFilter);
       
-      if (isStoreUser && userWarehouse && userWarehouse.toLowerCase() !== "warehouse") {
+      if (isStoreUser && userWarehouse) {
         params.append("storeWarehouse", userWarehouse);
       }
-      if (isAdmin) {
-        params.append("userPower", "admin");
-      } else if (isWarehouseUser) {
-        params.append("userPower", "warehouse");
-      } else if (user?.power) {
-        params.append("userPower", user.power);
-      }
-      if (user?.locCode) params.append("locCode", user.locCode);
       
       const refreshResponse = await fetch(`${API_URL}/api/inventory/store-orders?${params}`);
       if (refreshResponse.ok) {

@@ -1,6 +1,7 @@
 import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
 import ItemHistory from "../model/ItemHistory.js";
+import Bill from "../model/Bill.js";
 
 // Warehouse name normalization mapping (same as TransferOrderController)
 const WAREHOUSE_NAME_MAPPING = {
@@ -854,6 +855,29 @@ export const updateShoeItem = async (req, res) => {
       console.log(`History created for item update: ${itemId}, changedAt: ${historyEntry.changedAt}`);
     } catch (historyError) {
       console.error("Error creating history:", historyError);
+    }
+
+    // Sync updated standalone item SKU and details to bills
+    try {
+      if (updatedItem && updatedItem._id && updatedItem.sku) {
+        const sItemId = updatedItem._id.toString();
+        await Bill.updateMany(
+          { "items.itemId": sItemId },
+          {
+            $set: {
+              "items.$[elem].itemSku": updatedItem.sku,
+              "items.$[elem].sku": updatedItem.sku,
+              "items.$[elem].itemName": updatedItem.itemName,
+              ...(updatedItem.hsnCode ? { "items.$[elem].hsnCode": updatedItem.hsnCode } : {}),
+              ...(updatedItem.itemCode ? { "items.$[elem].itemCode": updatedItem.itemCode } : {}),
+              ...(updatedItem.returnable !== undefined ? { "items.$[elem].returnable": updatedItem.returnable } : {})
+            }
+          },
+          { arrayFilters: [{ "elem.itemId": sItemId }] }
+        );
+      }
+    } catch (billSyncErr) {
+      console.warn("Error syncing bill items on standalone item update:", billSyncErr.message);
     }
 
     return res.json(updatedItem);

@@ -57,7 +57,7 @@ const InventoryAdjustmentDetail = () => {
   };
 
   // Company information
-  const companyName = "Grooms Wedding Hub";
+  const companyName = "Bridesberry";
   const companyAddress = "Thrissur Kerala 680002";
   const companyCountry = "India";
   const companyGSTIN = "32ABCFR1426N1Z9";

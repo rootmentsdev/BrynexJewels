@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Edit, X, Building2, Info, Camera, Settings, Star, Warehouse, ChevronDown, Plus, Copy, Pause, Trash2, ArrowUpRight, XCircle, ArrowLeft, Clock } from "lucide-react";
+import { Edit, X, Building2, Info, Camera, Settings, Star, Warehouse, ChevronDown, Plus, Copy, Pause, Trash2, ArrowUpRight, XCircle, ArrowLeft, Clock, Barcode } from "lucide-react";
 import Header from "../components/Header";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 import AttachmentDisplay from "../components/AttachmentDisplay";
@@ -1133,11 +1133,12 @@ const ShoeSalesItemDetailFromGroup = () => {
             <div className="min-w-0">
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-[#111827] uppercase font-mono truncate">
-                  {item.name || "Item Detail"}
+                  {item.name || "Item Detail"} {searchParams.get("unitIndex") && <span className="text-sm font-bold text-purple-600 lowercase">(unit {searchParams.get("unitIndex")})</span>}
                 </h1>
-                {item.sku && (
-                  <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded-none bg-[#F3F4F6] text-[#4B5563] border border-[#E5E7EB] uppercase tracking-wider font-mono">
-                    SKU: {item.sku}
+                {(searchParams.get("pieceSku") || item.sku) && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-[11px] font-bold rounded-none bg-purple-50 text-purple-800 border border-purple-200 uppercase tracking-wider font-mono shadow-2xs">
+                    <Barcode size={12} className="text-purple-600" />
+                    SKU: {searchParams.get("pieceSku") || item.sku}
                   </span>
                 )}
               </div>
@@ -1152,7 +1153,7 @@ const ShoeSalesItemDetailFromGroup = () => {
             {isAdmin && (
               <>
                 <Link
-                  to={`/shoe-sales/item-groups/${id}/items/${itemId}/edit`}
+                  to={`/shoe-sales/item-groups/${id}/items/${itemId}/edit${searchParams.toString() ? `?${searchParams.toString()}` : ""}`}
                   className="inline-flex items-center gap-1.5 h-9 px-4 rounded-none bg-[#8B5CF6] hover:bg-[#7C3AED] text-xs font-bold uppercase tracking-wider text-white shadow-xs transition-colors cursor-pointer"
                 >
                   <Edit size={13} className="text-white" />
@@ -1295,11 +1296,11 @@ const ShoeSalesItemDetailFromGroup = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6" key={`stock-summary-${warehouseStocks.length}-${JSON.stringify(stockTotals)}`}>
                   <div className="bg-[#EFF6FF] border border-[#DBEAFE] rounded-none p-5 shadow-2xs">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-[#3B82F6] mb-1.5">Stock on Hand</p>
-                    <p className="text-3xl font-extrabold text-[#1E3A8A] font-mono">{stockTotals.accounting.stockOnHand.toFixed(0)}</p>
+                    <p className="text-3xl font-extrabold text-[#1E3A8A] font-mono">{searchParams.get("pieceSku") ? "1" : stockTotals.accounting.stockOnHand.toFixed(0)}</p>
                   </div>
                   <div className="bg-[#ECFDF5] border border-[#D1FAE5] rounded-none p-5 shadow-2xs">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-[#10B981] mb-1.5">Available for Sale</p>
-                    <p className="text-3xl font-extrabold text-[#065F46] font-mono">{stockTotals.accounting.availableForSale.toFixed(0)}</p>
+                    <p className="text-3xl font-extrabold text-[#065F46] font-mono">{searchParams.get("pieceSku") ? "1" : stockTotals.accounting.availableForSale.toFixed(0)}</p>
                   </div>
                   <div className="bg-[#FFFBEB] border border-[#FEF3C7] rounded-none p-5 shadow-2xs">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-[#D97706] mb-1.5">Reorder Point</p>
@@ -1331,6 +1332,10 @@ const ShoeSalesItemDetailFromGroup = () => {
                         <div className="flex justify-between items-center py-1.5 border-b border-[#F3F4F6]">
                           <span className="text-xs font-medium text-[#6B7280]">Selling Price</span>
                           <span className="text-sm font-bold text-[#10B981] font-mono">₹{typeof item.sellingPrice === 'number' ? item.sellingPrice.toFixed(2) : (item.sellingPrice || "0.00")}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-[#F3F4F6]">
+                          <span className="text-xs font-medium text-[#6B7280]">MRP</span>
+                          <span className="text-sm font-bold text-[#7C3AED] font-mono">₹{parseFloat(item.mrp) > 0 ? parseFloat(item.mrp).toFixed(2) : (parseFloat(item.sellingPrice) || 0).toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between items-center py-1.5 border-b border-[#F3F4F6]">
                           <span className="text-xs font-medium text-[#6B7280]">HSN Code</span>
@@ -1404,7 +1409,7 @@ const ShoeSalesItemDetailFromGroup = () => {
                         </div>
                         <div className="flex justify-between items-center py-1.5 border-b border-[#F3F4F6]">
                           <span className="text-xs font-medium text-[#6B7280]">SKU</span>
-                          <span className="text-xs font-bold text-[#111827] font-mono">{item.sku || "—"}</span>
+                          <span className="text-xs font-bold text-[#111827] font-mono">{searchParams.get("pieceSku") || item.sku || "—"}</span>
                         </div>
                         <div className="flex justify-between items-center py-1.5 border-b border-[#F3F4F6]">
                           <span className="text-xs font-medium text-[#6B7280]">Unit</span>

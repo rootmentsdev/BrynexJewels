@@ -2,7 +2,7 @@
   "name": "rootfinjewels",
   "private": true,
   "scripts": {
-    "build": "cd frontend && npm install && npm run build"
+    "build": "vite build"
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",

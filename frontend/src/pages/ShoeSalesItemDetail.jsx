@@ -1293,7 +1293,7 @@ const ShoeSalesItemDetail = () => {
                 {isAdmin && (
                   <>
                     <Link
-                      to={`/shoe-sales/items/${itemId}/edit`}
+                      to={`/shoe-sales/items/${itemId}/edit${searchParams.toString() ? `?${searchParams.toString()}` : ""}`}
                       className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#d7dcf5] bg-white px-4 text-sm font-medium text-[#1f2937] transition hover:bg-[#f8fafc] hover:border-[#cbd5f5]"
                     >
                       <Pencil size={16} />
@@ -1359,7 +1359,16 @@ const ShoeSalesItemDetail = () => {
                 })()}
                 <div>
                   <h1 className="text-3xl font-bold text-[#1a1a2e] tracking-tight">{item.itemName}</h1>
-                  <p className="text-base text-[#64748b] mt-2">SKU: {item.sku || "N/A"} {item.brand && `• ${item.brand}`}</p>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <p className="text-base text-[#64748b]">
+                      SKU: <span className="font-mono font-bold text-gray-900">{searchParams.get("pieceSku") || item.sku || "N/A"}</span> {item.brand && `• ${item.brand}`}
+                    </p>
+                    {searchParams.get("pieceSku") && (
+                      <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-800 text-xs font-bold px-2.5 py-0.5 rounded shadow-2xs">
+                        Unit {searchParams.get("unitIndex") || "1"} Piece Tag
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="text-right">
@@ -1375,14 +1384,18 @@ const ShoeSalesItemDetail = () => {
                   <Package size={20} className="text-blue-600" />
                   <span className="text-sm font-medium text-[#64748b]">Stock on Hand</span>
                 </div>
-                <p className="text-3xl font-bold text-[#1a1a2e]">{stockTotals.accounting.stockOnHand.toFixed(0)}</p>
+                <p className="text-3xl font-bold text-[#1a1a2e]">
+                  {searchParams.get("pieceSku") ? "1" : stockTotals.accounting.stockOnHand.toFixed(0)}
+                </p>
               </div>
               <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl p-5">
                 <div className="flex items-center gap-3 mb-3">
                   <ShoppingCart size={20} className="text-emerald-600" />
                   <span className="text-sm font-medium text-[#64748b]">Available for Sale</span>
                 </div>
-                <p className="text-3xl font-bold text-[#1a1a2e]">{stockTotals.accounting.availableForSale.toFixed(0)}</p>
+                <p className="text-3xl font-bold text-[#1a1a2e]">
+                  {searchParams.get("pieceSku") ? "1" : stockTotals.accounting.availableForSale.toFixed(0)}
+                </p>
               </div>
               <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-xl p-5">
                 <div className="flex items-center gap-3 mb-3">
@@ -1439,6 +1452,10 @@ const ShoeSalesItemDetail = () => {
                         <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-[#64748b]">Selling Price</span>
                           <span className="text-sm font-semibold text-[#10b981]">{formatCurrency(item.sellingPrice)}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-2">
+                          <span className="text-sm text-[#64748b]">MRP</span>
+                          <span className="text-sm font-semibold text-[#7C3AED]">{formatCurrency(item.mrp ?? item.sellingPrice)}</span>
                         </div>
                         <div className="flex justify-between items-center py-2">
                           <span className="text-sm text-[#64748b]">HSN Code</span>

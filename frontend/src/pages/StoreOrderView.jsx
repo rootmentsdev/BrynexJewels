@@ -17,19 +17,11 @@ const StoreOrderView = () => {
   const [itemStocks, setItemStocks] = useState({});
   const [processing, setProcessing] = useState(false);
   
-  // Get user info to check if admin / warehouse
+  // Get user info to check if admin
   const userStr = localStorage.getItem("rootfinuser");
   const user = userStr ? JSON.parse(userStr) : null;
-  const userEmail = user?.email || user?.username || "";
-  const adminEmails = ['officerootments@gmail.com'];
-  const isAdminEmail = userEmail && adminEmails.some(email => userEmail.toLowerCase() === email.toLowerCase());
-  const isAdmin = isAdminEmail || user?.power === "admin";
-  const isWarehouseLocation = 
-    user?.locCode === "858" || 
-    user?.locCode === "103" ||
-    (user?.locName || "").toString().toLowerCase().includes("warehouse");
-  const isWarehouseUser = user?.power === "warehouse" || isWarehouseLocation;
-  const isStoreUser = !isAdmin && !isWarehouseUser;
+  const isAdmin = user?.power === "admin";
+  const isWarehouseUser = user?.power === "warehouse";
   
   useEffect(() => {
     const loadStoreOrder = async () => {
@@ -227,14 +219,12 @@ const StoreOrderView = () => {
             >
               Back to Store Orders
             </Link>
-            {!isStoreUser && (
-              <button
-                onClick={handleCreateTransferOrder}
-                className="inline-flex h-9 items-center gap-2 rounded-md bg-[#9B48D7] px-4 text-sm font-semibold text-white transition hover:bg-[#8637c3]"
-              >
-                Create Transfer Order
-              </button>
-            )}
+            <button
+              onClick={handleCreateTransferOrder}
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-[#9B48D7] px-4 text-sm font-semibold text-white transition hover:bg-[#8637c3]"
+            >
+              Create Transfer Order
+            </button>
           </div>
         }
       />
@@ -252,36 +242,24 @@ const StoreOrderView = () => {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold text-[#64748b] uppercase tracking-wider">Status:</span>
-              {isStoreUser ? (
-                <span className={`text-xs font-semibold rounded-lg px-3 py-1.5 border uppercase ${
+              <select
+                value={storeOrder.status || 'pending'}
+                onChange={(e) => handleManualStatusChange(e.target.value)}
+                disabled={processing}
+                className={`text-xs font-semibold rounded-lg px-3 py-1.5 border transition cursor-pointer outline-none ${
                   storeOrder.status === 'draft' ? 'bg-gray-100 text-gray-800 border-gray-300' :
                   storeOrder.status === 'pending' ? 'bg-yellow-50 text-yellow-800 border-yellow-300' :
                   storeOrder.status === 'approved' ? 'bg-green-50 text-green-800 border-green-300' :
                   storeOrder.status === 'rejected' ? 'bg-red-50 text-red-800 border-red-300' :
                   'bg-blue-50 text-blue-800 border-blue-300'
-                }`}>
-                  {storeOrder.status || 'PENDING'}
-                </span>
-              ) : (
-                <select
-                  value={storeOrder.status || 'pending'}
-                  onChange={(e) => handleManualStatusChange(e.target.value)}
-                  disabled={processing}
-                  className={`text-xs font-semibold rounded-lg px-3 py-1.5 border transition cursor-pointer outline-none ${
-                    storeOrder.status === 'draft' ? 'bg-gray-100 text-gray-800 border-gray-300' :
-                    storeOrder.status === 'pending' ? 'bg-yellow-50 text-yellow-800 border-yellow-300' :
-                    storeOrder.status === 'approved' ? 'bg-green-50 text-green-800 border-green-300' :
-                    storeOrder.status === 'rejected' ? 'bg-red-50 text-red-800 border-red-300' :
-                    'bg-blue-50 text-blue-800 border-blue-300'
-                  }`}
-                >
-                  <option value="draft">DRAFT</option>
-                  <option value="pending">PENDING</option>
-                  <option value="approved">APPROVED</option>
-                  <option value="rejected">REJECTED</option>
-                  <option value="transferred">TRANSFERRED</option>
-                </select>
-              )}
+                }`}
+              >
+                <option value="draft">DRAFT</option>
+                <option value="pending">PENDING</option>
+                <option value="approved">APPROVED</option>
+                <option value="rejected">REJECTED</option>
+                <option value="transferred">TRANSFERRED</option>
+              </select>
             </div>
           </div>
           
@@ -302,36 +280,24 @@ const StoreOrderView = () => {
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#64748b] mb-2">Status</p>
-                  {isStoreUser ? (
-                    <span className={`inline-block text-xs font-semibold rounded-lg px-3 py-1.5 border uppercase ${
+                  <select
+                    value={storeOrder.status || 'pending'}
+                    onChange={(e) => handleManualStatusChange(e.target.value)}
+                    disabled={processing}
+                    className={`text-xs font-semibold rounded-lg px-3 py-1.5 border transition cursor-pointer outline-none ${
                       storeOrder.status === 'draft' ? 'bg-gray-100 text-gray-800 border-gray-300' :
                       storeOrder.status === 'pending' ? 'bg-yellow-50 text-yellow-800 border-yellow-300' :
                       storeOrder.status === 'approved' ? 'bg-green-50 text-green-800 border-green-300' :
                       storeOrder.status === 'rejected' ? 'bg-red-50 text-red-800 border-red-300' :
                       'bg-blue-50 text-blue-800 border-blue-300'
-                    }`}>
-                      {storeOrder.status || 'PENDING'}
-                    </span>
-                  ) : (
-                    <select
-                      value={storeOrder.status || 'pending'}
-                      onChange={(e) => handleManualStatusChange(e.target.value)}
-                      disabled={processing}
-                      className={`text-xs font-semibold rounded-lg px-3 py-1.5 border transition cursor-pointer outline-none ${
-                        storeOrder.status === 'draft' ? 'bg-gray-100 text-gray-800 border-gray-300' :
-                        storeOrder.status === 'pending' ? 'bg-yellow-50 text-yellow-800 border-yellow-300' :
-                        storeOrder.status === 'approved' ? 'bg-green-50 text-green-800 border-green-300' :
-                        storeOrder.status === 'rejected' ? 'bg-red-50 text-red-800 border-red-300' :
-                        'bg-blue-50 text-blue-800 border-blue-300'
-                      }`}
-                    >
-                      <option value="draft">DRAFT</option>
-                      <option value="pending">PENDING</option>
-                      <option value="approved">APPROVED</option>
-                      <option value="rejected">REJECTED</option>
-                      <option value="transferred">TRANSFERRED</option>
-                    </select>
-                  )}
+                    }`}
+                  >
+                    <option value="draft">DRAFT</option>
+                    <option value="pending">PENDING</option>
+                    <option value="approved">APPROVED</option>
+                    <option value="rejected">REJECTED</option>
+                    <option value="transferred">TRANSFERRED</option>
+                  </select>
                 </div>
               </div>
               
@@ -384,27 +350,25 @@ const StoreOrderView = () => {
             </div>
           </div>
           
-          {/* Action Buttons (Admin / Warehouse only) */}
-          {!isStoreUser && (
-            <div className="flex items-center justify-end gap-3 border-t border-[#edf1ff] bg-[#fbfcff] px-10 py-6">
-              {storeOrder.status !== 'rejected' && (
-                <button
-                  onClick={handleReject}
-                  disabled={processing}
-                  className="rounded-lg border border-[#ef4444] bg-white px-6 py-2.5 text-sm font-semibold text-[#ef4444] transition hover:bg-[#fef2f2] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Reject
-                </button>
-              )}
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 border-t border-[#edf1ff] bg-[#fbfcff] px-10 py-6">
+            {storeOrder.status !== 'rejected' && (
               <button
-                onClick={handleCreateTransferOrder}
+                onClick={handleReject}
                 disabled={processing}
-                className="rounded-lg bg-[#9B48D7] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#8637c3] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-lg border border-[#ef4444] bg-white px-6 py-2.5 text-sm font-semibold text-[#ef4444] transition hover:bg-[#fef2f2] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Create Transfer Order
+                Reject
               </button>
-            </div>
-          )}
+            )}
+            <button
+              onClick={handleCreateTransferOrder}
+              disabled={processing}
+              className="rounded-lg bg-[#9B48D7] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#8637c3] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Create Transfer Order
+            </button>
+          </div>
         </div>
       </div>
     </div>

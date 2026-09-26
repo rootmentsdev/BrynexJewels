@@ -1,6 +1,7 @@
 import ItemGroup from "../model/ItemGroup.js";
 import ItemHistory from "../model/ItemHistory.js";
 import ShoeItem from "../model/ShoeItem.js";
+import Bill from "../model/Bill.js";
 import { nextItemGroup } from "../utils/nextItemGroup.js";
 
 // Warehouse name normalization mapping (same as TransferOrderController and ShoeItemController)
@@ -90,17 +91,13 @@ const WAREHOUSE_NAME_MAPPING = {
   // MG Road variations
   "G.MG Road": "SuitorGuy MG Road",
   "G.Mg Road": "SuitorGuy MG Road",
-  "G-MG Road": "SuitorGuy MG Road",
-  "G-Mg Road": "SuitorGuy MG Road",
   "GMG Road": "SuitorGuy MG Road",
   "GMg Road": "SuitorGuy MG Road",
   "MG Road": "SuitorGuy MG Road",
   "Mg Road": "SuitorGuy MG Road",
-  "mg road": "SuitorGuy MG Road",
   "MG Road Branch": "SuitorGuy MG Road",
   "Mg Road Branch": "SuitorGuy MG Road",
   "G Road Branch": "SuitorGuy MG Road",
-  "Grooms MG Road": "SuitorGuy MG Road",
   "SuitorGuy MG Road": "SuitorGuy MG Road",
   
   // Head Office variations
@@ -112,9 +109,7 @@ const WAREHOUSE_NAME_MAPPING = {
   "Z- Edappal": "Warehouse",
   "Production": "Warehouse",
   "Office": "Warehouse",
-  "G.Vadakara": "Vadakara Branch",
-  "GVadakara": "Vadakara Branch",
-  "Vadakara Branch": "Vadakara Branch",
+  "G.Vadakara": "Warehouse",
 };
 
 // Normalize warehouse name to standard format
@@ -575,11 +570,13 @@ export const getItemGroups = async (req, res) => {
       // Calculate total stock from items
       const totalStock = (isViewingSpecificStore ? relevantItems : itemsArray).reduce((sum, item) => {
         if (item.warehouseStocks && Array.isArray(item.warehouseStocks) && item.warehouseStocks.length > 0) {
-          if (isViewingSpecificStore && targetStoreWarehouse) {
-            const ws = item.warehouseStocks.find(w => matchesWarehouse(w.warehouse, targetStoreWarehouse));
-            return sum + (ws ? (parseFloat(ws.stockOnHand) || 0) : 0);
-          }
           const warehouseTotal = item.warehouseStocks.reduce((wsSum, ws) => {
+            if (isViewingSpecificStore && targetStoreWarehouse) {
+              if (matchesWarehouse(ws.warehouse, targetStoreWarehouse)) {
+                return wsSum + (parseFloat(ws.stockOnHand || 0));
+              }
+              return wsSum;
+            }
             return wsSum + (parseFloat(ws.stockOnHand || 0));
           }, 0);
           return sum + warehouseTotal;
@@ -1010,6 +1007,34 @@ export const updateItemGroup = async (req, res) => {
       }
     }
 
+    // Sync updated item SKU and details to bills
+    try {
+      if (itemGroup && Array.isArray(itemGroup.items)) {
+        for (const item of itemGroup.items) {
+          const gItemId = (item._id || item.id)?.toString();
+          const gItemSku = item.sku?.trim();
+          if (gItemId && gItemSku) {
+            await Bill.updateMany(
+              { "items.itemId": gItemId },
+              {
+                $set: {
+                  "items.$[elem].itemSku": gItemSku,
+                  "items.$[elem].sku": gItemSku,
+                  ...(item.name ? { "items.$[elem].itemName": item.name } : {}),
+                  ...(item.hsnCode ? { "items.$[elem].hsnCode": item.hsnCode } : {}),
+                  ...(item.itemCode ? { "items.$[elem].itemCode": item.itemCode } : {}),
+                  ...(item.returnable !== undefined ? { "items.$[elem].returnable": item.returnable } : {})
+                }
+              },
+              { arrayFilters: [{ "elem.itemId": gItemId }] }
+            );
+          }
+        }
+      }
+    } catch (billSyncErr) {
+      console.warn("Error syncing bill items on group update:", billSyncErr.message);
+    }
+
     return res.json(itemGroup);
   } catch (error) {
     console.error("Error updating item group:", error);
@@ -1408,6 +1433,170 @@ export const deleteItemGroup = async (req, res) => {
   } catch (error) {
     console.error("Error deleting item group:", error);
     return res.status(500).json({ message: "Failed to delete item group." });
+  }
+};
+
+// Bulk add selected items to an existing or new item group
+export const addItemsToGroup = async (req, res) => {
+  try {
+    const { option, groupId, newGroupName, newGroupUnit, itemIds = [], items = [], userWarehouse } = req.body;
+
+    if (option === "new" && (!newGroupName || !newGroupName.trim())) {
+      return res.status(400).json({ message: "New group name is required." });
+    }
+
+    if (option === "existing" && !groupId) {
+      return res.status(400).json({ message: "Please select an existing item group." });
+    }
+
+    if ((!itemIds || itemIds.length === 0) && (!items || items.length === 0)) {
+      return res.status(400).json({ message: "No items selected to add to group." });
+    }
+
+    const targetWarehouse = userWarehouse || "Warehouse";
+    const convertedItems = [];
+    const standaloneIdsToDelete = [];
+
+    // 1. Process item IDs
+    if (itemIds.length > 0) {
+      for (const id of itemIds) {
+        // Check standalone ShoeItem
+        const standalone = await ShoeItem.findById(id);
+        if (standalone) {
+          standaloneIdsToDelete.push(standalone._id);
+          const initialStock = Array.isArray(standalone.warehouseStocks) && standalone.warehouseStocks.length > 0
+            ? standalone.warehouseStocks.reduce((sum, ws) => sum + (parseFloat(ws.stockOnHand) || 0), 0)
+            : (parseFloat(standalone.stock) || 0);
+
+          convertedItems.push({
+            name: standalone.itemName,
+            itemName: standalone.itemName,
+            sku: standalone.sku || "",
+            itemCode: standalone.itemCode || "",
+            costPrice: standalone.costPrice || 0,
+            sellingPrice: standalone.sellingPrice || 0,
+            mrp: standalone.mrp || standalone.sellingPrice || 0,
+            hsnCode: standalone.hsnCode || "",
+            size: standalone.size || "",
+            unit: standalone.unit || "PCS",
+            stock: initialStock,
+            warehouseStocks: standalone.warehouseStocks && standalone.warehouseStocks.length > 0
+              ? standalone.warehouseStocks
+              : [{
+                  warehouse: targetWarehouse,
+                  openingStock: initialStock,
+                  openingStockValue: 0,
+                  stockOnHand: initialStock,
+                  committedStock: 0,
+                  availableForSale: initialStock,
+                  physicalOpeningStock: initialStock,
+                  physicalStockOnHand: initialStock,
+                  physicalCommittedStock: 0,
+                  physicalAvailableForSale: initialStock,
+                }],
+            image: standalone.image || (standalone.images && standalone.images[0]?.data) || "",
+            isActive: standalone.isActive !== false,
+          });
+          continue;
+        }
+
+        // Check if item is already inside another group
+        const groupContainingItem = await ItemGroup.findOne({ "items._id": id });
+        if (groupContainingItem) {
+          const foundItem = groupContainingItem.items.id(id);
+          if (foundItem) {
+            convertedItems.push(foundItem.toObject());
+          }
+        }
+      }
+    }
+
+    // 2. Fallback to passed item objects if DB lookup didn't find them
+    if (items.length > 0 && convertedItems.length === 0) {
+      items.forEach(it => {
+        const initialStock = parseFloat(it.stockOnHand || it.stock || 0);
+        convertedItems.push({
+          name: it.itemName || it.name,
+          itemName: it.itemName || it.name,
+          sku: it.sku || "",
+          itemCode: it.itemCode || "",
+          costPrice: parseFloat(it.costPrice) || 0,
+          sellingPrice: parseFloat(it.sellingPrice) || 0,
+          mrp: parseFloat(it.mrp) || parseFloat(it.sellingPrice) || 0,
+          hsnCode: it.hsnCode || "",
+          size: it.size || "",
+          unit: it.unit || "PCS",
+          stock: initialStock,
+          warehouseStocks: it.warehouseStocks || [{
+            warehouse: targetWarehouse,
+            openingStock: initialStock,
+            openingStockValue: 0,
+            stockOnHand: initialStock,
+            committedStock: 0,
+            availableForSale: initialStock,
+            physicalOpeningStock: initialStock,
+            physicalStockOnHand: initialStock,
+            physicalCommittedStock: 0,
+            physicalAvailableForSale: initialStock,
+          }],
+          image: it.image || "",
+          isActive: true,
+        });
+        if (it._id && !it.isFromGroup) {
+          standaloneIdsToDelete.push(it._id);
+        }
+      });
+    }
+
+    if (convertedItems.length === 0) {
+      return res.status(400).json({ message: "Could not locate the selected items." });
+    }
+
+    let resultGroup = null;
+
+    if (option === "new") {
+      const generatedGroupId = await nextItemGroup();
+      resultGroup = await ItemGroup.create({
+        groupId: generatedGroupId,
+        name: newGroupName.trim(),
+        unit: newGroupUnit || "PCS",
+        itemType: "goods",
+        category: "other",
+        taxPreference: "taxable",
+        trackInventory: true,
+        sellable: true,
+        purchasable: true,
+        isActive: true,
+        items: convertedItems,
+      });
+    } else {
+      const existingGroup = await ItemGroup.findById(groupId);
+      if (!existingGroup) {
+        return res.status(404).json({ message: "Target item group not found." });
+      }
+
+      const currentItems = Array.isArray(existingGroup.items) ? [...existingGroup.items] : [];
+      convertedItems.forEach(ci => currentItems.push(ci));
+
+      existingGroup.items = currentItems;
+      resultGroup = await existingGroup.save();
+    }
+
+    // Clean up converted standalone items
+    if (standaloneIdsToDelete.length > 0) {
+      await ShoeItem.deleteMany({ _id: { $in: standaloneIdsToDelete } });
+    }
+
+    return res.json({
+      success: true,
+      message: option === "new"
+        ? `Successfully created group "${resultGroup.name}" with ${convertedItems.length} items.`
+        : `Successfully added ${convertedItems.length} items to "${resultGroup.name}".`,
+      group: resultGroup,
+    });
+  } catch (error) {
+    console.error("Error in addItemsToGroup:", error);
+    return res.status(500).json({ message: error.message || "Failed to add items to group." });
   }
 };
 

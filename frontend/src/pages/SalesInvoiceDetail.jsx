@@ -623,7 +623,7 @@ const SalesInvoiceDetail = () => {
   
     const message =
       `Hello,\n\n` +
-      `Here is your invoice from ${invoice.branch || "Grooms Wedding Hub"}.\n` +
+      `Here is your invoice from ${invoice.branch || "Bridesberry"}.\n` +
       `Invoice No: ${invoice.invoiceNumber}\n` +
       `Invoice Date: ${formatDate(invoice.invoiceDate)}\n` +
       `Customer: ${invoice.customer}\n` +
@@ -1009,7 +1009,7 @@ const SalesInvoiceDetail = () => {
                     <div className="flex items-center gap-2">
                       <Building2 size={20} className="text-[#8B5CF6]" />
                       <h1 className="text-xl font-extrabold tracking-tight text-[#111827] uppercase">
-                        {storeInfo?.name || invoice.branch || "Grooms Wedding Hub"}
+                        {storeInfo?.name || invoice.branch || "Bridesberry"}
                       </h1>
                     </div>
                     <div className="text-xs text-[#4B5563] space-y-0.5 leading-relaxed">
@@ -1296,7 +1296,7 @@ const SalesInvoiceDetail = () => {
                       Authorised Signature
                     </div>
                     <div className="text-[11px] text-[#6B7280] mt-0.5">
-                      For {storeInfo?.name || invoice.branch || "Grooms Wedding Hub"}
+                      For {storeInfo?.name || invoice.branch || "Bridesberry"}
                     </div>
                   </div>
                 </div>

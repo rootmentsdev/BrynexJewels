@@ -1,6 +1,7 @@
 import Bill from "../model/Bill.js";
 import ShoeItem from "../model/ShoeItem.js";
 import ItemGroup from "../model/ItemGroup.js";
+import Vendor from "../model/Vendor.js";
 import mongoose from "mongoose";
 import { logVendorActivity, getOriginatorName } from "../utils/vendorHistoryLogger.js";
 import { updateMonthlyStockForPurchase } from "../utils/monthlyStockTracking.js";
@@ -231,19 +232,17 @@ const addItemStock = async (itemIdValue, quantity, warehouseName, itemName = nul
       const compositeId = `${group._id}_${i}`;
       
       const itemIdStr = itemIdValue?.toString() || "";
-      const idMatches = 
-        itemIdStr === groupItemId ||
-        itemIdStr === compositeId ||
-        itemIdStr.includes(groupItemId) ||
-        groupItemId?.includes(itemIdStr);
-      
-      const nameMatches = itemName && groupItem.name && 
-        groupItem.name.toLowerCase().trim() === itemName.toLowerCase().trim();
+      const idMatches = itemIdStr && (itemIdStr === groupItemId || itemIdStr === compositeId);
       
       const skuMatches = itemSku && groupItem.sku && 
         groupItem.sku.toLowerCase().trim() === itemSku.toLowerCase().trim();
       
-      if (idMatches || nameMatches || skuMatches) {
+      const nameMatches = itemName && groupItem.name && 
+        groupItem.name.toLowerCase().trim() === itemName.toLowerCase().trim();
+      
+      const isMatch = skuMatches || idMatches || (!itemSku && !groupItem.sku && nameMatches);
+      
+      if (isMatch) {
         // Use the same fix - convert to plain object, modify, then update using $set
         const groupPlain = group.toObject();
         const itemPlain = groupPlain.items[i];
@@ -377,31 +376,55 @@ const addItemStockByName = async (itemGroupId, itemName, quantity, warehouseName
   console.log(`   Group has ${group.items.length} items`);
   console.log(`   Available items:`, group.items.map((item, idx) => `[${idx}] "${item.name}" (SKU: ${item.sku || 'none'})`).join(', '));
   
-  // Find item by name and SKU
+  // Find item STRICTLY by SKU first if itemSku is present
   let itemIndex = -1;
   if (itemSku) {
     itemIndex = group.items.findIndex(gi => {
-      const nameMatch = gi.name && gi.name.trim() === itemName.trim();
-      const skuMatch = gi.sku && gi.sku.trim() === itemSku.trim();
-      console.log(`   Checking item "${gi.name}" (SKU: ${gi.sku || 'none'}): nameMatch=${nameMatch}, skuMatch=${skuMatch}`);
-      return nameMatch && skuMatch;
+      const skuMatch = gi.sku && gi.sku.trim().toLowerCase() === itemSku.trim().toLowerCase();
+      console.log(`   Checking item "${gi.name}" (SKU: ${gi.sku || 'none'}): skuMatch=${skuMatch}`);
+      return skuMatch;
     });
-    
-    if (itemIndex === -1) {
-      console.log(`   ⚠️ SKU match failed, trying name-only match...`);
-      itemIndex = group.items.findIndex(gi => gi.name && gi.name.trim() === itemName.trim());
-    }
   } else {
     itemIndex = group.items.findIndex(gi => {
-      const nameMatch = gi.name && gi.name.trim() === itemName.trim();
-      console.log(`   Checking item "${gi.name}": nameMatch=${nameMatch}`);
-      return nameMatch;
+      const nameMatch = gi.name && gi.name.trim().toLowerCase() === itemName.trim().toLowerCase();
+      return nameMatch && !gi.sku;
     });
   }
   
   if (itemIndex === -1) {
-    console.log(`   ❌ Item with name "${itemName}"${itemSku ? ` and SKU "${itemSku}"` : ''} not found in group`);
-    return { success: false, message: `Item with name "${itemName}"${itemSku ? ` and SKU "${itemSku}"` : ''} not found in group` };
+    console.log(`   ⚠️ Item with name "${itemName}"${itemSku ? ` and SKU "${itemSku}"` : ''} not found in group "${group.name}". Adding new item to group...`);
+    const newItem = {
+      name: itemName.trim(),
+      sku: itemSku?.trim() || '',
+      itemCode: '',
+      costPrice: 0,
+      sellingPrice: 0,
+      stock: quantity,
+      warehouseStocks: [{
+        warehouse: targetWarehouse,
+        openingStock: 0,
+        openingStockValue: 0,
+        stockOnHand: quantity,
+        committedStock: 0,
+        availableForSale: quantity,
+        physicalOpeningStock: 0,
+        physicalStockOnHand: quantity,
+        physicalCommittedStock: 0,
+        physicalAvailableForSale: quantity,
+      }]
+    };
+    
+    const updateResult = await ItemGroup.findByIdAndUpdate(
+      itemGroupId,
+      { $push: { items: newItem } },
+      { new: true }
+    );
+    
+    if (!updateResult) {
+      return { success: false, message: "Failed to add item to group" };
+    }
+    
+    return { success: true, type: 'group', groupName: group.name, itemName: itemName, warehouse: targetWarehouse };
   }
   
   console.log(`   ✅ Found item at index ${itemIndex}`);
@@ -641,7 +664,9 @@ const reduceItemStock = async (itemIdValue, quantity, warehouseName, itemName = 
       const skuMatches = itemSku && groupItem.sku && 
         groupItem.sku.toLowerCase().trim() === itemSku.toLowerCase().trim();
       
-      if (idMatches || nameMatches || skuMatches) {
+      const shouldMatch = itemSku ? (skuMatches || idMatches) : (idMatches || nameMatches);
+      
+      if (shouldMatch) {
         const result = updateWarehouseStock(groupItem.warehouseStocks || [], quantity, targetWarehouse);
         if (!result.success) return result;
         groupItem.warehouseStocks = result.warehouseStocks;
@@ -685,17 +710,12 @@ const reduceItemStockByName = async (itemGroupId, itemName, quantity, warehouseN
   
   let itemIndex = -1;
   if (itemSku) {
-    itemIndex = group.items.findIndex(gi => {
-      const nameMatch = gi.name && gi.name.trim() === itemName.trim();
-      const skuMatch = gi.sku && gi.sku.trim() === itemSku.trim();
-      return nameMatch && skuMatch;
-    });
-    
-    if (itemIndex === -1) {
-      itemIndex = group.items.findIndex(gi => gi.name && gi.name.trim() === itemName.trim());
-    }
+    itemIndex = group.items.findIndex(gi => gi.sku && gi.sku.trim().toLowerCase() === itemSku.trim().toLowerCase());
   } else {
-    itemIndex = group.items.findIndex(gi => gi.name && gi.name.trim() === itemName.trim());
+    itemIndex = group.items.findIndex(gi => gi.name && gi.name.trim().toLowerCase() === itemName.trim().toLowerCase() && !gi.sku);
+    if (itemIndex === -1) {
+      itemIndex = group.items.findIndex(gi => gi.name && gi.name.trim().toLowerCase() === itemName.trim().toLowerCase());
+    }
   }
   
   if (itemIndex === -1) {
@@ -771,29 +791,11 @@ const updateVendorBalance = async (vendorId, billAmount, operation = 'add') => {
   try {
     if (!vendorId) return { success: false, message: "Vendor ID is required" };
     
-    // Find vendor in PostgreSQL
-    const vendor = await Vendor.findByPk(vendorId);
+    const vendor = await Vendor.findById(vendorId);
     if (!vendor) {
-      // Try MongoDB as fallback
-      const VendorMongo = mongoose.model("Vendor", new mongoose.Schema({}, { strict: false }));
-      const vendorMongo = await VendorMongo.findById(vendorId);
-      if (!vendorMongo) {
-        return { success: false, message: "Vendor not found" };
-      }
-      
-      const currentPayables = parseFloat(vendorMongo.payables) || 0;
-      
-      if (operation === 'add') {
-        vendorMongo.payables = currentPayables + billAmount;
-      } else if (operation === 'subtract') {
-        vendorMongo.payables = Math.max(0, currentPayables - billAmount);
-      }
-      
-      await vendorMongo.save();
-      return { success: true, type: 'mongodb' };
+      return { success: false, message: "Vendor not found" };
     }
     
-    // Update PostgreSQL vendor
     const currentPayables = parseFloat(vendor.payables) || 0;
     
     if (operation === 'add') {
@@ -803,10 +805,108 @@ const updateVendorBalance = async (vendorId, billAmount, operation = 'add') => {
     }
     
     await vendor.save();
-    return { success: true, type: 'postgresql' };
+    return { success: true, type: 'mongodb' };
   } catch (error) {
     console.error("Error updating vendor balance:", error);
     return { success: false, message: error.message };
+  }
+};
+
+// Helper to sync pricing (Cost Price, Selling Price, MRP) from bill items back into ItemGroup and ShoeItem
+const syncItemPricesFromBill = async (items) => {
+  if (!items || !Array.isArray(items)) return;
+
+  for (const item of items) {
+    const cost = parseFloat(item.rate) || parseFloat(item.costPrice) || 0;
+    const selling = parseFloat(item.sellingPrice) || 0;
+    const mrp = parseFloat(item.mrp) || (selling > 0 ? selling : 0);
+    const sku = (item.itemSku || item.sku || "").toString().trim();
+    const name = (item.itemName || item.name || "").toString().trim();
+    const itemIdStr = (item.itemId || item._id || item.id || "").toString().trim();
+    const itemGroupId = (item.itemGroupId || "").toString().trim();
+
+    console.log(`🏷️ syncItemPricesFromBill: item="${name}", SKU="${sku}", cost=${cost}, selling=${selling}, mrp=${mrp}, group="${itemGroupId}"`);
+
+    try {
+      let updated = false;
+
+      // 1. Try updating via ItemGroup ID if provided
+      if (itemGroupId && mongoose.Types.ObjectId.isValid(itemGroupId)) {
+        const group = await ItemGroup.findById(itemGroupId);
+        if (group && Array.isArray(group.items)) {
+          let itemIndex = group.items.findIndex(gi => {
+            const giId = (gi._id?.toString() || gi.id?.toString() || "");
+            if (itemIdStr && giId && itemIdStr === giId) return true;
+            if (sku && gi.sku && gi.sku.trim().toLowerCase() === sku.toLowerCase()) return true;
+            if (!sku && name && gi.name && gi.name.trim().toLowerCase() === name.toLowerCase()) return true;
+            return false;
+          });
+
+          if (itemIndex !== -1) {
+            if (cost > 0) group.items[itemIndex].costPrice = cost;
+            if (selling > 0) group.items[itemIndex].sellingPrice = selling;
+            if (mrp > 0) group.items[itemIndex].mrp = mrp;
+            if (item.returnable !== undefined) group.items[itemIndex].returnable = Boolean(item.returnable);
+            group.markModified('items');
+            await group.save();
+            console.log(`   ✅ Synced prices/returnable in ItemGroup "${group.name}" for item "${group.items[itemIndex].name}"`);
+            updated = true;
+          }
+        }
+      }
+
+      // 2. If not updated yet and SKU or name is present, search all groups
+      if (!updated && (sku || name)) {
+        const queryConditions = [];
+        if (sku) queryConditions.push({ "items.sku": { $regex: `^${sku}$`, $options: 'i' } });
+        if (name) queryConditions.push({ "items.name": { $regex: `^${name}$`, $options: 'i' } });
+
+        const matchingGroups = await ItemGroup.find({ $or: queryConditions });
+        for (const group of matchingGroups) {
+          if (!group.items || !Array.isArray(group.items)) continue;
+          let itemIndex = group.items.findIndex(gi => {
+            if (sku && gi.sku && gi.sku.trim().toLowerCase() === sku.toLowerCase()) return true;
+            if (!sku && name && gi.name && gi.name.trim().toLowerCase() === name.toLowerCase()) return true;
+            return false;
+          });
+
+          if (itemIndex !== -1) {
+            if (cost > 0) group.items[itemIndex].costPrice = cost;
+            if (selling > 0) group.items[itemIndex].sellingPrice = selling;
+            if (mrp > 0) group.items[itemIndex].mrp = mrp;
+            if (item.returnable !== undefined) group.items[itemIndex].returnable = Boolean(item.returnable);
+            group.markModified('items');
+            await group.save();
+            console.log(`   ✅ Synced prices/returnable in found ItemGroup "${group.name}" for item "${group.items[itemIndex].name}"`);
+            updated = true;
+            break;
+          }
+        }
+      }
+
+      // 3. Try updating in standalone ShoeItem
+      let shoeItem = null;
+      if (itemIdStr && itemIdStr !== "null" && mongoose.Types.ObjectId.isValid(itemIdStr)) {
+        shoeItem = await ShoeItem.findById(itemIdStr);
+      }
+      if (!shoeItem && sku) {
+        shoeItem = await ShoeItem.findOne({ sku: { $regex: `^${sku}$`, $options: 'i' } });
+      }
+      if (!shoeItem && name) {
+        shoeItem = await ShoeItem.findOne({ itemName: { $regex: `^${name}$`, $options: 'i' } });
+      }
+
+      if (shoeItem) {
+        if (cost > 0) shoeItem.costPrice = cost;
+        if (selling > 0) shoeItem.sellingPrice = selling;
+        if (mrp > 0) shoeItem.mrp = mrp;
+        if (item.returnable !== undefined) shoeItem.returnable = Boolean(item.returnable);
+        await shoeItem.save();
+        console.log(`   ✅ Synced prices/returnable in standalone ShoeItem for "${shoeItem.itemName}"`);
+      }
+    } catch (err) {
+      console.error(`   ❌ Error syncing prices/returnable for "${name || sku}":`, err);
+    }
   }
 };
 
@@ -836,6 +936,11 @@ export const createBill = async (req, res) => {
     }
     
     const bill = await Bill.create(billData);
+
+    // Sync item pricing back to ItemGroup and ShoeItem
+    if (billData.items && Array.isArray(billData.items)) {
+      await syncItemPricesFromBill(billData.items);
+    }
     
     // Log vendor activity for bill creation
     if (billData.vendorId) {
@@ -1111,8 +1216,73 @@ export const getBillById = async (req, res) => {
     if (!bill) {
       return res.status(404).json({ message: "Bill not found" });
     }
+
+    const billObj = bill.toObject();
+    let hasUpdates = false;
+
+    if (billObj.items && Array.isArray(billObj.items)) {
+      for (let i = 0; i < billObj.items.length; i++) {
+        const item = billObj.items[i];
+        const itemId = item.itemId?.toString();
+        const itemGroupId = item.itemGroupId?.toString();
+        let targetSku = item.sku || item.itemSku || "";
+
+        let resolved = false;
+
+        // 1. Check group items first if itemGroupId is set
+        if (itemGroupId) {
+          const group = await ItemGroup.findById(itemGroupId);
+          if (group && Array.isArray(group.items)) {
+            const found = group.items.find(gi => 
+              (itemId && (gi._id?.toString() === itemId || gi.id?.toString() === itemId)) ||
+              (targetSku && gi.sku && gi.sku.trim().toLowerCase() === targetSku.trim().toLowerCase())
+            );
+            if (found) {
+              if (found.sku) targetSku = found.sku;
+              if (found.name && !billObj.items[i].itemName) billObj.items[i].itemName = found.name;
+              if (found.hsnCode && !billObj.items[i].hsnCode) billObj.items[i].hsnCode = found.hsnCode;
+              if (found.itemCode && !billObj.items[i].itemCode) billObj.items[i].itemCode = found.itemCode;
+              if (found.returnable !== undefined && found.returnable !== null && billObj.items[i].returnable === undefined) {
+                billObj.items[i].returnable = found.returnable;
+              }
+              resolved = true;
+            }
+          }
+        }
+
+        // 2. Check standalone ShoeItem
+        if (!resolved && itemId && itemId !== "null" && mongoose.Types.ObjectId.isValid(itemId)) {
+          const shoeItem = await ShoeItem.findById(itemId);
+          if (shoeItem) {
+            if (shoeItem.sku) targetSku = shoeItem.sku;
+            if (shoeItem.itemName && !billObj.items[i].itemName) billObj.items[i].itemName = shoeItem.itemName;
+            if (shoeItem.hsnCode && !billObj.items[i].hsnCode) billObj.items[i].hsnCode = shoeItem.hsnCode;
+            if (shoeItem.itemCode && !billObj.items[i].itemCode) billObj.items[i].itemCode = shoeItem.itemCode;
+            if (shoeItem.returnable !== undefined && billObj.items[i].returnable === undefined) {
+              billObj.items[i].returnable = shoeItem.returnable;
+            }
+          }
+        }
+
+        if (targetSku) {
+          if (billObj.items[i].sku !== targetSku || billObj.items[i].itemSku !== targetSku) {
+            billObj.items[i].sku = targetSku;
+            billObj.items[i].itemSku = targetSku;
+            if (bill.items && bill.items[i]) {
+              bill.items[i].sku = targetSku;
+              bill.items[i].itemSku = targetSku;
+              hasUpdates = true;
+            }
+          }
+        }
+      }
+    }
+
+    if (hasUpdates) {
+      await bill.save().catch(err => console.warn("Could not sync bill SKUs in getBillById:", err));
+    }
     
-    res.status(200).json(bill);
+    res.status(200).json(billObj);
   } catch (error) {
     console.error("Get bill error:", error);
     res.status(500).json({ message: "Server error", error: error.message });
@@ -1498,6 +1668,11 @@ export const updateBill = async (req, res) => {
     
     if (!bill) {
       return res.status(404).json({ message: "Bill not found" });
+    }
+
+    // Sync item pricing back to ItemGroup and ShoeItem
+    if (billData.items && Array.isArray(billData.items)) {
+      await syncItemPricesFromBill(billData.items);
     }
     
     // Log vendor activity for bill updates
@@ -1963,7 +2138,9 @@ export const convertPurchaseReceiveToBill = async (req, res) => {
         igstPercent: igstPercent,
         isInterState: isInterState,
         itemGroupId: receiveItem.itemGroupId || poItem?.itemGroupId || null,
-        itemSku: receiveItem.itemSku || poItem?.itemSku || "",
+        itemSku: receiveItem.sku || receiveItem.itemSku || poItem?.sku || poItem?.itemSku || "",
+        sku: receiveItem.sku || receiveItem.itemSku || poItem?.sku || poItem?.itemSku || "",
+        itemCode: receiveItem.itemCode || poItem?.itemCode || "",
       };
     });
     

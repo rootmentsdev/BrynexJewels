@@ -626,11 +626,10 @@ const StoreOrderCreate = () => {
   const userStr = localStorage.getItem("rootfinuser");
   const user = userStr ? JSON.parse(userStr) : null;
   const userId = user?.email || user?._id || user?.id || "";
+  const isAdmin = user?.power === "admin";
+  const isWarehouseUser = user?.power === "warehouse";
+  const isStoreUser = !isAdmin && !isWarehouseUser;
   const userLocCode = user?.locCode || "";
-  const userEmail = user?.email || user?.username || "";
-  const adminEmails = ['officerootments@gmail.com'];
-  const isAdminEmail = userEmail && adminEmails.some(email => userEmail.toLowerCase() === email.toLowerCase());
-  const isAdmin = isAdminEmail || user?.power === "admin";
   
   // Fallback locations mapping
   const fallbackLocations = [
@@ -661,7 +660,7 @@ const StoreOrderCreate = () => {
     { "locName": "WAREHOUSE", "locCode": "103" }
   ];
   
-  // Get location name and warehouse
+  // Get user's location name and warehouse
   let userLocName = "";
   if (user?.locCode) {
     const location = fallbackLocations.find(loc => loc.locCode === user.locCode || loc.locCode === String(user.locCode));
@@ -673,50 +672,6 @@ const StoreOrderCreate = () => {
     userLocName = user?.username || user?.locName || "";
   }
   const userWarehouse = mapWarehouse(userLocName);
-  const isWarehouseLocation = 
-    (userWarehouse || "").toString().toLowerCase().trim() === "warehouse" ||
-    userLocCode === "858" || 
-    userLocCode === "103" ||
-    (userLocName || "").toString().toLowerCase().includes("warehouse");
-  const isWarehouseUser = user?.power === "warehouse" || isWarehouseLocation;
-  const isStoreUser = !isAdmin && !isWarehouseUser;
-  
-  // Warehouse options for admin (stores/branches only, exclude Warehouse)
-  const storeWarehouseOptions = [
-    "Calicut",
-    "Chavakkad Branch",
-    "Edapally Branch",
-    "Edappal Branch",
-    "Grooms Trivandrum",
-    "Head Office",
-    "Kalpetta Branch",
-    "Kannur Branch",
-    "Kottakkal Branch",
-    "Kottayam Branch",
-    "Manjery Branch",
-    "Palakkad Branch",
-    "Perinthalmanna Branch",
-    "Perumbavoor Branch",
-    "SuitorGuy MG Road",
-    "Thrissur Branch",
-    "Vadakara Branch",
-  ];
-  
-  // For store users, only show their own warehouse as option
-  const availableWarehouseOptions = isStoreUser && userWarehouse 
-    ? [userWarehouse] 
-    : storeWarehouseOptions;
-
-  const getInitialStoreWarehouse = () => {
-    if (isStoreUser && userWarehouse && userWarehouse.toLowerCase() !== "warehouse") {
-      const match = storeWarehouseOptions.find(opt => 
-        opt.toLowerCase() === userWarehouse.toLowerCase() ||
-        (opt.toLowerCase().includes("mg") && userWarehouse.toLowerCase().includes("mg"))
-      );
-      return match || userWarehouse;
-    }
-    return "SuitorGuy MG Road";
-  };
   
   const [loading, setLoading] = useState(isEditMode);
   const [saving, setSaving] = useState(false);
@@ -724,7 +679,7 @@ const StoreOrderCreate = () => {
   const [orderNumberLoading, setOrderNumberLoading] = useState(false);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [reason, setReason] = useState("");
-  const [storeWarehouse, setStoreWarehouse] = useState(getInitialStoreWarehouse);
+  const [storeWarehouse, setStoreWarehouse] = useState("SuitorGuy MG Road");
   const [tableRows, setTableRows] = useState([{ 
     id: 1, 
     item: null, 
@@ -735,6 +690,16 @@ const StoreOrderCreate = () => {
     currentStock: 0, 
     quantity: "" 
   }]);
+  
+  // Warehouse options for admin (stores/branches only, exclude Warehouse)
+  const storeWarehouseOptions = [
+    "SuitorGuy MG Road",
+  ];
+  
+  // For store users, only show their own warehouse as option
+  const availableWarehouseOptions = isStoreUser && userWarehouse 
+    ? [userWarehouse] 
+    : storeWarehouseOptions;
   
   // Fetch next order number when creating a new order (not in edit mode)
   useEffect(() => {
@@ -766,16 +731,11 @@ const StoreOrderCreate = () => {
 
   // Set default store warehouse for store users (read-only for them)
   useEffect(() => {
-    if (!isEditMode && isStoreUser && userWarehouse && userWarehouse.toLowerCase() !== "warehouse") {
-      const match = storeWarehouseOptions.find(opt => 
-        opt.toLowerCase() === userWarehouse.toLowerCase() ||
-        (opt.toLowerCase().includes("mg") && userWarehouse.toLowerCase().includes("mg"))
-      );
-      const target = match || userWarehouse;
-      setStoreWarehouse(target);
-      console.log(`📍 Auto-setting store warehouse to user's warehouse: "${target}"`);
+    if (!isEditMode && !isAdmin && !isWarehouseUser && userWarehouse && !storeWarehouse) {
+      setStoreWarehouse(userWarehouse);
+      console.log(`📍 Auto-setting store warehouse to user's warehouse: "${userWarehouse}"`);
     }
-  }, [isEditMode, isStoreUser, userWarehouse]);
+  }, [isEditMode, isAdmin, isWarehouseUser, userWarehouse, storeWarehouse]);
   
   // Clear selected items when store warehouse changes (only in create mode)
   useEffect(() => {

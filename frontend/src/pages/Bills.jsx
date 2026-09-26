@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import { useEnterToSave } from "../hooks/useEnterToSave";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Search, X, Plus, Pencil, Image as ImageIcon, ChevronDown, Mail, Printer, Download, Trash2, Link as LinkIcon, Package, PackageX, MoreVertical, Upload, Calendar, Check, ArrowLeft, Settings, UploadCloud, Minus, Layers, RotateCw, Copy, Zap, Usb, FileCode, Loader2, Barcode, QrCode } from "lucide-react";
+import { Search, X, Plus, Pencil, Image as ImageIcon, ChevronDown, Mail, Printer, Download, Trash2, Link as LinkIcon, Package, PackageX, MoreVertical, Upload, Calendar, Check, ArrowLeft, Settings, UploadCloud, Minus, Layers, RotateCw, Copy, Zap, Usb, FileCode, Loader2, Barcode, QrCode, Scissors } from "lucide-react";
 import baseUrl from "../api/api";
 import { mapLocNameToWarehouse as mapWarehouse } from "../utils/warehouseMapping";
 import ImageUpload from "../components/ImageUpload";
@@ -718,7 +718,10 @@ const ItemDropdown = ({
     return warehouseStock ? (typeof warehouseStock.stockOnHand === "number" ? warehouseStock.stockOnHand : 0) : 0;
   };
 
-  const dropdownPortal = isOpen ? (
+  // Toggle to hide dropdown popup menu while preserving code
+  const SHOW_ITEM_DROPDOWN = false;
+
+  const dropdownPortal = (isOpen && SHOW_ITEM_DROPDOWN) ? (
     <div
       ref={dropdownRef}
       style={{
@@ -774,18 +777,6 @@ const ItemDropdown = ({
                 </div>
               );
             })
-          )}
-          {onOpenGroupModal && (
-            <div
-              onClick={() => {
-                onOpenGroupModal();
-                setIsOpen(false);
-              }}
-              className="flex items-center gap-1.5 px-4 py-2.5 text-xs text-purple-700 hover:bg-purple-50 cursor-pointer transition-colors border-t border-gray-100 font-semibold"
-            >
-              <Layers size={14} className="text-purple-600" />
-              <span>Group Item</span>
-            </div>
           )}
           <div
             onClick={() => {
@@ -850,7 +841,7 @@ const ItemDropdown = ({
           </div>
         </div>
       </div>
-      {typeof document !== "undefined" && document.body && createPortal(dropdownPortal, document.body)}
+      {typeof document !== "undefined" && document.body && dropdownPortal && createPortal(dropdownPortal, document.body)}
     </>
   );
 };
@@ -912,6 +903,18 @@ const normalizeSupplyState = (input) => {
   );
   if (partial) return partial.value;
   return trimmed;
+};
+
+// Helper to generate guaranteed non-repeating 10-digit sequential unique product code / SKU
+export const getNextUniqueProductCode = () => {
+  const STORAGE_KEY = "brynex_last_unique_code_seq";
+  let lastCode = parseInt(localStorage.getItem(STORAGE_KEY), 10);
+  if (isNaN(lastCode) || lastCode < 1000015000) {
+    lastCode = 1000015982;
+  }
+  const nextCode = lastCode + 1;
+  localStorage.setItem(STORAGE_KEY, nextCode.toString());
+  return nextCode.toString();
 };
 
 const NewBillForm = ({ billId, isEditMode = false }) => {
@@ -1024,8 +1027,9 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       item: "",
       itemData: null,
       itemDescription: "",
-      category: "Jewels",
-      sku: "",
+      category: "BR code",
+      sku: getNextUniqueProductCode(),
+      itemCode: "",
       hsnCode: "",
       size: "",
       quantity: "1.00",
@@ -1049,6 +1053,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       sgstPercent: 0,
       igstPercent: 0,
       isInterState: false,
+      returnable: false,
     },
   ]);
   const [attachments, setAttachments] = useState([]);
@@ -1227,11 +1232,18 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
             updated.itemData = value;
             updated.item = value.itemName || value._id || "";
             
-            if (value.sku && !updated.sku) {
-              updated.sku = value.sku;
+            // Set SKU directly from selected item's SKU
+            const selectedSku = value.sku || value.itemSku || "";
+            if (selectedSku) {
+              updated.sku = selectedSku;
+            } else if (!updated.sku || !/^\d{10}$/.test(String(updated.sku).trim())) {
+              updated.sku = getNextUniqueProductCode();
             }
 
-            if (value.hsnCode && !updated.hsnCode) {
+            // Set itemCode from selected item's itemCode or designNo
+            updated.itemCode = value.itemCode || value.designNo || "";
+
+            if (value.hsnCode) {
               updated.hsnCode = value.hsnCode;
             }
 
@@ -1251,6 +1263,12 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
               updated.mrp = value.sellingPrice.toString();
             }
             
+            if (value.returnable !== undefined && value.returnable !== null) {
+              updated.returnable = Boolean(value.returnable);
+            } else if (value.isReturnable !== undefined && value.isReturnable !== null) {
+              updated.returnable = Boolean(value.isReturnable);
+            }
+
             if (value.size && !updated.size) {
               updated.size = value.size;
             }
@@ -1396,6 +1414,92 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [discount.value, discount.type, applyDiscountAfterTax]);
 
+  // Auto-sanitize existing rows on mount so any non-10-digit SKU is replaced with a genuine unique 10-digit SKU
+  useEffect(() => {
+    let needsUpdate = false;
+    const sanitized = tableRows.map((r) => {
+      const isTenDigit = r.sku && /^\d{10}$/.test(String(r.sku).trim()) && r.sku !== r.itemCode;
+      if (!isTenDigit) {
+        needsUpdate = true;
+        return {
+          ...r,
+          sku: getNextUniqueProductCode(),
+          itemCode: r.itemCode || r.itemData?.itemCode || r.itemData?.sku || r.sku || "",
+        };
+      }
+      return r;
+    });
+
+    if (needsUpdate) {
+      setTableRows(sanitized);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
+  // Get sequential unique piece codes (e.g. 10000101, 10000102, 10000103, 10000104) for any row with qty >= 1
+  const getPieceCodesForRow = (row) => {
+    const qty = Math.max(1, Math.round(parseFloat(row.quantity) || 1));
+    const baseCodeStr = String(row.sku || row.itemData?.sku || "").trim();
+    if (qty === 1) {
+      return [baseCodeStr || getNextUniqueProductCode()];
+    }
+    const codes = [];
+    const isNumericBase = /^\d+$/.test(baseCodeStr);
+    
+    if (isNumericBase) {
+      const baseNum = parseInt(baseCodeStr, 10);
+      for (let i = 0; i < qty; i++) {
+        codes.push(String(baseNum + i));
+      }
+    } else {
+      for (let i = 0; i < qty; i++) {
+        codes.push(getNextUniqueProductCode());
+      }
+    }
+    return codes;
+  };
+
+  // 1-Click Split: converts a row with Qty > 1 into N individual rows of Qty 1 each, with sequential unique codes
+  const handleSplitRow = (rowId) => {
+    const rowToSplit = tableRows.find((r) => r.id === rowId);
+    if (!rowToSplit) return;
+    const qty = Math.max(1, Math.round(parseFloat(rowToSplit.quantity) || 1));
+    if (qty <= 1) return;
+
+    const pieceCodes = getPieceCodesForRow(rowToSplit);
+    const allTaxOptions = [...taxOptions, ...nonTaxableOptions];
+    const discountConfig = {
+      value: discount.value,
+      type: discount.type,
+      applyAfterTax: applyDiscountAfterTax,
+    };
+
+    const newSplitRows = pieceCodes.map((code, idx) => {
+      const baseRow = {
+        ...rowToSplit,
+        id: idx === 0 ? rowToSplit.id : Date.now() + idx + Math.floor(Math.random() * 10000),
+        quantity: "1.00",
+        sku: code,
+      };
+      const gstCalc = calculateGSTLineItem(
+        baseRow,
+        discountConfig,
+        allTaxOptions,
+        parseFloat(baseRow.rate) || 0
+      );
+      return {
+        ...baseRow,
+        ...gstCalc,
+        amount: gstCalc.baseAmount,
+      };
+    });
+
+    const rowIndex = tableRows.findIndex((r) => r.id === rowId);
+    const updatedRows = [...tableRows];
+    updatedRows.splice(rowIndex, 1, ...newSplitRows);
+    setTableRows(updatedRows);
+  };
 
   const handleAddNewRow = () => {
     const newRow = {
@@ -1403,7 +1507,9 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       item: "",
       itemData: null,
       itemDescription: "",
-      sku: "",
+      category: "BR code",
+      sku: getNextUniqueProductCode(),
+      itemCode: "",
       hsnCode: "",
       size: "",
       quantity: "1.00",
@@ -1427,6 +1533,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       sgstPercent: 0,
       igstPercent: 0,
       isInterState: false,
+      returnable: false,
     };
     setTableRows([...tableRows, newRow]);
   };
@@ -1442,7 +1549,9 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
         item: "",
         itemData: null,
         itemDescription: "",
-        sku: "",
+        category: "BR code",
+        sku: getNextUniqueProductCode(),
+        itemCode: "",
         hsnCode: "",
         size: "",
         quantity: "1.00",
@@ -1466,6 +1575,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
         sgstPercent: 0,
         igstPercent: 0,
         isInterState: false,
+        returnable: false,
       };
       setTableRows([newRow]);
     }
@@ -1644,8 +1754,9 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
         item: scanned.item.itemName,
         itemData: scanned.item,
         itemDescription: "",
-        category: "Jewels",
-        sku: scanned.item.sku || "",
+        category: "BR code",
+        sku: getNextUniqueProductCode(),
+        itemCode: scanned.item.itemCode || scanned.item.sku || "",
         hsnCode: scanned.item.hsnCode || "",
         size: "",
         quantity: scanned.quantity.toString(),
@@ -1669,6 +1780,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
         sgstPercent: 0,
         igstPercent: 0,
         isInterState: false,
+        returnable: scanned.item?.returnable !== undefined ? Boolean(scanned.item.returnable) : false,
       };
     });
     
@@ -2001,7 +2113,9 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
           groupName: groupName,
         },
         itemDescription: "",
-        sku: rowSku,
+        category: "BR code",
+        sku: getNextUniqueProductCode(),
+        itemCode: rowSku,
         hsnCode: groupModalBatchHsn.trim(),
         size: groupModalBatchSize.trim(),
         quantity: "1.00",
@@ -2093,18 +2207,6 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     }
   };
 
-  // Helper to generate guaranteed non-repeating 10-digit sequential unique product code
-  const getNextUniqueProductCode = () => {
-    const STORAGE_KEY = "brynex_last_unique_code_seq";
-    let lastCode = parseInt(localStorage.getItem(STORAGE_KEY), 10);
-    if (isNaN(lastCode) || lastCode < 1000015000) {
-      lastCode = 1000015982;
-    }
-    const nextCode = lastCode + 1;
-    localStorage.setItem(STORAGE_KEY, nextCode.toString());
-    return nextCode.toString();
-  };
-
   // Generate 100% compliant ZPL code matching D123.prn specification with adjustable X and Y offsets
   const generateZplString = ({
     unitCodes = null,
@@ -2112,7 +2214,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     itemName = "Jewelry Item",
     sku = "20602",
     price = "1000.00",
-    storeName = "Brynex Jewels",
+    storeName = "",
     isQr = false,
     qty = 1,
     offsetX = 0,
@@ -2126,6 +2228,8 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
         : (qty === 1 && unitCode ? unitCode : getNextUniqueProductCode());
       const thisSku = sku || thisUnitCode;
 
+      const storeNameZpl = storeName ? `^FT80,17\n^CI0\n^A0N,17,23^FD${storeName}^FS\n` : "";
+
       if (isQr) {
         zpl += `^XA
 ^SZ2^JMA
@@ -2135,10 +2239,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
 ^LH${offsetX},${offsetY}^LRN
 ^XZ
 ^XA
-^FT80,17
-^CI0
-^A0N,17,23^FD${storeName}^FS
-^FO80,22
+${storeNameZpl}^FO80,22
 ^BQN,2,3
 ^FDQA,${thisUnitCode}^FS
 ^FT80,72
@@ -2160,10 +2261,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
 ^LH${offsetX},${offsetY}^LRN
 ^XZ
 ^XA
-^FT80,17
-^CI0
-^A0N,17,23^FD${storeName}^FS
-^FO81,21
+${storeNameZpl}^FO81,21
 ^BY2^BCN,35,N,N^FD>;${thisUnitCode}^FS
 ^FT80,72
 ^A0N,14,20^FD${thisUnitCode}^FS
@@ -2208,7 +2306,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
         (tag) => `
       <div class="tag-page">
         <div class="tag-left">
-          <div class="store-title">${tag.storeName || "Brynex Jewels"}</div>
+          ${tag.storeName ? `<div class="store-title">${tag.storeName}</div>` : ""}
           <div class="code-wrap">
             ${tag.isQr && tag.imgData ? `<img src="${tag.imgData}" class="qr-img" alt="QR Code" />` : (tag.barcodeSvg || "")}
           </div>
@@ -2327,6 +2425,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       align-items: center;
       justify-content: center;
       overflow: hidden;
+      margin-top: 0.09in;
     }
     .code-wrap svg {
       width: 100%;
@@ -2454,15 +2553,16 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     }
 
     const itemName = (row.item || row.itemData?.itemName || "Jewelry Item").trim();
-    const uiItemCode = (row.sku || row.itemData?.sku || row.itemCode || row.designNo || row.dNo || "").trim();
-    const storeName = "Brynex Jewels";
+    const uiItemCode = (row.itemCode || row.itemData?.itemCode || row.designNo || row.dNo || (row.sku && !/^\d{10}$/.test(String(row.sku).trim()) ? row.sku : "") || "").trim();
+    const storeName = "";
     const qty = Math.max(1, Math.round(parseFloat(row.quantity) || 1));
     const isQr = forceType ? forceType === "qr" : (String(row.category || "").toLowerCase().includes("qr") || String(row.category || "").toLowerCase() === "others");
     const formattedPrice = mrpNum % 1 === 0 ? mrpNum.toFixed(0) : mrpNum.toFixed(2);
 
     const tagItems = [];
+    const pieceCodes = getPieceCodesForRow(row);
     for (let i = 0; i < qty; i++) {
-      const unitCode = getNextUniqueProductCode();
+      const unitCode = pieceCodes[i] || getNextUniqueProductCode();
       const currentDNo = uiItemCode || unitCode;
       let barcodeSvg = "";
       let imgData = "";
@@ -2496,15 +2596,16 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       return;
     }
     const itemName = (row.item || row.itemData?.itemName || "Jewelry Item").trim();
-    const uiItemCode = (row.sku || row.itemData?.sku || row.itemCode || row.designNo || row.dNo || "").trim();
-    const storeName = "Brynex Jewels";
+    const uiItemCode = (row.itemCode || row.itemData?.itemCode || row.designNo || row.dNo || (row.sku && !/^\d{10}$/.test(String(row.sku).trim()) ? row.sku : "") || "").trim();
+    const storeName = "";
     const qty = Math.max(1, Math.round(parseFloat(row.quantity) || 1));
     const isQr = forceType ? forceType === "qr" : (String(row.category || "").toLowerCase().includes("qr") || String(row.category || "").toLowerCase() === "others");
     const formattedPrice = mrpNum % 1 === 0 ? mrpNum.toFixed(0) : mrpNum.toFixed(2);
 
     const tagItems = [];
+    const pieceCodes = getPieceCodesForRow(row);
     for (let i = 0; i < qty; i++) {
-      const unitCode = getNextUniqueProductCode();
+      const unitCode = pieceCodes[i] || getNextUniqueProductCode();
       const currentDNo = uiItemCode || unitCode;
       let imgData = "";
       if (isQr) {
@@ -2551,7 +2652,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     }
 
     const itemName = (row.item || row.itemData?.itemName || "Jewelry Item").trim();
-    const uiItemCode = (row.sku || row.itemData?.sku || row.itemCode || row.designNo || row.dNo || "").trim();
+    const uiItemCode = (row.itemCode || row.itemData?.itemCode || row.designNo || row.dNo || (row.sku && !/^\d{10}$/.test(String(row.sku).trim()) ? row.sku : "") || "").trim();
     const qty = Math.max(1, Math.round(parseFloat(row.quantity) || 1));
 
     setIsPrintingDirect(true);
@@ -2587,14 +2688,15 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
     }
 
     const itemName = (row.item || row.itemData?.itemName || "Jewelry Item").trim();
-    const uiItemCode = (row.sku || row.itemData?.sku || row.itemCode || row.designNo || row.dNo || "").trim();
+    const uiItemCode = (row.itemCode || row.itemData?.itemCode || row.designNo || row.dNo || (row.sku && !/^\d{10}$/.test(String(row.sku).trim()) ? row.sku : "") || "").trim();
     const formattedPrice = mrpNum % 1 === 0 ? mrpNum.toFixed(0) : mrpNum.toFixed(2);
     const qty = Math.max(1, Math.round(parseFloat(row.quantity) || 1));
     const isQr = forceType ? forceType === "qr" : (String(row.category || "").toLowerCase().includes("qr") || String(row.category || "").toLowerCase() === "others");
 
+    const pieceCodes = getPieceCodesForRow(row);
     const unitCodes = [];
     for (let i = 0; i < qty; i++) {
-      unitCodes.push(getNextUniqueProductCode());
+      unitCodes.push(pieceCodes[i] || getNextUniqueProductCode());
     }
 
     const zpl = generateZplString({
@@ -2602,7 +2704,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       itemName,
       sku: uiItemCode,
       price: formattedPrice,
-      storeName: "Brynex Jewels",
+      storeName: "",
       isQr,
       qty,
       offsetX: printXOffset,
@@ -2640,14 +2742,15 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       return;
     }
     const itemName = (row.item || row.itemData?.itemName || "Jewelry Item").trim();
-    const uiItemCode = (row.sku || row.itemData?.sku || row.itemCode || row.designNo || row.dNo || "").trim();
+    const uiItemCode = (row.itemCode || row.itemData?.itemCode || row.designNo || row.dNo || (row.sku && !/^\d{10}$/.test(String(row.sku).trim()) ? row.sku : "") || "").trim();
     const formattedPrice = mrpNum % 1 === 0 ? mrpNum.toFixed(0) : mrpNum.toFixed(2);
     const qty = Math.max(1, Math.round(parseFloat(row.quantity) || 1));
     const isQr = forceType ? forceType === "qr" : (String(row.category || "").toLowerCase().includes("qr") || String(row.category || "").toLowerCase() === "others");
 
+    const pieceCodes = getPieceCodesForRow(row);
     const unitCodes = [];
     for (let i = 0; i < qty; i++) {
-      unitCodes.push(getNextUniqueProductCode());
+      unitCodes.push(pieceCodes[i] || getNextUniqueProductCode());
     }
 
     const zpl = generateZplString({
@@ -2655,7 +2758,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       itemName,
       sku: uiItemCode,
       price: formattedPrice,
-      storeName: "Brynex Jewels",
+      storeName: "",
       isQr,
       qty,
       offsetX: printXOffset,
@@ -2679,13 +2782,14 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
   const handleCopyZpl = (row, forceType = null) => {
     const mrpNum = parseFloat(row.mrp) || 0;
     const itemName = (row.item || row.itemData?.itemName || "Jewelry Item").trim();
-    const uiItemCode = (row.sku || row.itemData?.sku || row.itemCode || row.designNo || row.dNo || "").trim();
+    const uiItemCode = (row.itemCode || row.itemData?.itemCode || row.designNo || row.dNo || (row.sku && !/^\d{10}$/.test(String(row.sku).trim()) ? row.sku : "") || "").trim();
     const formattedPrice = mrpNum % 1 === 0 ? mrpNum.toFixed(0) : mrpNum.toFixed(2);
     const qty = Math.max(1, Math.round(parseFloat(row.quantity) || 1));
     const isQr = forceType ? forceType === "qr" : (String(row.category || "").toLowerCase().includes("qr") || String(row.category || "").toLowerCase() === "others");
+    const pieceCodes = getPieceCodesForRow(row);
     const unitCodes = [];
     for (let i = 0; i < qty; i++) {
-      unitCodes.push(getNextUniqueProductCode());
+      unitCodes.push(pieceCodes[i] || getNextUniqueProductCode());
     }
 
     const zpl = generateZplString({
@@ -2693,7 +2797,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       itemName,
       sku: uiItemCode,
       price: formattedPrice,
-      storeName: "Brynex Jewels",
+      storeName: "",
       isQr,
       qty,
       offsetX: printXOffset,
@@ -2963,37 +3067,44 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
           
           // Set items
           if (billData.items && Array.isArray(billData.items)) {
-            const rows = billData.items.map((item, index) => ({
-              id: index + 1,
-              item: item.itemName || "",
-              itemData: item.itemId ? { _id: item.itemId, itemName: item.itemName, sku: item.itemSku, hsnCode: item.hsnCode, sellingPrice: item.sellingPrice } : null,
-              itemDescription: item.itemDescription || "",
-              sku: item.itemSku || item.sku || "",
-              hsnCode: item.hsnCode || "",
-              size: item.size || "",
-              quantity: (item.quantity || 0).toString(),
-              rate: (item.rate || 0).toString(),
-              sellingPrice: (item.sellingPrice !== undefined && item.sellingPrice !== null ? item.sellingPrice : (item.rate || 0)).toString(),
-              mrp: (item.mrp !== undefined && item.mrp !== null ? item.mrp : (item.sellingPrice || item.rate || 0)).toString(),
-              percentage: item.percentage || "",
-              tax: item.taxCode || "",
-              customer: "",
-              amount: (item.amount || 0).toString(),
-              baseAmount: (item.baseAmount || 0).toString(),
-              discountedAmount: (item.discountedAmount || 0).toString(),
-              cgstAmount: (item.cgstAmount || 0).toString(),
-              sgstAmount: (item.sgstAmount || 0).toString(),
-              igstAmount: (item.igstAmount || 0).toString(),
-              lineTaxTotal: (item.lineTaxTotal || 0).toString(),
-              lineTotal: (item.lineTotal || 0).toString(),
-              taxCode: item.taxCode || "",
-              taxPercent: item.taxPercent || 0,
-              cgstPercent: item.cgstPercent || 0,
-              sgstPercent: item.sgstPercent || 0,
-              igstPercent: item.igstPercent || 0,
-              isInterState: item.isInterState || false,
-            }));
-            setTableRows(rows.length > 0 ? rows : [{ id: 1, item: "", itemData: null, itemDescription: "", sku: "", hsnCode: "", size: "", quantity: "1.00", rate: "0.00", sellingPrice: "0.00", mrp: "0.00", percentage: "", tax: "", customer: "", amount: "0.00", baseAmount: "0.00", discountedAmount: "0.00", cgstAmount: "0.00", sgstAmount: "0.00", igstAmount: "0.00", lineTaxTotal: "0.00", lineTotal: "0.00", taxCode: "", taxPercent: 0, cgstPercent: 0, sgstPercent: 0, igstPercent: 0, isInterState: false }]);
+            const rows = billData.items.map((item, index) => {
+              const itemSku = item.sku || item.itemSku || "";
+              return {
+                id: index + 1,
+                item: item.itemName || "",
+                itemData: item.itemId ? { _id: item.itemId, itemName: item.itemName, sku: itemSku, hsnCode: item.hsnCode, sellingPrice: item.sellingPrice, itemGroupId: item.itemGroupId, groupId: item.itemGroupId } : null,
+                itemDescription: item.itemDescription || "",
+                itemGroupId: item.itemGroupId || null,
+                itemId: item.itemId || null,
+                sku: itemSku,
+                itemCode: item.itemCode || "",
+                hsnCode: item.hsnCode || "",
+                size: item.size || "",
+                quantity: (item.quantity || 0).toString(),
+                rate: (item.rate || 0).toString(),
+                sellingPrice: (item.sellingPrice !== undefined && item.sellingPrice !== null ? item.sellingPrice : (item.rate || 0)).toString(),
+                mrp: (item.mrp !== undefined && item.mrp !== null ? item.mrp : (item.sellingPrice || item.rate || 0)).toString(),
+                percentage: item.percentage || "",
+                tax: item.taxCode || item.tax || "",
+                customer: "",
+                amount: (item.amount || 0).toString(),
+                baseAmount: (item.baseAmount || 0).toString(),
+                discountedAmount: (item.discountedAmount || 0).toString(),
+                cgstAmount: (item.cgstAmount || 0).toString(),
+                sgstAmount: (item.sgstAmount || 0).toString(),
+                igstAmount: (item.igstAmount || 0).toString(),
+                lineTaxTotal: (item.lineTaxTotal || 0).toString(),
+                lineTotal: (item.lineTotal || 0).toString(),
+                taxCode: item.taxCode || item.tax || "",
+                taxPercent: item.taxPercent || 0,
+                cgstPercent: item.cgstPercent || 0,
+                sgstPercent: item.sgstPercent || 0,
+                igstPercent: item.igstPercent || 0,
+                isInterState: item.isInterState || false,
+                returnable: item.returnable !== undefined ? Boolean(item.returnable) : (item.itemData?.returnable !== undefined ? Boolean(item.itemData.returnable) : false),
+              };
+            });
+            setTableRows(rows.length > 0 ? rows : [{ id: 1, item: "", itemData: null, itemDescription: "", sku: "", hsnCode: "", size: "", quantity: "1.00", rate: "0.00", sellingPrice: "0.00", mrp: "0.00", percentage: "", tax: "", customer: "", amount: "0.00", baseAmount: "0.00", discountedAmount: "0.00", cgstAmount: "0.00", sgstAmount: "0.00", igstAmount: "0.00", lineTaxTotal: "0.00", lineTotal: "0.00", taxCode: "", taxPercent: 0, cgstPercent: 0, sgstPercent: 0, igstPercent: 0, isInterState: false, returnable: false }]);
           }
           
           // Set attachments
@@ -3147,14 +3258,13 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
           return;
         }
 
+        // Auto-default category to BR code if not specified
         if (!r.category || String(r.category).trim() === "") {
-          alert(`Row ${rowNum} (${itemName}): Category is mandatory. Please select BR code or QR code.`);
-          setSaving(false);
-          return;
+          r.category = "BR code";
         }
 
-        const sku = (r.sku || r.itemData?.sku || "").trim();
-        if (!sku) {
+        const itemCode = (r.itemCode || r.itemData?.itemCode || r.itemData?.sku || "").trim();
+        if (!itemCode) {
           alert(`Row ${rowNum} (${itemName}): Item Code is mandatory.`);
           setSaving(false);
           return;
@@ -3231,16 +3341,50 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
         }
       }
 
-      // 3. Group items by assigned group ID vs standalone
+      // 3. Resolve any missing group IDs and group items
+      // Check if any row belongs to an existing item group by SKU or name
+      const unassignedRows = validRows.filter(
+        (r) => !r.itemGroupId && !r.itemData?.itemGroupId && !r.itemData?.groupId && !r.pendingGroup?.groupId && !r.pendingGroup?.name
+      );
+
+      if (unassignedRows.length > 0) {
+        try {
+          const allGroupsRes = await fetch(`${API_URL}/api/shoe-sales/item-groups?all=true`);
+          if (allGroupsRes.ok) {
+            const allGroups = await allGroupsRes.json();
+            const groupsList = Array.isArray(allGroups) ? allGroups : (allGroups.itemGroups || []);
+            for (const r of unassignedRows) {
+              const rSku = (r.sku || r.itemData?.sku || "").trim().toUpperCase();
+              const rName = (r.item || r.itemData?.itemName || "").trim().toLowerCase();
+              const matchedGroup = groupsList.find((g) =>
+                Array.isArray(g.items) &&
+                g.items.some((gi) => {
+                  const giSku = (gi.sku || "").trim().toUpperCase();
+                  const giName = (gi.name || "").trim().toLowerCase();
+                  return (rSku && giSku && giSku === rSku) || (!rSku && giName && giName === rName);
+                })
+              );
+              if (matchedGroup) {
+                r.itemGroupId = matchedGroup._id || matchedGroup.id;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("Could not lookup groups for unassigned rows:", e);
+        }
+      }
+
       const groupItemsMap = {}; // groupId -> Array<itemEntry>
       const standaloneRows = [];
 
       for (const row of validRows) {
         const finalItemName = (row.item || row.itemData?.itemName || "").trim();
-        const rowQuantity = parseFloat(row.quantity) || 0;
+        const rowQtyNum = parseFloat(row.quantity) || 0;
+        const totalPieceCount = Math.max(1, Math.round(rowQtyNum));
+        const pieceCodes = getPieceCodesForRow(row);
         const rowCost = parseFloat(row.rate) || 0;
         const rowSelling = parseFloat(row.sellingPrice) || 0;
-        const rowSku = (row.sku || row.itemData?.sku || "").trim();
+        const rowItemCode = (row.itemCode || row.itemData?.itemCode || row.itemData?.sku || "").trim();
         const rowHsn = (row.hsnCode || row.itemData?.hsnCode || "").trim();
         const rowSize = (row.size || "").trim();
 
@@ -3251,25 +3395,31 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
           assignedGroupId = row.pendingGroup.groupId;
         }
 
-        const itemData = {
-          row,
-          finalItemName,
-          rowQuantity,
-          rowCost,
-          rowSelling,
-          rowSku,
-          rowHsn,
-          rowSize,
-          assignedGroupId,
-        };
+        for (let pIdx = 0; pIdx < totalPieceCount; pIdx++) {
+          const pieceSku = (pieceCodes[pIdx] || getNextUniqueProductCode()).trim();
+          const itemData = {
+            row,
+            pieceIndex: pIdx,
+            totalPieceCount,
+            finalItemName,
+            rowQuantity: 1,
+            rowCost,
+            rowSelling,
+            rowSku: pieceSku,
+            rowItemCode,
+            rowHsn,
+            rowSize,
+            assignedGroupId,
+          };
 
-        if (assignedGroupId) {
-          if (!groupItemsMap[assignedGroupId]) {
-            groupItemsMap[assignedGroupId] = [];
+          if (assignedGroupId) {
+            if (!groupItemsMap[assignedGroupId]) {
+              groupItemsMap[assignedGroupId] = [];
+            }
+            groupItemsMap[assignedGroupId].push(itemData);
+          } else {
+            standaloneRows.push(itemData);
           }
-          groupItemsMap[assignedGroupId].push(itemData);
-        } else {
-          standaloneRows.push(itemData);
         }
       }
 
@@ -3277,6 +3427,9 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
       const processedItems = [];
 
       for (const [groupId, itemsToAdd] of Object.entries(groupItemsMap)) {
+        let savedGroup = null;
+        let currentGroupItems = [];
+
         try {
           const groupFetchRes = await fetch(`${API_URL}/api/shoe-sales/item-groups/${groupId}`);
           let existingGroup = null;
@@ -3284,38 +3437,53 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
             existingGroup = await groupFetchRes.json();
           }
 
-          let currentGroupItems = Array.isArray(existingGroup?.items) ? [...existingGroup.items] : [];
+          currentGroupItems = Array.isArray(existingGroup?.items)
+            ? [...existingGroup.items]
+            : (Array.isArray(existingGroup?.itemsList) ? [...existingGroup.itemsList] : []);
 
           for (const itemEntry of itemsToAdd) {
-            const { finalItemName, rowQuantity, rowCost, rowSelling, rowSku, rowHsn, rowSize } = itemEntry;
+            const { finalItemName, rowCost, rowSelling, rowSku, rowItemCode, rowHsn, rowSize } = itemEntry;
+            const rowItemId = (itemEntry.row.itemId || itemEntry.row.itemData?._id || "").toString();
 
-            // Check if item already exists in this group by SKU or name + size
-            let existingItemIdx = currentGroupItems.findIndex((gi) =>
-              (rowSku && gi.sku && gi.sku.trim().toUpperCase() === rowSku.toUpperCase()) ||
-              (gi.name && gi.name.trim().toLowerCase() === finalItemName.toLowerCase() && (gi.size || "") === rowSize)
-            );
+            // Check if item already exists in this group by Item ID or exact piece SKU
+            let existingItemIdx = currentGroupItems.findIndex((gi) => {
+              const giId = (gi._id?.toString() || gi.id?.toString() || "");
+              if (rowItemId && giId && rowItemId === giId && (!rowSku || gi.sku === rowSku)) {
+                return true;
+              }
+              if (rowSku && gi.sku) {
+                return gi.sku.trim().toUpperCase() === rowSku.trim().toUpperCase();
+              }
+              return false;
+            });
 
             if (existingItemIdx !== -1) {
-              // Update metadata on existing group item (prices/HSN) without pre-incrementing stock
+              // Update metadata on existing group item
               const targetItem = { ...currentGroupItems[existingItemIdx] };
-              targetItem.sellingPrice = rowSelling || targetItem.sellingPrice || 0;
               targetItem.costPrice = rowCost || targetItem.costPrice || 0;
+              targetItem.sellingPrice = rowSelling || targetItem.sellingPrice || 0;
+              targetItem.mrp = parseFloat(itemEntry.row.mrp) || rowSelling || targetItem.mrp || 0;
+              targetItem.returnable = itemEntry.row.returnable !== undefined ? Boolean(itemEntry.row.returnable) : false;
               if (rowHsn) targetItem.hsnCode = rowHsn;
-              if (row.image) targetItem.image = row.image;
+              if (rowItemCode) targetItem.itemCode = rowItemCode;
+              if (itemEntry.row.image) targetItem.image = itemEntry.row.image;
               currentGroupItems[existingItemIdx] = targetItem;
             } else {
-              // Append new item to group with initial 0 stock; BillController adds bill quantity
+              // Append new individual item piece to group
               const newItem = {
                 name: finalItemName,
                 itemName: finalItemName,
                 sku: rowSku || `${existingGroup?.sku || "SKU"}-${currentGroupItems.length + 1}`,
+                itemCode: rowItemCode,
                 hsnCode: rowHsn,
                 size: rowSize,
                 costPrice: rowCost,
                 sellingPrice: rowSelling,
+                mrp: parseFloat(itemEntry.row.mrp) || rowSelling || 0,
+                returnable: itemEntry.row.returnable !== undefined ? Boolean(itemEntry.row.returnable) : false,
                 stock: 0,
                 isActive: true,
-                image: row.image || "",
+                image: itemEntry.row.image || "",
                 warehouseStocks: [{
                   warehouse: targetWarehouse,
                   openingStock: 0,
@@ -3338,112 +3506,138 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              ...existingGroup,
               items: currentGroupItems,
             }),
           });
 
-          let savedGroup = null;
           if (updateRes.ok) {
             savedGroup = await updateRes.json();
-          }
-
-          // Generate bill line items
-          for (const itemEntry of itemsToAdd) {
-            const { row, finalItemName, rowQuantity, rowCost, rowSelling, rowSku, rowHsn, rowSize } = itemEntry;
-            const matchedItem = (savedGroup?.items || currentGroupItems).find((gi) =>
-              (rowSku && gi.sku && gi.sku.trim().toUpperCase() === rowSku.toUpperCase()) ||
-              (gi.name && gi.name.trim().toLowerCase() === finalItemName.toLowerCase())
-            );
-
-            processedItems.push({
-              itemId: matchedItem?._id || matchedItem?.id || null,
-              itemGroupId: groupId,
-              itemName: finalItemName,
-              itemDescription: row.itemDescription || "",
-              image: row.image || "",
-              size: rowSize,
-              hsnCode: rowHsn,
-              quantity: rowQuantity,
-              rate: rowCost,
-              sellingPrice: rowSelling,
-              mrp: parseFloat(row.mrp) || rowSelling || 0,
-              percentage: row.percentage || "",
-              tax: row.tax || "",
-              amount: parseFloat(row.amount) || (rowQuantity * rowCost) || 0,
-              baseAmount: parseFloat(row.baseAmount) || 0,
-              discountedAmount: parseFloat(row.discountedAmount) || 0,
-              cgstAmount: parseFloat(row.cgstAmount) || 0,
-              sgstAmount: parseFloat(row.sgstAmount) || 0,
-              igstAmount: parseFloat(row.igstAmount) || 0,
-              lineTaxTotal: parseFloat(row.lineTaxTotal) || 0,
-              lineTotal: parseFloat(row.lineTotal) || 0,
-              taxCode: row.taxCode || "",
-              taxPercent: row.taxPercent || 0,
-              cgstPercent: row.cgstPercent || 0,
-              sgstPercent: row.sgstPercent || 0,
-              igstPercent: row.igstPercent || 0,
-              isInterState: row.isInterState || false,
-              itemSku: rowSku,
-            });
+          } else {
+            console.warn("Could not update item group on bill save:", await updateRes.text().catch(() => ""));
           }
         } catch (err) {
-          console.error("Error processing group items in bill save:", err);
+          console.error("Error updating group items in bill save:", err);
+        }
+
+        // Generate bill line items unconditionally so bill items are always saved
+        for (const itemEntry of itemsToAdd) {
+          const { row, totalPieceCount, finalItemName, rowCost, rowSelling, rowSku, rowItemCode, rowHsn, rowSize } = itemEntry;
+          const rawItems = Array.isArray(savedGroup?.items)
+            ? savedGroup.items
+            : (Array.isArray(savedGroup?.itemsList) ? savedGroup.itemsList : (Array.isArray(currentGroupItems) ? currentGroupItems : []));
+          const matchedItem = rawItems.find((gi) => {
+            if (rowSku && gi.sku) {
+              return String(gi.sku).trim().toUpperCase() === String(rowSku).trim().toUpperCase();
+            }
+            return false;
+          });
+
+          const divisor = totalPieceCount || 1;
+
+          processedItems.push({
+            itemId: matchedItem?._id || matchedItem?.id || row.itemId || row.itemData?._id || null,
+            itemGroupId: groupId,
+            itemName: finalItemName,
+            itemDescription: row.itemDescription || "",
+            image: row.image || "",
+            size: rowSize,
+            hsnCode: rowHsn,
+            quantity: 1,
+            rate: rowCost,
+            sellingPrice: rowSelling,
+            mrp: parseFloat(row.mrp) || rowSelling || 0,
+            percentage: row.percentage || "",
+            tax: row.tax || "",
+            amount: (parseFloat(row.amount) || (rowCost * divisor)) / divisor,
+            baseAmount: (parseFloat(row.baseAmount) || (rowCost * divisor)) / divisor,
+            discountedAmount: (parseFloat(row.discountedAmount) || (rowCost * divisor)) / divisor,
+            cgstAmount: (parseFloat(row.cgstAmount) || 0) / divisor,
+            sgstAmount: (parseFloat(row.sgstAmount) || 0) / divisor,
+            igstAmount: (parseFloat(row.igstAmount) || 0) / divisor,
+            lineTaxTotal: (parseFloat(row.lineTaxTotal) || 0) / divisor,
+            lineTotal: (parseFloat(row.lineTotal) || (rowCost * divisor)) / divisor,
+            taxCode: row.taxCode || "",
+            taxPercent: row.taxPercent || 0,
+            cgstPercent: row.cgstPercent || 0,
+            sgstPercent: row.sgstPercent || 0,
+            igstPercent: row.igstPercent || 0,
+            isInterState: row.isInterState || false,
+            returnable: row.returnable !== undefined ? Boolean(row.returnable) : false,
+            itemSku: rowSku,
+            sku: rowSku,
+            itemCode: rowItemCode,
+          });
         }
       }
 
       // 5. Process standalone items
       for (const itemEntry of standaloneRows) {
-        const { row, finalItemName, rowQuantity, rowCost, rowSelling, rowSku, rowHsn, rowSize } = itemEntry;
-        let itemId = row.itemData?._id || row.itemId || null;
+        const { row, totalPieceCount, finalItemName, rowCost, rowSelling, rowSku, rowItemCode, rowHsn, rowSize } = itemEntry;
+        let itemId = (itemEntry.pieceIndex === 0 ? (row.itemId || row.itemData?._id) : null) || null;
 
         try {
-          const createItemRes = await fetch(`${API_URL}/api/shoe-sales/items`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              itemName: finalItemName,
-              sku: rowSku,
-              hsnCode: rowHsn,
-              size: rowSize,
-              costPrice: rowCost,
-              sellingPrice: rowSelling,
-              unit: "PCS",
-              taxRateIntra: row.tax || "",
-              trackInventory: true,
-              image: row.image || "",
-              images: row.image ? [{ filename: "item-image.jpg", contentType: "image/jpeg", data: row.image }] : [],
-              warehouseStocks: [{
-                warehouse: targetWarehouse,
-                openingStock: 0,
-                openingStockValue: 0,
-                stockOnHand: 0,
-                committedStock: 0,
-                availableForSale: 0,
-                physicalOpeningStock: 0,
-                physicalStockOnHand: 0,
-                physicalCommittedStock: 0,
-                physicalAvailableForSale: 0,
-              }],
-            }),
-          });
-          if (createItemRes.ok) {
-            const standaloneItem = await createItemRes.json();
-            if (!itemId) itemId = standaloneItem._id || standaloneItem.id;
-          } else if (itemId && row.image) {
-            // Update image on existing item
+          if (itemId) {
+            // Update existing standalone item
             await fetch(`${API_URL}/api/shoe-sales/items/${itemId}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                image: row.image,
-                images: [{ filename: "item-image.jpg", contentType: "image/jpeg", data: row.image }],
+                itemName: finalItemName,
+                sku: rowSku,
+                itemCode: rowItemCode,
+                hsnCode: rowHsn,
+                size: rowSize,
+                costPrice: rowCost,
+                sellingPrice: rowSelling,
+                mrp: parseFloat(row.mrp) || rowSelling || 0,
+                returnable: row.returnable !== undefined ? Boolean(row.returnable) : false,
+                taxRateIntra: row.tax || "",
+                image: row.image || "",
               }),
             });
+          } else {
+            const createItemRes = await fetch(`${API_URL}/api/shoe-sales/items`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                itemName: finalItemName,
+                sku: rowSku,
+                itemCode: rowItemCode,
+                hsnCode: rowHsn,
+                size: rowSize,
+                costPrice: rowCost,
+                sellingPrice: rowSelling,
+                mrp: parseFloat(row.mrp) || rowSelling || 0,
+                returnable: row.returnable !== undefined ? Boolean(row.returnable) : false,
+                unit: "PCS",
+                taxRateIntra: row.tax || "",
+                trackInventory: true,
+                image: row.image || "",
+                images: row.image ? [{ filename: "item-image.jpg", contentType: "image/jpeg", data: row.image }] : [],
+                warehouseStocks: [{
+                  warehouse: targetWarehouse,
+                  openingStock: 0,
+                  openingStockValue: 0,
+                  stockOnHand: 0,
+                  committedStock: 0,
+                  availableForSale: 0,
+                  physicalOpeningStock: 0,
+                  physicalStockOnHand: 0,
+                  physicalCommittedStock: 0,
+                  physicalAvailableForSale: 0,
+                }],
+              }),
+            });
+            if (createItemRes.ok) {
+              const standaloneItem = await createItemRes.json();
+              itemId = standaloneItem._id || standaloneItem.id;
+            }
           }
         } catch (err) {
           console.warn("Could not sync standalone item on bill save:", err);
         }
+
+        const divisor = totalPieceCount || 1;
 
         processedItems.push({
           itemId: itemId,
@@ -3453,27 +3647,30 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
           image: row.image || "",
           size: rowSize,
           hsnCode: rowHsn,
-          quantity: rowQuantity,
+          itemSku: rowSku,
+          sku: rowSku,
+          itemCode: rowItemCode,
+          quantity: 1,
           rate: rowCost,
           sellingPrice: rowSelling,
           mrp: parseFloat(row.mrp) || rowSelling || 0,
           percentage: row.percentage || "",
           tax: row.tax || "",
-          amount: parseFloat(row.amount) || (rowQuantity * rowCost) || 0,
-          baseAmount: parseFloat(row.baseAmount) || 0,
-          discountedAmount: parseFloat(row.discountedAmount) || 0,
-          cgstAmount: parseFloat(row.cgstAmount) || 0,
-          sgstAmount: parseFloat(row.sgstAmount) || 0,
-          igstAmount: parseFloat(row.igstAmount) || 0,
-          lineTaxTotal: parseFloat(row.lineTaxTotal) || 0,
-          lineTotal: parseFloat(row.lineTotal) || 0,
+          amount: (parseFloat(row.amount) || (rowCost * divisor)) / divisor,
+          baseAmount: (parseFloat(row.baseAmount) || (rowCost * divisor)) / divisor,
+          discountedAmount: (parseFloat(row.discountedAmount) || (rowCost * divisor)) / divisor,
+          cgstAmount: (parseFloat(row.cgstAmount) || 0) / divisor,
+          sgstAmount: (parseFloat(row.sgstAmount) || 0) / divisor,
+          igstAmount: (parseFloat(row.igstAmount) || 0) / divisor,
+          lineTaxTotal: (parseFloat(row.lineTaxTotal) || 0) / divisor,
+          lineTotal: (parseFloat(row.lineTotal) || (rowCost * divisor)) / divisor,
           taxCode: row.taxCode || "",
           taxPercent: row.taxPercent || 0,
           cgstPercent: row.cgstPercent || 0,
           sgstPercent: row.sgstPercent || 0,
           igstPercent: row.igstPercent || 0,
           isInterState: row.isInterState || false,
-          itemSku: rowSku,
+          returnable: row.returnable !== undefined ? Boolean(row.returnable) : false,
         });
       }
 
@@ -3900,17 +4097,19 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                     String(row.mrp).trim() !== "" &&
                     !isNaN(mrpNum) &&
                     mrpNum > 0;
+                  const pieceCodes = getPieceCodesForRow(row);
+                  const qtyNum = Math.max(1, Math.round(parseFloat(row.quantity) || 1));
 
                   return (
                     <tr key={row.id} className="hover:bg-gray-50/60 transition-colors">
                       {/* Checkbox */}
-                      <td className="px-3 py-3 text-center align-middle">
+                      <td className="px-3 py-3 text-center align-top pt-4.5">
                         <input type="checkbox" className="rounded-none border-gray-300 text-purple-600 focus:ring-purple-500" />
                       </td>
 
                       {/* Item Name */}
-                      <td className="px-3 py-3 align-middle">
-                        <div className="flex items-center gap-2">
+                      <td className="px-3 py-3 align-top">
+                        <div className="flex items-start gap-2">
                           {/* Item Image Upload Box (Max 10MB) */}
                           <div className="relative group w-8 h-8 rounded-none bg-gray-100 hover:bg-gray-200 border border-gray-200 flex items-center justify-center text-gray-400 shrink-0 cursor-pointer overflow-hidden transition-colors">
                             {row.image || row.itemData?.image || row.itemData?.images?.[0]?.url ? (
@@ -3968,6 +4167,40 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                               onOpenGroupModal={() => handleOpenGroupItemModal(row)}
                               warehouse={warehouse}
                             />
+                            {pieceCodes.length > 0 && (
+                              <div className="mt-1 space-y-1">
+                                {pieceCodes.length === 1 ? (
+                                  <div className="text-[11px] font-semibold text-purple-700 bg-purple-50/90 border border-purple-200/80 px-2 py-0.5 inline-flex items-center gap-1.5 shadow-2xs">
+                                    <Barcode size={12} className="text-purple-600" />
+                                    <span className="text-gray-500 font-normal">SKU:</span>
+                                    <span className="font-mono tracking-wide">{pieceCodes[0]}</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    {pieceCodes.map((code, pIdx) => (
+                                      <div
+                                        key={`${row.id}-sku-${pIdx}`}
+                                        className="text-[11px] font-semibold text-purple-700 bg-purple-50/90 border border-purple-200/80 px-2 py-0.5 inline-flex items-center gap-1 shadow-2xs"
+                                        title={`Piece ${pIdx + 1} of ${pieceCodes.length} (SKU: ${code})`}
+                                      >
+                                        <Barcode size={11} className="text-purple-600" />
+                                        <span className="text-gray-400 font-normal text-[10px]">#{pIdx + 1}:</span>
+                                        <span className="font-mono tracking-wide">{code}</span>
+                                      </div>
+                                    ))}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSplitRow(row.id)}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-none cursor-pointer transition-colors shadow-2xs"
+                                      title={`Split this Qty ${pieceCodes.length} item into ${pieceCodes.length} separate rows of Qty 1 each`}
+                                    >
+                                      <Scissors size={11} className="text-blue-600" />
+                                      <span>Split into {pieceCodes.length} Rows</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                             {(row.pendingGroup || row.groupName || row.itemData?.groupName) && (
                               <div className="text-[10px] text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 mt-1 flex items-center justify-between gap-1">
                                 <span className="flex items-center gap-1 font-medium">
@@ -3997,7 +4230,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                       </td>
 
                       {/* Category */}
-                      <td className="px-3 py-3 align-middle w-28">
+                      <td className="px-3 py-3 align-top w-32">
                         <div className="relative w-full">
                           <select
                             value={row.category || "BR code"}
@@ -4012,21 +4245,30 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                             className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
                           />
                         </div>
+                        <label className="inline-flex items-center gap-1.5 mt-1.5 px-1.5 py-0.5 bg-slate-50 border border-slate-200 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer select-none transition-colors whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(row.returnable)}
+                            onChange={(e) => handleUpdateRow(row.id, "returnable", e.target.checked)}
+                            className="h-3.5 w-3.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer accent-purple-600"
+                          />
+                          <span>Returnable</span>
+                        </label>
                       </td>
 
                       {/* Item Code */}
-                      <td className="px-3 py-3 align-middle">
+                      <td className="px-3 py-3 align-top">
                         <input
                           type="text"
                           placeholder="Item Code"
-                          value={row.itemData?.sku || row.sku || ""}
-                          onChange={(e) => handleUpdateRow(row.id, "sku", e.target.value)}
+                          value={row.itemCode !== undefined ? row.itemCode : (row.itemData?.itemCode || row.itemData?.sku || "")}
+                          onChange={(e) => handleUpdateRow(row.id, "itemCode", e.target.value)}
                           className="w-full h-8 rounded-none border border-gray-200 bg-white px-2.5 text-xs text-gray-900 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600"
                         />
                       </td>
 
                       {/* HSN Code */}
-                      <td className="px-3 py-3 align-middle">
+                      <td className="px-3 py-3 align-top">
                         <input
                           type="text"
                           placeholder="HSN Code"
@@ -4037,7 +4279,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                       </td>
 
                       {/* Quantity with Stepper */}
-                      <td className="px-3 py-3 align-middle">
+                      <td className="px-3 py-3 align-top">
                         <div className="flex items-center justify-center border border-gray-200 rounded-none h-8 bg-white px-1">
                           <button
                             type="button"
@@ -4071,7 +4313,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                       </td>
 
                       {/* Tax */}
-                      <td className="px-3 py-3 align-middle min-w-[140px]">
+                      <td className="px-3 py-3 align-top min-w-[140px]">
                         <div className="relative w-full">
                           <select
                             value={row.tax || ""}
@@ -4106,7 +4348,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                       </td>
 
                       {/* Cost Price */}
-                      <td className="px-3 py-3 align-middle">
+                      <td className="px-3 py-3 align-top">
                         <input
                           type="text"
                           placeholder="0.00"
@@ -4117,7 +4359,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                       </td>
 
                       {/* Percentage */}
-                      <td className="px-3 py-3 align-middle w-24">
+                      <td className="px-3 py-3 align-top w-24">
                         <input
                           type="text"
                           placeholder="%"
@@ -4134,7 +4376,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                       </td>
 
                       {/* Selling Price */}
-                      <td className="px-3 py-3 align-middle">
+                      <td className="px-3 py-3 align-top">
                         <input
                           type="text"
                           placeholder="0.00"
@@ -4151,7 +4393,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                       </td>
 
                       {/* MRP */}
-                      <td className="px-3 py-3 align-middle">
+                      <td className="px-3 py-3 align-top">
                         <input
                           type="text"
                           placeholder="0.00 *"
@@ -4179,8 +4421,18 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                       </td>
 
                       {/* Actions */}
-                      <td className="px-3 py-3 align-middle">
+                      <td className="px-3 py-3 align-top pt-3.5">
                         <div className="flex items-center justify-center gap-1.5">
+                          {qtyNum > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleSplitRow(row.id)}
+                              className="w-7 h-7 rounded-none bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center transition-colors shadow-2xs"
+                              title={`Split this Qty ${qtyNum} item into ${qtyNum} separate rows`}
+                            >
+                              <Scissors size={14} />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleOpenAddToGroup(row)}
@@ -4189,25 +4441,6 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                           >
                             <Plus size={14} />
                           </button>
-                          {hasValidMrp ? (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenPrintModal(row)}
-                              className="w-7 h-7 rounded-none bg-gray-100 text-gray-700 hover:bg-purple-50 hover:text-purple-600 flex items-center justify-center transition-colors shadow-2xs cursor-pointer"
-                              title="Print Options (Browser / Direct Thermal / .PRN)"
-                            >
-                              <Printer size={14} />
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled
-                              className="w-7 h-7 rounded-none bg-gray-50 text-gray-300 flex items-center justify-center transition-colors shadow-2xs cursor-not-allowed opacity-50"
-                              title="Please enter MRP to print label"
-                            >
-                              <Printer size={14} />
-                            </button>
-                          )}
                           <button
                             type="button"
                             onClick={() => handleDeleteRow(row.id)}
@@ -5445,8 +5678,7 @@ const NewBillForm = ({ billId, isEditMode = false }) => {
                       }}
                     >
                       {/* Left Wing */}
-                      <div className="w-[48%] h-full flex flex-col items-center justify-between text-center border-r border-dashed border-slate-200 pr-2 overflow-hidden">
-                        <div className="font-bold text-[8.5px] text-slate-900 truncate max-w-full">Brynex Jewels</div>
+                      <div className="w-[48%] h-full flex flex-col items-center justify-center text-center border-r border-dashed border-slate-200 pr-2 overflow-hidden">
                         <div className="h-6 w-full flex items-center justify-center overflow-hidden my-0.5">
                           {modalPreviewImg ? (
                             <img

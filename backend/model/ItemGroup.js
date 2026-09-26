@@ -107,6 +107,10 @@ const ItemGroupSchema = new mongoose.Schema(
           type: String,
           trim: true,
         },
+        itemCode: {
+          type: String,
+          trim: true,
+        },
         isActive: {
           type: Boolean,
           default: true,
@@ -120,6 +124,10 @@ const ItemGroupSchema = new mongoose.Schema(
           default: 0,
         },
         sellingPrice: {
+          type: Number,
+          default: 0,
+        },
+        mrp: {
           type: Number,
           default: 0,
         },
