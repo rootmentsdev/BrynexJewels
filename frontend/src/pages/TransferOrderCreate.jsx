@@ -262,6 +262,43 @@ const getStockOnHand = (item, warehouse) => {
   return 0;
 };
 
+// Helper to check if an item is already selected in another row
+const isItemAlreadySelected = (item, selectedList = []) => {
+  if (!item || !selectedList || selectedList.length === 0) return false;
+
+  const itemId = item._id || item.id || item.itemId;
+  const itemSku = (item.sku || item.itemSku || "").trim().toLowerCase();
+  const itemName = (item.itemName || item.name || "").trim().toLowerCase();
+  const itemGroupId = item.itemGroupId;
+
+  return selectedList.some((selected) => {
+    if (!selected) return false;
+    const selId = selected._id || selected.id || selected.itemId;
+    const selSku = (selected.sku || selected.itemSku || "").trim().toLowerCase();
+    const selName = (selected.itemName || selected.name || "").trim().toLowerCase();
+    const selGroupId = selected.itemGroupId;
+
+    // Match by ID if both have valid ID
+    if (itemId && selId && String(itemId) === String(selId)) {
+      return true;
+    }
+    // Match by SKU if both have non-empty SKU
+    if (itemSku && selSku && itemSku === selSku) {
+      return true;
+    }
+    // Match by group and item name if same group
+    if (itemGroupId && selGroupId && String(itemGroupId) === String(selGroupId) && itemName && selName && itemName === selName) {
+      return true;
+    }
+    // Match by item name if neither has groupId and neither has SKU
+    if (!itemGroupId && !selGroupId && !itemSku && !selSku && itemName && selName && itemName === selName) {
+      return true;
+    }
+
+    return false;
+  });
+};
+
 // ItemDropdown Component - filters items by warehouse (same logic as SalesInvoiceCreate)
 const ItemDropdown = ({
   rowId,
@@ -277,7 +314,8 @@ const ItemDropdown = ({
   isEditMode = false,
   orderId = null,
   requestedHint = "",
-  requestedGroupId = null
+  requestedGroupId = null,
+  selectedItems = []
 }) => {
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
   const buttonRef = useRef(null);
@@ -622,9 +660,15 @@ const ItemDropdown = ({
 
   const filteredItems = useMemo(() => {
     let result = items;
+
+    // Filter out items already selected in other rows
+    if (selectedItems && selectedItems.length > 0) {
+      result = result.filter(item => !isItemAlreadySelected(item, selectedItems));
+    }
+
     if (searchTerm && searchTerm.trim() !== "") {
       const searchLower = searchTerm.toLowerCase().trim();
-      result = items.filter((item) => {
+      result = result.filter((item) => {
         const itemName = (item?.itemName || "").toLowerCase();
         const sku = (item?.sku || "").toLowerCase();
         const groupName = (item?.groupName || "").toLowerCase();
@@ -650,7 +694,7 @@ const ItemDropdown = ({
     }
 
     return result;
-  }, [items, searchTerm, requestedHint, requestedGroupId]);
+  }, [items, searchTerm, requestedHint, requestedGroupId, selectedItems]);
 
   const handleSelectItem = (item) => {
     console.log(`🎯 handleSelectItem called with:`, item);
@@ -900,6 +944,13 @@ const ItemDropdown = ({
           );
 
           if (exactMatch) {
+            if (isItemAlreadySelected(exactMatch, selectedItems)) {
+              alert(`Item "${exactMatch.itemName}" (${exactMatch.sku}) is already selected in another row.`);
+              setInputValue("");
+              setSearchTerm("");
+              setIsOpen(false);
+              return;
+            }
             console.log(`✅ ========== EXACT SKU MATCH FOUND ==========`);
             console.log(`   Item:`, exactMatch);
             setIsProcessingBarcode(true);
@@ -911,26 +962,13 @@ const ItemDropdown = ({
 
           console.log(`   No exact SKU match, trying filtered search...`);
 
-          // If no exact match, try first filtered item
-          const filtered = items.filter((item) => {
-            const searchLower = value.toLowerCase().trim();
-            const itemName = (item?.itemName || "").toLowerCase();
-            const sku = (item?.sku || "").toLowerCase();
-            const groupName = (item?.groupName || "").toLowerCase();
-
-            return itemName.includes(searchLower) ||
-              sku.includes(searchLower) ||
-              groupName.includes(searchLower);
-          });
-
-          console.log(`   Filtered items count:`, filtered.length);
-
-          if (filtered.length > 0) {
+          // If no exact match, try first filtered item (which already excludes selectedItems)
+          if (filteredItems.length > 0) {
             console.log(`✅ ========== FIRST FILTERED MATCH FOUND ==========`);
-            console.log(`   Item:`, filtered[0]);
+            console.log(`   Item:`, filteredItems[0]);
             setIsProcessingBarcode(true);
             // Use handleSelectItem for consistent behavior
-            handleSelectItem(filtered[0]);
+            handleSelectItem(filteredItems[0]);
             setTimeout(() => setIsProcessingBarcode(false), 300);
           } else {
             console.log(`❌ ========== NO MATCHES FOUND ==========`);
@@ -979,6 +1017,14 @@ const ItemDropdown = ({
       );
 
       if (exactMatch) {
+        if (isItemAlreadySelected(exactMatch, selectedItems)) {
+          alert(`Item "${exactMatch.itemName}" (${exactMatch.sku}) is already selected in another row.`);
+          setInputValue("");
+          setSearchTerm("");
+          setIsOpen(false);
+          setIsProcessingBarcode(false);
+          return;
+        }
         console.log(`✅ ENTER - Exact SKU match found:`, exactMatch);
         handleSelectItem(exactMatch);
         setTimeout(() => setIsProcessingBarcode(false), 300);
@@ -1024,6 +1070,13 @@ const ItemDropdown = ({
           (item.name && item.name.toLowerCase().includes(scannedSku.toLowerCase()))
         );
         if (foundItem) {
+          if (isItemAlreadySelected(foundItem, selectedItems)) {
+            alert(`Item "${foundItem.itemName || foundItem.name}" (${foundItem.sku}) is already selected in another row.`);
+            setInputValue("");
+            setSearchTerm("");
+            setIsOpen(false);
+            return;
+          }
           const itemObj = {
             _id: foundItem._id || foundItem.id,
             id: foundItem._id || foundItem.id,
@@ -1101,8 +1154,15 @@ const ItemDropdown = ({
                 );
 
                 if (exactMatch) {
-                  console.log(`✅ BLUR - Exact match found:`, exactMatch);
-                  handleSelectItem(exactMatch);
+                  if (!isItemAlreadySelected(exactMatch, selectedItems)) {
+                    console.log(`✅ BLUR - Exact match found:`, exactMatch);
+                    handleSelectItem(exactMatch);
+                  } else {
+                    alert(`Item "${exactMatch.itemName}" (${exactMatch.sku}) is already selected in another row.`);
+                    setInputValue("");
+                    setSearchTerm("");
+                    setIsOpen(false);
+                  }
                 } else if (filteredItems && filteredItems.length > 0) {
                   console.log(`✅ BLUR - First filtered match:`, filteredItems[0]);
                   handleSelectItem(filteredItems[0]);
@@ -1398,6 +1458,24 @@ const TransferOrderCreate = () => {
     console.log(`🎯 handleItemSelect called for row ${rowId} with item:`, item);
     if (!item) return;
 
+    // Check if this item is already selected in another row
+    const otherRows = tableRows.filter(r => r.id !== rowId);
+    const isDuplicate = otherRows.some(r => isItemAlreadySelected(item, [{
+      _id: r.itemId || r.item?._id || r.item?.id,
+      id: r.itemId || r.item?._id || r.item?.id,
+      itemId: r.itemId || r.item?._id || r.item?.id,
+      sku: r.itemSku || r.item?.sku,
+      itemSku: r.itemSku || r.item?.sku,
+      itemName: r.itemName || r.item?.itemName,
+      name: r.itemName || r.item?.itemName,
+      itemGroupId: r.itemGroupId || r.item?.itemGroupId,
+    }]));
+
+    if (isDuplicate) {
+      alert(`Item "${item.itemName || item.name}" (${item.sku || ''}) is already selected in another row.`);
+      return;
+    }
+
     const srcStock = sourceWarehouse ? getStockOnHand(item, sourceWarehouse) : 0;
     const dstStock = destinationWarehouse ? getStockOnHand(item, destinationWarehouse) : 0;
 
@@ -1405,6 +1483,9 @@ const TransferOrderCreate = () => {
       const updated = rows.map(row => {
         if (row.id === rowId) {
           console.log(`   ✅ Updating row ${rowId} with item:`, item, `srcStock: ${srcStock}, dstStock: ${dstStock}`);
+          const defaultQty = row.quantity && parseFloat(row.quantity) > 0 
+            ? row.quantity 
+            : (row.requestedQuantity && parseFloat(row.requestedQuantity) > 0 ? row.requestedQuantity.toString() : "1");
           return {
             ...row,
             item: item,
@@ -1415,11 +1496,12 @@ const TransferOrderCreate = () => {
             sourceQuantity: srcStock,
             destQuantity: dstStock,
             sourceTotal: srcStock,
+            quantity: defaultQty,
           };
         }
         return row;
       });
-      console.log(`   📊 Updated rows after item select:`, updated.map(r => ({ id: r.id, itemName: r.itemName, item: r.item, srcQty: r.sourceQuantity, dstQty: r.destQuantity })));
+      console.log(`   📊 Updated rows after item select:`, updated.map(r => ({ id: r.id, itemName: r.itemName, item: r.item, srcQty: r.sourceQuantity, dstQty: r.destQuantity, qty: r.quantity })));
       return updated;
     });
   };
@@ -1622,48 +1704,39 @@ const TransferOrderCreate = () => {
       if (foundItem) {
         console.log(`✅ Found item:`, foundItem);
 
-        // Get available stock for this item
-        let availableStock = 0;
-        if (sourceWarehouse && foundItem.warehouseStocks && Array.isArray(foundItem.warehouseStocks)) {
-          const targetWarehouseLower = sourceWarehouse.toLowerCase().trim();
-          const matchingStock = foundItem.warehouseStocks.find(ws => {
-            if (!ws.warehouse) return false;
-            const stockWarehouse = (ws.warehouse || "").toString().toLowerCase().trim();
-            return stockWarehouse === targetWarehouseLower ||
-              stockWarehouse.includes(targetWarehouseLower) ||
-              targetWarehouseLower.includes(stockWarehouse);
-          });
-
-          if (matchingStock) {
-            availableStock = parseFloat(matchingStock.availableForSale) || parseFloat(matchingStock.stockOnHand) || 0;
-          }
-        }
+        // Get available stock for this item using standard helper
+        const availableStock = sourceWarehouse ? getStockOnHand(foundItem, sourceWarehouse) : 0;
 
         console.log(`📊 Available stock for ${foundItem.itemName}: ${availableStock}`);
 
+        if (availableStock <= 0) {
+          alert(`❌ No stock available for "${foundItem.itemName}" in ${sourceWarehouse || "selected warehouse"}.`);
+          return;
+        }
+
         setBulkScannedItems(prev => {
-          const existingIndex = prev.findIndex(i => i.item._id === foundItem._id);
+          const existingIndex = prev.findIndex(i => 
+            (i.item._id && foundItem._id && String(i.item._id) === String(foundItem._id)) ||
+            (i.item.sku && foundItem.sku && i.item.sku.toLowerCase() === foundItem.sku.toLowerCase())
+          );
 
           if (existingIndex >= 0) {
             const currentQuantity = prev[existingIndex].quantity;
             if (currentQuantity >= availableStock) {
-              alert(`❌ Cannot add more. Only ${availableStock} pcs available for ${foundItem.itemName}`);
+              alert(`❌ Cannot add more. Only ${availableStock} pcs available for "${foundItem.itemName}".`);
               return prev;
             }
 
-            const updated = [...prev];
-            updated[existingIndex] = {
-              ...updated[existingIndex],
-              quantity: updated[existingIndex].quantity + 1
-            };
-            console.log(`📈 Incremented quantity for ${foundItem.itemName} to ${updated[existingIndex].quantity}`);
-            return updated;
+            return prev.map((item, idx) => {
+              if (idx === existingIndex) {
+                return {
+                  ...item,
+                  quantity: Math.min(availableStock, (item.quantity || 0) + 1)
+                };
+              }
+              return item;
+            });
           } else {
-            if (availableStock <= 0) {
-              alert(`❌ No stock available for ${foundItem.itemName}`);
-              return prev;
-            }
-
             console.log(`➕ Added new item ${foundItem.itemName}`);
             return [...prev, {
               item: foundItem,
@@ -1688,39 +1761,90 @@ const TransferOrderCreate = () => {
       return;
     }
 
-    // Remove blank row if exists
-    const filtered = tableRows.filter(row => row.itemName && row.itemName.trim() !== "");
+    // Keep existing non-empty rows
+    const existingRows = [...tableRows.filter(row => row.itemName && row.itemName.trim() !== "")];
 
-    // Add scanned items to table
-    const newRows = bulkScannedItems.map((scanned, idx) => {
-      const newId = Math.max(...filtered.map(r => r.id), 0) + idx + 1;
+    // For each bulk scanned item, check if it already exists in existingRows
+    const rowsToAdd = [];
+
+    bulkScannedItems.forEach((scanned) => {
+      const existingIdx = existingRows.findIndex(row =>
+        (row.itemId && scanned.item._id && String(row.itemId) === String(scanned.item._id)) ||
+        (row.itemSku && scanned.item.sku && row.itemSku.toLowerCase() === scanned.item.sku.toLowerCase()) ||
+        (row.itemName && scanned.item.itemName && row.itemName.toLowerCase() === scanned.item.itemName.toLowerCase())
+      );
+
+      if (existingIdx >= 0) {
+        // Merge quantity
+        const existingQty = parseFloat(existingRows[existingIdx].quantity) || 0;
+        const newQty = existingQty + scanned.quantity;
+        existingRows[existingIdx] = {
+          ...existingRows[existingIdx],
+          quantity: newQty.toString(),
+        };
+      } else {
+        rowsToAdd.push({
+          item: scanned.item,
+          itemId: scanned.item._id,
+          itemGroupId: scanned.item.itemGroupId || null,
+          itemName: scanned.item.itemName,
+          itemSku: scanned.item.sku,
+          sourceQuantity: sourceWarehouse ? getStockOnHand(scanned.item, sourceWarehouse) : 0,
+          destQuantity: destinationWarehouse ? getStockOnHand(scanned.item, destinationWarehouse) : 0,
+          quantity: scanned.quantity.toString()
+        });
+      }
+    });
+
+    let currentMaxId = existingRows.reduce((max, r) => Math.max(max, r.id || 0), 0);
+    const newRows = rowsToAdd.map(row => {
+      currentMaxId += 1;
       return {
-        id: newId,
-        item: scanned.item,
-        itemId: scanned.item._id,
-        itemGroupId: scanned.item.itemGroupId || null,
-        itemName: scanned.item.itemName,
-        itemSku: scanned.item.sku,
-        sourceQuantity: 0,
-        destQuantity: 0,
-        quantity: scanned.quantity.toString()
+        ...row,
+        id: currentMaxId,
       };
     });
 
-    setTableRows([...filtered, ...newRows]);
+    const finalRows = [...existingRows, ...newRows];
+    setTableRows(finalRows.length > 0 ? finalRows : [{
+      id: 1,
+      item: null,
+      itemId: null,
+      itemGroupId: null,
+      itemName: "",
+      itemSku: "",
+      sourceQuantity: 0,
+      destQuantity: 0,
+      quantity: ""
+    }]);
     handleBulkAddClose();
   };
 
   // Barcode scanning functions
 
-  // Check if any item has transfer quantity exceeding source stock
+  // Check if any item has transfer quantity exceeding source stock (including aggregated totals across rows)
   const hasInsufficientStock = () => {
-    return tableRows.some(row => {
-      if (!row.itemName || !row.quantity) return false;
+    const itemTotals = {};
+    for (const row of tableRows) {
+      if (!row.itemName || !row.quantity) continue;
       const transferQty = parseFloat(row.quantity) || 0;
       const sourceStock = parseFloat(row.sourceQuantity) || 0;
-      return transferQty > sourceStock;
-    });
+      if (transferQty <= 0) continue;
+
+      const key = (row.itemId || row.itemSku || row.itemName).toString().toLowerCase();
+      if (!itemTotals[key]) {
+        itemTotals[key] = {
+          transferQty: 0,
+          sourceStock: sourceStock,
+          itemName: row.itemName,
+        };
+      }
+      itemTotals[key].transferQty += transferQty;
+      if (itemTotals[key].transferQty > itemTotals[key].sourceStock) {
+        return true;
+      }
+    }
+    return false;
   };
 
   // Handle save
@@ -1737,6 +1861,24 @@ const TransferOrderCreate = () => {
 
     if (tableRows.length === 0 || !tableRows.some(row => row.itemName && parseFloat(row.quantity) > 0)) {
       alert("Please add at least one item with quantity");
+      return;
+    }
+
+    // Check for duplicate items across rows
+    const seenItems = new Map();
+    for (const row of tableRows) {
+      if (row.itemName && parseFloat(row.quantity) > 0) {
+        const itemKey = (row.itemId || row.itemSku || row.itemName).toString().toLowerCase();
+        if (seenItems.has(itemKey)) {
+          alert(`Duplicate item "${row.itemName}" found in transfer order. Please combine the quantities into a single row.`);
+          return;
+        }
+        seenItems.set(itemKey, row.itemName);
+      }
+    }
+
+    if (hasInsufficientStock()) {
+      alert("Transfer quantity exceeds available stock in source warehouse for one or more items.");
       return;
     }
 
@@ -2043,6 +2185,18 @@ const TransferOrderCreate = () => {
                     orderId={id}
                     requestedHint={row.requestedGroupName}
                     requestedGroupId={row.itemGroupId}
+                    selectedItems={tableRows
+                      .filter(r => r.id !== row.id && (r.itemId || r.itemName || r.itemSku || r.item))
+                      .map(r => ({
+                        _id: r.itemId || r.item?._id || r.item?.id,
+                        id: r.itemId || r.item?._id || r.item?.id,
+                        itemId: r.itemId || r.item?._id || r.item?.id,
+                        sku: r.itemSku || r.item?.sku,
+                        itemSku: r.itemSku || r.item?.sku,
+                        itemName: r.itemName || r.item?.itemName,
+                        name: r.itemName || r.item?.itemName,
+                        itemGroupId: r.itemGroupId || r.item?.itemGroupId,
+                      }))}
                   />
                   {row.requestedGroupName && !row.item && (
                     <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#7c3aed] font-medium bg-[#f5f3ff] px-2 py-0.5 rounded border border-[#ddd6fe] inline-flex">
@@ -2169,25 +2323,13 @@ const TransferOrderCreate = () => {
                   ) : (
                     <div className="p-3 space-y-2">
                       {bulkItems.map((item) => {
-                        const isSelected = bulkScannedItems.some(s => s.item._id === item._id);
+                        const isSelected = bulkScannedItems.some(s => 
+                          (s.item._id && item._id && String(s.item._id) === String(item._id)) ||
+                          (s.item.sku && item.sku && s.item.sku.toLowerCase() === item.sku.toLowerCase())
+                        );
 
                         // Calculate available stock
-                        let availableStock = 0;
-                        if (sourceWarehouse && item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
-                          const targetWarehouseLower = sourceWarehouse.toLowerCase().trim();
-                          const matchingStock = item.warehouseStocks.find(ws => {
-                            if (!ws.warehouse) return false;
-                            const stockWarehouse = (ws.warehouse || "").toString().toLowerCase().trim();
-                            return stockWarehouse === targetWarehouseLower ||
-                              stockWarehouse.includes(targetWarehouseLower) ||
-                              targetWarehouseLower.includes(stockWarehouse);
-                          });
-
-                          if (matchingStock) {
-                            availableStock = parseFloat(matchingStock.availableForSale) || parseFloat(matchingStock.stockOnHand) || 0;
-                          }
-                        }
-
+                        const availableStock = sourceWarehouse ? getStockOnHand(item, sourceWarehouse) : 0;
                         const isOutOfStock = availableStock <= 0;
 
                         return (
@@ -2263,73 +2405,103 @@ const TransferOrderCreate = () => {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {bulkScannedItems.map((scanned, idx) => (
-                        <div key={idx} className="bg-white border border-[#e5e7eb] rounded-lg p-3">
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-sm text-[#1f2937] truncate">
-                                {scanned.item.itemName}
-                              </div>
-                              <div className="text-xs text-[#6b7280] mt-0.5">
-                                SKU: {scanned.item.sku || 'N/A'}
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => {
-                                setBulkScannedItems(prev => prev.filter((_, i) => i !== idx));
-                              }}
-                              className="text-[#ef4444] hover:bg-[#fef2f2] p-1 rounded transition-colors flex-shrink-0"
-                            >
-                              <X size={16} />
-                            </button>
-                          </div>
+                      {bulkScannedItems.map((scanned, idx) => {
+                        const maxStock = sourceWarehouse ? getStockOnHand(scanned.item, sourceWarehouse) : (scanned.quantity || 1);
 
-                          {/* Quantity Controls */}
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => {
-                                if (scanned.quantity > 1) {
+                        return (
+                          <div key={idx} className="bg-white border border-[#e5e7eb] rounded-lg p-3">
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm text-[#1f2937] truncate">
+                                  {scanned.item.itemName}
+                                </div>
+                                <div className="text-xs text-[#6b7280] mt-0.5">
+                                  SKU: {scanned.item.sku || 'N/A'} • <span className="text-[#059669] font-medium">Max: {maxStock} pcs</span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setBulkScannedItems(prev => prev.filter((_, i) => i !== idx));
+                                }}
+                                className="text-[#ef4444] hover:bg-[#fef2f2] p-1 rounded transition-colors flex-shrink-0"
+                              >
+                                <X size={16} />
+                              </button>
+                            </div>
+
+                            {/* Quantity Controls */}
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBulkScannedItems(prev =>
+                                    prev.map((item, i) => {
+                                      if (i === idx && item.quantity > 1) {
+                                        return { ...item, quantity: item.quantity - 1 };
+                                      }
+                                      return item;
+                                    })
+                                  );
+                                }}
+                                className="w-6 h-6 rounded border border-[#d1d5db] flex items-center justify-center text-[#6b7280] hover:bg-[#f3f4f6] transition-colors text-sm disabled:opacity-40"
+                                disabled={scanned.quantity <= 1}
+                              >
+                                −
+                              </button>
+                              <input
+                                type="number"
+                                value={scanned.quantity}
+                                onChange={(e) => {
+                                  const rawVal = parseInt(e.target.value) || 1;
+                                  const limit = maxStock > 0 ? maxStock : 1;
+                                  if (rawVal > limit) {
+                                    alert(`❌ Cannot enter more than available stock (${limit} pcs).`);
+                                  }
+                                  const qty = Math.min(limit, Math.max(1, rawVal));
+                                  setBulkScannedItems(prev =>
+                                    prev.map((item, i) => {
+                                      if (i === idx) {
+                                        return { ...item, quantity: qty };
+                                      }
+                                      return item;
+                                    })
+                                  );
+                                }}
+                                className="w-12 h-6 text-center text-sm border border-[#d1d5db] rounded focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]/20"
+                                min="1"
+                                max={maxStock}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
                                   setBulkScannedItems(prev => {
-                                    const updated = [...prev];
-                                    updated[idx].quantity -= 1;
-                                    return updated;
+                                    const currentItem = prev[idx];
+                                    if (!currentItem) return prev;
+                                    const max = sourceWarehouse ? getStockOnHand(currentItem.item, sourceWarehouse) : (currentItem.quantity || 1);
+                                    if (currentItem.quantity >= max) {
+                                      alert(`❌ Cannot add more. Only ${max} pcs available for "${currentItem.item.itemName}".`);
+                                      return prev;
+                                    }
+                                    return prev.map((item, i) => {
+                                      if (i === idx) {
+                                        return {
+                                          ...item,
+                                          quantity: Math.min(max, (item.quantity || 0) + 1)
+                                        };
+                                      }
+                                      return item;
+                                    });
                                   });
-                                }
-                              }}
-                              className="w-6 h-6 rounded border border-[#d1d5db] flex items-center justify-center text-[#6b7280] hover:bg-[#f3f4f6] transition-colors text-sm"
-                              disabled={scanned.quantity <= 1}
-                            >
-                              −
-                            </button>
-                            <input
-                              type="number"
-                              value={scanned.quantity}
-                              onChange={(e) => {
-                                const qty = Math.max(1, parseInt(e.target.value) || 1);
-                                setBulkScannedItems(prev => {
-                                  const updated = [...prev];
-                                  updated[idx].quantity = qty;
-                                  return updated;
-                                });
-                              }}
-                              className="w-12 h-6 text-center text-sm border border-[#d1d5db] rounded focus:border-[#2563eb] focus:outline-none focus:ring-1 focus:ring-[#2563eb]/20"
-                              min="1"
-                            />
-                            <button
-                              onClick={() => {
-                                setBulkScannedItems(prev => {
-                                  const updated = [...prev];
-                                  updated[idx].quantity += 1;
-                                  return updated;
-                                });
-                              }}
-                              className="w-6 h-6 rounded border border-[#d1d5db] flex items-center justify-center text-[#6b7280] hover:bg-[#f3f4f6] transition-colors text-sm"
-                            >
-                              +
-                            </button>
+                                }}
+                                className="w-6 h-6 rounded border border-[#d1d5db] flex items-center justify-center text-[#6b7280] hover:bg-[#f3f4f6] transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                                disabled={scanned.quantity >= maxStock}
+                              >
+                                +
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
